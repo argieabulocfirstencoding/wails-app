@@ -29,7 +29,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
-		DisableResize: true,
+		// DisableResize: true,
 	})
 	
 	if err != nil {

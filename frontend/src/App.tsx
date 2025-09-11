@@ -1,28 +1,32 @@
-import {useState} from 'react';
-import logo from './assets/images/logo-universal.png';
-import './App.css';
+import { useState } from "react";
+import logo from "./assets/images/logo-universal.png";
+import "./App.scss";
+import "./styles/style.scss";
 import { Greet } from "../wailsjs/go/app/App";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import Home from "./pages/Main/Home";
+import Login from "./pages/Auth/Login";
 
 function App() {
-    const [resultText, setResultText] = useState("Please enter your name below 👇");
-    const [name, setName] = useState('');
-    const updateName = (e: any) => setName(e.target.value);
-    const updateResultText = (result: string) => setResultText(result);
+  const [resultText, setResultText] = useState(
+    "Please enter your name below 👇"
+  );
+  const [name, setName] = useState("");
+  const updateName = (e: any) => setName(e.target.value);
+  const updateResultText = (result: string) => setResultText(result);
 
-    function greet() {
-        Greet(name).then(updateResultText);
-    }
+  function greet() {
+    Greet(name).then(updateResultText);
+  }
 
-    return (
-        <div id="App">
-            <img src={logo} id="logo" alt="logo"/>
-            <div id="result" className="result text-red-500">{resultText}</div>
-            <div id="input" className="input-box">
-                <input id="name" className="input" onChange={updateName} autoComplete="off" name="input" type="text"/>
-                <button className="btn" onClick={greet}>Greet</button>
-            </div>  
-        </div>
-    )
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<Home />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
