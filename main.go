@@ -19,8 +19,8 @@ func main() {
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "fesapp",
-		Width:  400,
-		Height: 768,
+		Width:  480,
+		Height: 728,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -29,7 +29,7 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
-		// DisableResize: true,
+		DisableResize: true,
 	})
 	
 	if err != nil {

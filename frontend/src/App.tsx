@@ -22,8 +22,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<Login />} />
         <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+
+        {/* Not Found */}
+        <Route path="*" element={<Login />} />
       </Routes>
     </BrowserRouter>
   );
