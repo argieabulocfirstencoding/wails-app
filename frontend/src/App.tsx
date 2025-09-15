@@ -6,6 +6,7 @@ import { Greet } from "../wailsjs/go/app/App";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Home from "./pages/Main/Home";
 import Login from "./pages/Auth/Login";
+import Task from "./pages/Main/Task";
 
 function App() {
   const [resultText, setResultText] = useState(
@@ -24,6 +25,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/task" element={<Task />} />
 
         {/* Not Found */}
         <Route path="*" element={<Login />} />
