@@ -26,7 +26,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/task" element={<Task />} />
-
+        
         {/* Not Found */}
         <Route path="*" element={<Login />} />
       </Routes>

@@ -1,15 +1,11 @@
-
 import { useNavigate } from "react-router-dom";
 import MainLayout from "../../layouts/MainLayout";
 import { Plus, Search, RefreshCcw } from "lucide-react";
 
 const Home = () => {
-
   return (
     <MainLayout>
-      <div className="flex flex-col h-full w-screen">
-        <div className="flex-1">
-          <div className="p-6 border-b-2 flex justify-between items-center">
+      <div className="p-6 border-b-2 flex justify-between items-center">
             <h1 className="text-2xl font-extrabold">All Task</h1>
             <Plus className="cursor-pointer" />
           </div>
@@ -36,8 +32,6 @@ const Home = () => {
           <div className="">
             <TaskItem />
           </div>
-        </div>
-      </div>
     </MainLayout>
   );
 };
