@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fesapp/backend/services"
 	"fmt"
 )
 
@@ -26,7 +27,16 @@ func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
 }
 
-// Greet returns a greeting for the given name
-func (a *App) Hello(name string) string {
-	return fmt.Sprintf("Hello %s, It's show time!", name)
+func (a *App) TakeScreenshot() []string {
+	screenshots, err := services.Screenshot()
+	if err != nil {
+		panic(err)
+	}
+
+	return screenshots
+}
+
+func (a *App) GetMonitorCount() int {
+
+	return services.GetMonitorCount()
 }

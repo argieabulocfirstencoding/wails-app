@@ -3,6 +3,7 @@ import { ChevronLeft, CirclePlay, StopCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { intervalToDuration } from "date-fns";
+import { TakeScreenshot, GetMonitorCount } from "@/../wailsjs/go/app/App";
 
 const Task = () => {
   const navigate = useNavigate();
@@ -10,26 +11,38 @@ const Task = () => {
   const [timeStarted, setStartTime] = useState<number>(0);
   const [timeEnded, setEndTime] = useState<number>();
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [monitor, setMonitor] = useState<number>(0);
+  const [screenshots, setScreenshots] = useState<string[]>([]);
 
   function startTime() {
+    resetTimer();
+
     const timeStart = Date.now();
     setStart(true);
     localStorage.setItem("started", JSON.stringify(timeStart));
     setStartTime(timeStart);
   }
 
+  function resetTimer() {
+    setStartTime(0);
+    setEndTime(0);
+    setElapsedTime(0);
+    localStorage.removeItem("ended");
+    localStorage.removeItem("started");
+  }
+
   function stopTime() {
     const timeStop = Date.now();
     setStart(false);
     setEndTime(timeStop);
-    localStorage.removeItem("started");
+    localStorage.setItem("ended", JSON.stringify(timeStop));
   }
 
   function getFormattedTime() {
     if (timeStarted) {
       const duration = intervalToDuration({
         start: timeStarted,
-        end: Date.now(),
+        end: timeEnded ? timeEnded : Date.now(),
       });
 
       const hours = duration.hours ?? 0;
@@ -44,8 +57,40 @@ const Task = () => {
     }
   }
 
+  async function screenshotNow() {
+    const pictures = await TakeScreenshot();
+
+    if (pictures) setScreenshots(pictures);
+  }
+
+  async function countMonitor() {
+    const monitorCount = await GetMonitorCount();
+    setMonitor(monitorCount);
+  }
+
+  function openPreview(base64: string) {
+    const newWindow = window.open();
+    if (newWindow) {
+      newWindow.document.write(
+        `<img src="${base64}" style="max-width:100%; height:auto;" />`
+      );
+    }
+  }
+
   useEffect(() => {
-    if (!isStarted && !timeStarted) return;
+    const timeStartRecord = localStorage.getItem("started");
+    const timeStopRecord = localStorage.getItem("ended");
+
+    if (timeStartRecord) setStartTime(JSON.parse(timeStartRecord));
+    if (timeStopRecord) setEndTime(JSON.parse(timeStopRecord));
+
+    countMonitor();
+  }, []);
+
+  useEffect(() => {
+    let endTime = localStorage.getItem("ended");
+
+    if (!isStarted || !timeStarted || endTime) return;
 
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - timeStarted) / 1000);
@@ -57,8 +102,9 @@ const Task = () => {
 
   useEffect(() => {
     const timeStartRecord = localStorage.getItem("started");
+    const timeStopRecord = localStorage.getItem("ended");
 
-    if (timeStartRecord) {
+    if (timeStartRecord && !timeStopRecord) {
       setStartTime(JSON.parse(timeStartRecord));
       setStart(true);
     }
@@ -110,11 +156,27 @@ const Task = () => {
           </div>
         </div>
 
-        <div className="flex justify-between mt-3 mb-1">
-          <h2 className="font-bold">Latest screenshot</h2>
-          <span>24 mins ago</span>
+        <div className="flex flex-col mt-3 mb-1">
+          <div className="flex justify-between">
+            <h2 className="font-bold">Latest screenshot</h2>
+            <button onClick={screenshotNow}>Screenshot</button>
+          </div>
+          <div className="flex justify-between">
+            <span>Active monitors: {monitor}</span>
+            <span>24 mins ago</span>
+          </div>
         </div>
-        <div className="h-48 border rounded-2xl"></div>
+        <div>
+          {screenshots.map((value, index) => (
+            <img
+              key={index}
+              src={value}
+              alt=""
+              className="w-full border rounded-2xl mb-2 object-cover"
+              onClick={() => openPreview(value)}
+            />
+          ))}
+        </div>
       </div>
     </MainLayout>
   );
