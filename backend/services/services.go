@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"image/png"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/kbinani/screenshot"
@@ -71,22 +69,4 @@ func GetMonitorCount() int {
 	fmt.Printf("You have %d displays\n", n)
 
 	return n
-}
-
-func OpenFile(path string) error {
-	var cmd *exec.Cmd
-
-	switch runtime.GOOS {
-	case "windows":
-		// Use "explorer" for Windows
-		cmd = exec.Command("explorer", path)
-	case "darwin":
-		// Use "open" for macOS
-		cmd = exec.Command("open", path)
-	default:
-		// Use "xdg-open" for Linux
-		cmd = exec.Command("xdg-open", path)
-	}
-
-	return cmd.Start()
 }
