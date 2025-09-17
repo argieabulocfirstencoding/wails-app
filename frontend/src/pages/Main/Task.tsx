@@ -2,7 +2,7 @@ import MainLayout from "@/layouts/MainLayout";
 import { ChevronLeft, CirclePlay, StopCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { intervalToDuration } from "date-fns";
+import { intervalToDuration, formatDistance } from "date-fns";
 import { TakeScreenshot, GetMonitorCount } from "@/../wailsjs/go/app/App";
 
 interface ScreenshotProps {
@@ -18,6 +18,7 @@ const Task = () => {
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [monitor, setMonitor] = useState<number>(0);
   const [screenshots, setScreenshots] = useState<ScreenshotProps | null>(null);
+  const [screenshotDate, setScreenshotDate] = useState<string>("");
 
   function startTime() {
     resetTimer();
@@ -79,6 +80,22 @@ const Task = () => {
     setMonitor(monitorCount);
   }
 
+  function getLastScreenshotTime() {
+    let screenshotTimeAgo = "No screenshots yet.";
+
+    const lastScreenshotDate = screenshots?.date;
+    if (lastScreenshotDate) {
+      console.log("nisud diri");
+
+      screenshotTimeAgo = formatDistance(lastScreenshotDate, new Date(), {
+        addSuffix: true,
+      });
+      console.log(screenshotTimeAgo);
+    }
+
+    setScreenshotDate(screenshotTimeAgo);
+  }
+
   function openPreview(base64: string) {
     const newWindow = window.open(
       "",
@@ -105,11 +122,20 @@ const Task = () => {
   }
 
   useEffect(() => {
+    getLastScreenshotTime();
+  }, [screenshots]);
+
+  useEffect(() => {
     const timeStartRecord = localStorage.getItem("started");
     const timeStopRecord = localStorage.getItem("ended");
+    const screenshotRecord = localStorage.getItem("last_screenshot");
 
     if (timeStartRecord) setStartTime(JSON.parse(timeStartRecord));
     if (timeStopRecord) setEndTime(JSON.parse(timeStopRecord));
+    if (screenshotRecord) {
+      const record = JSON.parse(screenshotRecord);
+      setScreenshots(record);
+    }
 
     countMonitor();
   }, []);
@@ -188,9 +214,9 @@ const Task = () => {
             <h2 className="font-bold">Latest screenshot</h2>
             <button onClick={screenshotNow}>Screenshot</button>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between items-baseline">
             <span>Active monitors: {monitor}</span>
-            <span>24 mins ago</span>
+            <span className="text-xs">{screenshotDate}</span>
           </div>
         </div>
         <div>
