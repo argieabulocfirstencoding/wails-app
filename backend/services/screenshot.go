@@ -2,14 +2,17 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"image/png"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/kbinani/screenshot"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 func Screenshot() ([]string, error) {
@@ -69,4 +72,55 @@ func GetMonitorCount() int {
 	fmt.Printf("You have %d displays\n", n)
 
 	return n
+}
+
+type ScreenshotService struct {
+	ctx      context.Context
+	stopChan chan struct{}
+	running  bool
+}
+
+func NewScreenshotService() *ScreenshotService {
+	return &ScreenshotService{
+		stopChan: make(chan struct{}),
+	}
+}
+
+func (s *ScreenshotService) Start(ctx context.Context) {
+	s.ctx = ctx
+
+	if s.running {
+		return
+	}
+	s.running = true
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				// TODO: take screenshot here
+				screenshot, err := Screenshot()
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				runtime.EventsEmit(s.ctx, "screenshot", screenshot)
+				fmt.Println("📸 Taking screenshot...")
+			case <-s.stopChan:
+				fmt.Println("Stopping screenshot service...")
+				s.running = false
+				return
+			}
+		}
+	}()
+
+}
+
+func (s *ScreenshotService) Stop(ctx context.Context) {
+	if s.running {
+		s.stopChan <- struct{}{}
+	}
 }

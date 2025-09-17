@@ -8,12 +8,15 @@ import (
 
 // App struct
 type App struct {
-	ctx context.Context
+	ctx        context.Context
+	Screenshot *services.ScreenshotService
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	return &App{}
+	return &App{
+		Screenshot: services.NewScreenshotService(),
+	}
 }
 
 // startup is called when the app starts. The context is saved
@@ -39,4 +42,12 @@ func (a *App) TakeScreenshot() []string {
 func (a *App) GetMonitorCount() int {
 
 	return services.GetMonitorCount()
+}
+
+func (a *App) StartTracking(ctx context.Context) {
+	a.Screenshot.Start(ctx)
+}
+
+func (a *App) StopTracking(ctx context.Context) {
+	a.Screenshot.Stop(ctx)
 }
