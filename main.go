@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	"fesapp/backend/app"
+
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -18,9 +19,9 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "fesapp",
-		Width:  480,
-		Height: 728,
+		Title:  "FES App Tracker",
+		Width:  390,
+		Height: 780,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -31,7 +32,7 @@ func main() {
 		},
 		DisableResize: true,
 	})
-	
+
 	if err != nil {
 		println("Error:", err.Error())
 	}
