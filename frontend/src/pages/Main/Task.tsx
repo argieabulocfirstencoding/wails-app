@@ -5,6 +5,11 @@ import { useNavigate } from "react-router-dom";
 import { intervalToDuration } from "date-fns";
 import { TakeScreenshot, GetMonitorCount } from "@/../wailsjs/go/app/App";
 
+interface ScreenshotProps {
+  date: number;
+  pictures: string[];
+}
+
 const Task = () => {
   const navigate = useNavigate();
   const [isStarted, setStart] = useState(false);
@@ -12,7 +17,7 @@ const Task = () => {
   const [timeEnded, setEndTime] = useState<number>();
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [monitor, setMonitor] = useState<number>(0);
-  const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [screenshots, setScreenshots] = useState<ScreenshotProps | null>(null);
 
   function startTime() {
     resetTimer();
@@ -58,9 +63,15 @@ const Task = () => {
   }
 
   async function screenshotNow() {
+    const now = Date.now();
     const pictures = await TakeScreenshot();
 
-    if (pictures) setScreenshots(pictures);
+    if (pictures) {
+      const screenshotTaken: ScreenshotProps = { date: now, pictures };
+
+      localStorage.setItem("last_screenshot", JSON.stringify(screenshotTaken));
+      setScreenshots(screenshotTaken);
+    }
   }
 
   async function countMonitor() {
@@ -69,11 +80,27 @@ const Task = () => {
   }
 
   function openPreview(base64: string) {
-    const newWindow = window.open();
+    const newWindow = window.open(
+      "",
+      "_blank",
+      `width=200,height=200,resizable=yes,left=0,top=500`
+    );
     if (newWindow) {
-      newWindow.document.write(
-        `<img src="${base64}" style="max-width:100%; height:auto;" />`
-      );
+      const img = newWindow.document.createElement("img");
+      img.src = base64;
+      img.style.objectPosition = "cover";
+      img.style.height = "auto";
+      img.style.width = "1280";
+
+      newWindow.document.body.style.margin = "0"; // remove margins
+      newWindow.document.body.appendChild(img);
+
+      img.onload = () => {
+        const w = img.width;
+        const h = img.height;
+        newWindow.resizeTo(w + 20, h + 40);
+        // +20/+40 padding for window chrome/borders
+      };
     }
   }
 
@@ -167,15 +194,16 @@ const Task = () => {
           </div>
         </div>
         <div>
-          {screenshots.map((value, index) => (
-            <img
-              key={index}
-              src={value}
-              alt=""
-              className="w-full border rounded-2xl mb-2 object-cover"
-              onClick={() => openPreview(value)}
-            />
-          ))}
+          {screenshots &&
+            screenshots.pictures.map((value, index) => (
+              <img
+                key={index}
+                src={value}
+                alt=""
+                className="w-full border rounded-2xl mb-2 object-cover"
+                onClick={() => openPreview(value)}
+              />
+            ))}
         </div>
       </div>
     </MainLayout>
