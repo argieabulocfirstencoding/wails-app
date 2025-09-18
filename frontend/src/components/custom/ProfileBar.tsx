@@ -1,72 +1,46 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { intervalToDuration } from "date-fns";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { Settings } from "lucide-react";
+import Drawer from "@/components/custom/Drawer";
 
 const ProfileBar = () => {
-  const [timeIn, setTimeIn] = useState<number | null>(null);
-  const [timeOut, setTimeOut] = useState<number | null>(null);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-
-  useEffect(() => {
-    if (!timeIn || timeOut) return;
-
-    const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - timeIn) / 1000);
-      setElapsedTime(elapsed);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [timeIn, timeOut]);
-
-  function handleTimeIn() {
-    const time = Date.now();
-    setTimeIn(time);
-    setElapsedTime(0);
-  }
-
-  function handleTimeOut() {
-    setTimeOut(Date.now());
-  }
-
-  function getFormattedTime() {
-    if (timeIn) {
-      const duration = intervalToDuration({ start: timeIn, end: Date.now() });
-
-      const hours = duration.hours ?? 0;
-      const minutes = duration.minutes ?? 0;
-      const secs = duration.seconds ?? 0;
-
-      return `${hours}h:${String(minutes).padStart(2, "0")}m:${String(
-        secs
-      ).padStart(2, "0")}s`;
-    } else {
-      return `--:--:--`;
-    }
-  }
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex px-8 py-4 border-t slight-shadow w-full justify-between sticky bottom-0 bg-white">
+    <div className="flex px-8 py-4 border-t slight-shadow w-full justify-between sticky bottom-0 bg-white items-center">
       <img
         src="https://www.shutterstock.com/image-vector/user-profile-icon-vector-avatar-600nw-2558760599.jpg"
         className="rounded-full border-2 border-green-500 select-none"
-        style={{ height: 70, width: 70 }}
+        style={{ height: 52, width: 52 }}
       />
-      <div className="flex gap-5 items-center">
-        <span className="text-xl font-semibold text-gray-600">
-          {getFormattedTime()}
-        </span>
+      <div className="relative flex items-center group">
         <button
-          className={`px-4 py-2 rounded ${
-            timeOut ? "bg-gray-500" : timeIn ? "bg-red-500" : "bg-green-500"
-          }
-              } text-white font-bold cursor-pointer`}
-          onClick={!timeIn ? handleTimeIn : handleTimeOut}
-          disabled={Boolean(timeOut)}
+          onClick={() => setOpen(true)}
+          className="rounded-full border-2 border-green-500 p-3 hover:bg-green-50 transition cursor-pointer"
         >
-          {timeOut ? "Recorded" : timeIn ? "Time out" : "Time in"}
+          <Settings className="w-6 h-6 text-green-600" />
         </button>
+
+        <span className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
+          Settings
+        </span>
       </div>
+      <Drawer open={open} onClose={() => setOpen(false)}>
+        <h2 className="text-lg font-bold mb-4">Settings</h2>
+        <div className="space-y-3">
+          <button className="w-full p-3 rounded-lg border hover:bg-gray-100">
+            Account Settings
+          </button>
+          <button className="w-full p-3 rounded-lg border hover:bg-gray-100">
+            Notifications
+          </button>
+          <button className="w-full p-3 rounded-lg border hover:bg-gray-100">
+            Activity Logs
+          </button>
+          <button className="w-full p-3 rounded-lg border hover:bg-gray-100">
+            Logout
+          </button>
+        </div>
+      </Drawer>
     </div>
   );
 };
