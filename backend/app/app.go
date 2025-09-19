@@ -5,6 +5,7 @@ import (
 	"fesapp/backend/services"
 	"fmt"
 
+	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -12,6 +13,7 @@ import (
 type App struct {
 	ctx               context.Context
 	ScreenshotService *services.ScreenshotService
+	windowOpen        bool
 }
 
 // NewApp creates a new App application struct
@@ -26,6 +28,28 @@ func NewApp() *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	runtime.LogPrint(ctx, "App is starting")
+	a.windowOpen = true
+
+	// --- Tray setup ---
+	trayMenu := menu.NewMenu()
+
+	// Toggle window show/hide
+	trayMenu.AddText("Toggle Window", nil, func(_ *menu.CallbackData) {
+		if a.windowOpen {
+			runtime.WindowHide(ctx)
+		} else {
+			runtime.WindowShow(ctx)
+			runtime.WindowUnminimise(ctx)
+		}
+	})
+
+	trayMenu.AddSeparator()
+
+	// Quit option
+	trayMenu.AddText("Quit", nil, func(_ *menu.CallbackData) {
+		runtime.Quit(ctx)
+	})
+	
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -61,4 +85,17 @@ func (a *App) StartTracking(localStorageValue string) {
 
 func (a *App) StopTracking() {
 	a.ScreenshotService.Stop()
+}
+
+func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
+	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+		Type:    runtime.QuestionDialog,
+		Title:   "Quit?",
+		Message: "Are you sure you want to quit? \n\nNote:Leaving will stop working task.",
+	})
+
+	if err != nil {
+		return false
+	}
+	return dialog != "Yes"
 }

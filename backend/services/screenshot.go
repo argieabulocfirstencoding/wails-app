@@ -16,13 +16,13 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-func screenshotNotify() {
+func screenshotNotify(message string) {
 	exePath, _ := os.Executable()
 	root := filepath.Dir(exePath)
 	iconPath := filepath.Join(root, "icon.ico")
 
 	//NOTE Icon is duplicated and placed in build/bin/ and build/windows/
-	beeep.Notify("Screenshot", "Your work progress have been captured", iconPath)
+	beeep.Notify("Screenshot", message, iconPath)
 }
 
 func GetMonitorCount() int {
@@ -87,6 +87,7 @@ func (s *ScreenshotService) Stop() {
 func (s *ScreenshotService) Screenshot() ([]string, error) {
 	n := GetMonitorCount()
 
+	// File path where screenshots are saved
 	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots", s.FolderName))
 	if err != nil {
 		panic(err)
@@ -98,6 +99,9 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	pictures := []string{}
 
+	// Timestamp name of the screenshots
+	now := time.Now()
+	pictureName := now.Format("20060102_150405")
 	// Loop through all displays and save screenshot
 	for i := 0; i < n; i++ {
 
@@ -108,7 +112,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 			return nil, err
 		}
 
-		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.png", s.FolderName, i))
+		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.png", pictureName, i))
 		file, err := os.Create(fileName)
 		if err != nil {
 			return nil, err
@@ -134,7 +138,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	runtime.EventsEmit(s.ctx, "screenshot", pictures)
 	fmt.Println("📸 Taking screenshot...")
-	screenshotNotify()
+	screenshotNotify("Your work progress have been captured")
 
 	return pictures, nil
 }
