@@ -11,14 +11,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gen2brain/beeep"
 	"github.com/kbinani/screenshot"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-func Screenshot() ([]string, error) {
+func Screenshot(folderName string) ([]string, error) {
 	n := GetMonitorCount()
 
-	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots"))
+	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots", folderName))
 	if err != nil {
 		panic(err)
 	}
@@ -64,7 +65,17 @@ func Screenshot() ([]string, error) {
 		pictures = append(pictures, base64Img)
 	}
 
+	screenshotNotify()
 	return pictures, nil
+}
+
+func screenshotNotify() {
+	exePath, _ := os.Executable()
+	root := filepath.Dir(exePath)
+	iconPath := filepath.Join(root, "icon.ico")
+
+	//NOTE Icon is duplicated and placed in build/bin/ and build/windows/
+	beeep.Notify("Screenshot", "Your work progress have been captured", iconPath)
 }
 
 func GetMonitorCount() int {
@@ -89,20 +100,23 @@ func NewScreenshotService() *ScreenshotService {
 func (s *ScreenshotService) Start(ctx context.Context) {
 	s.ctx = ctx
 
+	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 10
+	folderName := time.Now().Format("20060102_150405")
 	if s.running {
 		return
 	}
 	s.running = true
 
+	fmt.Println("Started Screenshot Tracking")
 	go func() {
-		ticker := time.NewTicker(10 * time.Minute)
+		ticker := time.NewTicker(time.Minute * TIME_TO_SCREENSHOT_IN_MINUTES)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ticker.C:
 				// TODO: take screenshot here
-				screenshot, err := Screenshot()
+				screenshot, err := Screenshot(folderName)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -119,7 +133,8 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 
 }
 
-func (s *ScreenshotService) Stop(ctx context.Context) {
+func (s *ScreenshotService) Stop() {
+	fmt.Println("Stopped Screenshot Tracking")
 	if s.running {
 		s.stopChan <- struct{}{}
 	}

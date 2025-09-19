@@ -10,12 +10,16 @@ export function Greet(arg1) {
   return window['go']['app']['App']['Greet'](arg1);
 }
 
-export function StartTracking(arg1) {
-  return window['go']['app']['App']['StartTracking'](arg1);
+export function Shutdown(arg1) {
+  return window['go']['app']['App']['Shutdown'](arg1);
 }
 
-export function StopTracking(arg1) {
-  return window['go']['app']['App']['StopTracking'](arg1);
+export function StartTracking() {
+  return window['go']['app']['App']['StartTracking']();
+}
+
+export function StopTracking() {
+  return window['go']['app']['App']['StopTracking']();
 }
 
 export function TakeScreenshot() {
