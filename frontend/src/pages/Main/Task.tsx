@@ -85,8 +85,7 @@ const Task = () => {
 
     const lastScreenshotDate = screenshots?.date;
     if (lastScreenshotDate) {
-      console.log("nisud diri");
-
+      // console.log("nisud diri");
       screenshotTimeAgo = formatDistance(lastScreenshotDate, new Date(), {
         addSuffix: true,
       });
