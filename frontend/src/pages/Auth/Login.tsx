@@ -1,6 +1,17 @@
-import React, { FormEvent, useEffect } from "react";
+import React, { FormEvent } from "react";
 import MainLayout from "../../layouts/MainLayout";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -12,34 +23,75 @@ const Login = () => {
 
   return (
     <MainLayout>
-      <form
-        onSubmit={loginUser}
-        className="border shadow-2xl rounded-xl min-w-3/4 min-h-2/5 flex flex-col items-center p-5 bg-white gap-2"
-      >
-        <span className="font-bold text-2xl">Login</span>
+      <div className="flex min-h-full items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200">
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-2xl font-bold text-gray-800">
+              Login to your account
+            </CardTitle>
+            <CardDescription className="text-gray-500">
+              Enter your email and password below to continue
+            </CardDescription>
+          </CardHeader>
 
-        <div className="flex flex-col w-full">
-          <span>Email</span>
-          <input
-            type="email"
-            placeholder="Enter your email here"
-            className="border border-gray-400 rounded p-2 px-4"
-          />
-        </div>
-        <div className="flex flex-col w-full">
-          <span>Password</span>
-          <input
-            type="password"
-            placeholder="Enter your email here"
-            className="border border-gray-400 rounded p-2 px-4"
-          />
-        </div>
-        <div className="flex gap-5 items-center">
-          <button className="px-4 py-2 bg-blue-500 rounded text-white font-bold cursor-pointer mt-5">
-            Login
-          </button>
-        </div>
-      </form>
+          <CardContent>
+            <form onSubmit={loginUser} className="space-y-5">
+              <div className="grid gap-2">
+                <Label htmlFor="email" className="text-gray-700">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john.doe@gmail.com"
+                  required
+                  className="rounded-lg"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-gray-700">
+                    Password
+                  </Label>
+                  <a
+                    href="#"
+                    className="text-sm text-green-600 hover:underline font-medium"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  required
+                  className="rounded-lg"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg py-2"
+              >
+                Login
+              </Button>
+            </form>
+          </CardContent>
+
+          <CardFooter className="flex flex-col gap-3">
+            <p className="text-sm text-gray-600 text-center">
+              Don’t have an account?{" "}
+              <a
+                href="/signup"
+                className="text-green-600 hover:underline font-medium"
+              >
+                Sign Up
+              </a>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
     </MainLayout>
   );
 };
