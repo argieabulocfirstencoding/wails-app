@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import logo from "./assets/images/logo-universal.png";
 import "./App.scss";
 import "./styles/style.scss";
-import { Greet } from "../wailsjs/go/app/App";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Home from "./pages/Main/Home";
 import Login from "./pages/Auth/Login";
@@ -12,17 +11,40 @@ import Notifications from "./pages/Main/Notifications";
 import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
 
-function App() {
-  const [resultText, setResultText] = useState(
-    "Please enter your name below 👇"
-  );
-  const [name, setName] = useState("");
-  const updateName = (e: any) => setName(e.target.value);
-  const updateResultText = (result: string) => setResultText(result);
+import { StartTracking, StopTracking } from "../wailsjs/go/app/App";
+import { EventsOn } from "../wailsjs/runtime";
 
-  function greet() {
-    Greet(name).then(updateResultText);
-  }
+interface ScreenshotProps {
+  date: number;
+  pictures: string[];
+}
+
+function App() {
+  useEffect(() => {
+    // TODO this is just temporary measures to ensure logging out of account means task end
+    const off = EventsOn("app_shutdown", () => {
+      const timeStop = Date.now();
+      localStorage.setItem("ended", JSON.stringify(timeStop));
+      StopTracking();
+    });
+
+    return () => {
+      off();
+    };
+  }, []);
+
+  useEffect(() => {
+    const off = EventsOn("screenshot", (pictures: string[]) => {
+      const now = Date.now();
+
+      const screenshotTaken: ScreenshotProps = { date: now, pictures };
+      localStorage.setItem("last_screenshot", JSON.stringify(screenshotTaken));
+    });
+
+    return () => {
+      off();
+    };
+  }, []);
 
   return (
     <BrowserRouter>

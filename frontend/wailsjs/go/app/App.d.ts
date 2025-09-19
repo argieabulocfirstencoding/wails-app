@@ -6,8 +6,10 @@ export function GetMonitorCount():Promise<number>;
 
 export function Greet(arg1:string):Promise<string>;
 
-export function StartTracking(arg1:context.Context):Promise<void>;
+export function Shutdown(arg1:context.Context):Promise<void>;
 
-export function StopTracking(arg1:context.Context):Promise<void>;
+export function StartTracking():Promise<void>;
+
+export function StopTracking():Promise<void>;
 
 export function TakeScreenshot():Promise<Array<string>>;

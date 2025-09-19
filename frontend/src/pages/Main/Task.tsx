@@ -3,7 +3,12 @@ import { ChevronLeft, CirclePlay, StopCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
-import { TakeScreenshot, GetMonitorCount } from "@/../wailsjs/go/app/App";
+import {
+  TakeScreenshot,
+  GetMonitorCount,
+  StartTracking,
+  StopTracking,
+} from "@/../wailsjs/go/app/App";
 
 interface ScreenshotProps {
   date: number;
@@ -27,6 +32,7 @@ const Task = () => {
     setStart(true);
     localStorage.setItem("started", JSON.stringify(timeStart));
     setStartTime(timeStart);
+    StartTracking();
   }
 
   function resetTimer() {
@@ -42,6 +48,7 @@ const Task = () => {
     setStart(false);
     setEndTime(timeStop);
     localStorage.setItem("ended", JSON.stringify(timeStop));
+    StopTracking();
   }
 
   function getFormattedTime() {
