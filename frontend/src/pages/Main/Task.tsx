@@ -9,6 +9,7 @@ import {
   StartTracking,
   StopTracking,
 } from "@/../wailsjs/go/app/App";
+import { EventsOn } from "@/../wailsjs/runtime";
 
 interface ScreenshotProps {
   date: number;
@@ -29,10 +30,11 @@ const Task = () => {
     resetTimer();
 
     const timeStart = Date.now();
+    const stringifiedDateTime = JSON.stringify(timeStart);
     setStart(true);
-    localStorage.setItem("started", JSON.stringify(timeStart));
+    localStorage.setItem("started", stringifiedDateTime);
     setStartTime(timeStart);
-    StartTracking();
+    StartTracking(stringifiedDateTime);
   }
 
   function resetTimer() {
@@ -169,6 +171,19 @@ const Task = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const off = EventsOn("screenshot", (pictures: string[]) => {
+      const now = Date.now();
+      const screenshotTaken: ScreenshotProps = { date: now, pictures };
+      setScreenshots(screenshotTaken);
+    });
+
+    return () => {
+      console.log("app is unmounted");
+      off();
+    };
+  }, []);
+
   return (
     <MainLayout>
       <div className="p-4">
@@ -190,7 +205,9 @@ const Task = () => {
       <hr />
       <div className="p-5">
         <div className="rounded border p-4">
-          <span className="font-bold">Current session</span>
+          <span className="font-bold">
+            {isStarted ? "Current" : "Last"} session
+          </span>
           <div className="flex justify-between items-center">
             <div className="flex flex-col">
               <span className="font-bold text-2xl">{getFormattedTime()}</span>

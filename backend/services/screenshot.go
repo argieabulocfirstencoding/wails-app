@@ -16,10 +16,78 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-func Screenshot(folderName string) ([]string, error) {
+func screenshotNotify() {
+	exePath, _ := os.Executable()
+	root := filepath.Dir(exePath)
+	iconPath := filepath.Join(root, "icon.ico")
+
+	//NOTE Icon is duplicated and placed in build/bin/ and build/windows/
+	beeep.Notify("Screenshot", "Your work progress have been captured", iconPath)
+}
+
+func GetMonitorCount() int {
+	n := screenshot.NumActiveDisplays()
+	fmt.Printf("You have %d displays\n", n)
+
+	return n
+}
+
+type ScreenshotService struct {
+	ctx        context.Context
+	FolderName string
+	stopChan   chan struct{}
+	running    bool
+}
+
+func NewScreenshotService() *ScreenshotService {
+	return &ScreenshotService{
+		stopChan: make(chan struct{}),
+	}
+}
+
+func (s *ScreenshotService) Start(ctx context.Context) {
+	s.ctx = ctx
+
+	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 10
+	if s.running {
+		return
+	}
+	s.running = true
+
+	fmt.Println("Started Screenshot Tracking")
+	go func() {
+		ticker := time.NewTicker(time.Minute * TIME_TO_SCREENSHOT_IN_MINUTES)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				// TODO: take screenshot here
+				_, err := s.Screenshot()
+				if err != nil {
+					log.Fatal(err)
+				}
+			case <-s.stopChan:
+				fmt.Println("Stopping screenshot service...")
+				s.running = false
+				return
+			}
+		}
+	}()
+
+}
+
+func (s *ScreenshotService) Stop() {
+	fmt.Println("Stopped Screenshot Tracking")
+	if s.running {
+		s.stopChan <- struct{}{}
+	}
+}
+
+func (s *ScreenshotService) Screenshot() ([]string, error) {
 	n := GetMonitorCount()
 
-	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots", folderName))
+	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots", s.FolderName))
 	if err != nil {
 		panic(err)
 	}
@@ -31,7 +99,6 @@ func Screenshot(folderName string) ([]string, error) {
 	pictures := []string{}
 
 	// Loop through all displays and save screenshot
-	timestamp := time.Now().Format("20060102_150405")
 	for i := 0; i < n; i++ {
 
 		bounds := screenshot.GetDisplayBounds(i)
@@ -41,7 +108,7 @@ func Screenshot(folderName string) ([]string, error) {
 			return nil, err
 		}
 
-		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.png", timestamp, i))
+		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.png", s.FolderName, i))
 		file, err := os.Create(fileName)
 		if err != nil {
 			return nil, err
@@ -65,77 +132,9 @@ func Screenshot(folderName string) ([]string, error) {
 		pictures = append(pictures, base64Img)
 	}
 
+	runtime.EventsEmit(s.ctx, "screenshot", pictures)
+	fmt.Println("📸 Taking screenshot...")
 	screenshotNotify()
+
 	return pictures, nil
-}
-
-func screenshotNotify() {
-	exePath, _ := os.Executable()
-	root := filepath.Dir(exePath)
-	iconPath := filepath.Join(root, "icon.ico")
-
-	//NOTE Icon is duplicated and placed in build/bin/ and build/windows/
-	beeep.Notify("Screenshot", "Your work progress have been captured", iconPath)
-}
-
-func GetMonitorCount() int {
-	n := screenshot.NumActiveDisplays()
-	fmt.Printf("You have %d displays\n", n)
-
-	return n
-}
-
-type ScreenshotService struct {
-	ctx      context.Context
-	stopChan chan struct{}
-	running  bool
-}
-
-func NewScreenshotService() *ScreenshotService {
-	return &ScreenshotService{
-		stopChan: make(chan struct{}),
-	}
-}
-
-func (s *ScreenshotService) Start(ctx context.Context) {
-	s.ctx = ctx
-
-	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 10
-	folderName := time.Now().Format("20060102_150405")
-	if s.running {
-		return
-	}
-	s.running = true
-
-	fmt.Println("Started Screenshot Tracking")
-	go func() {
-		ticker := time.NewTicker(time.Minute * TIME_TO_SCREENSHOT_IN_MINUTES)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				// TODO: take screenshot here
-				screenshot, err := Screenshot(folderName)
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				runtime.EventsEmit(s.ctx, "screenshot", screenshot)
-				fmt.Println("📸 Taking screenshot...")
-			case <-s.stopChan:
-				fmt.Println("Stopping screenshot service...")
-				s.running = false
-				return
-			}
-		}
-	}()
-
-}
-
-func (s *ScreenshotService) Stop() {
-	fmt.Println("Stopped Screenshot Tracking")
-	if s.running {
-		s.stopChan <- struct{}{}
-	}
 }

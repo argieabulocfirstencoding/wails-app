@@ -4,21 +4,20 @@ import (
 	"context"
 	"fesapp/backend/services"
 	"fmt"
-	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
 type App struct {
-	ctx        context.Context
-	Screenshot *services.ScreenshotService
+	ctx               context.Context
+	ScreenshotService *services.ScreenshotService
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		Screenshot: services.NewScreenshotService(),
+		ScreenshotService: services.NewScreenshotService(),
 	}
 }
 
@@ -26,6 +25,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	runtime.LogPrint(ctx, "App is starting")
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -33,7 +33,7 @@ func (a *App) Shutdown(ctx context.Context) {
 
 	// cleanup logic here
 	runtime.EventsEmit(ctx, "app_shutdown")
-	fmt.Println("App is shutting down")
+	runtime.LogPrint(ctx, "App is shutdown")
 }
 
 // Greet returns a greeting for the given name
@@ -42,10 +42,7 @@ func (a *App) Greet(name string) string {
 }
 
 func (a *App) TakeScreenshot() []string {
-
-	folderName := time.Now().Format("20060102_150405")
-
-	screenshots, err := services.Screenshot(folderName)
+	screenshots, err := a.ScreenshotService.Screenshot()
 	if err != nil {
 		panic(err)
 	}
@@ -57,10 +54,11 @@ func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
 }
 
-func (a *App) StartTracking() {
-	a.Screenshot.Start(a.ctx)
+func (a *App) StartTracking(localStorageValue string) {
+	a.ScreenshotService.FolderName = localStorageValue
+	a.ScreenshotService.Start(a.ctx)
 }
 
 func (a *App) StopTracking() {
-	a.Screenshot.Stop()
+	a.ScreenshotService.Stop()
 }

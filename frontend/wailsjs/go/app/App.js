@@ -14,8 +14,8 @@ export function Shutdown(arg1) {
   return window['go']['app']['App']['Shutdown'](arg1);
 }
 
-export function StartTracking() {
-  return window['go']['app']['App']['StartTracking']();
+export function StartTracking(arg1) {
+  return window['go']['app']['App']['StartTracking'](arg1);
 }
 
 export function StopTracking() {

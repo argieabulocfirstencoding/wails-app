@@ -8,7 +8,7 @@ export function Greet(arg1:string):Promise<string>;
 
 export function Shutdown(arg1:context.Context):Promise<void>;
 
-export function StartTracking():Promise<void>;
+export function StartTracking(arg1:string):Promise<void>;
 
 export function StopTracking():Promise<void>;
 
