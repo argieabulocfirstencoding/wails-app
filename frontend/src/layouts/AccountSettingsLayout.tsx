@@ -1,3 +1,4 @@
+import { ChevronLeft } from "lucide-react";
 import React from "react";
 import { Link } from "react-router-dom";
 
@@ -9,15 +10,32 @@ const AccountSettingsLayout: React.FC<AccountSettingsLayoutProps> = ({
   children,
 }) => {
   return (
-    <div>
-      <Link to="/">
-        <button className="w-full p-3 rounded-lg border hover:bg-gray-100 cursor-pointer">
-          Back
-        </button>
-      </Link>
-      <div className="flex flex-col h-full w-screen">
-        <div className="flex-1">{children}</div>
-      </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header */}
+      <header className="flex items-center justify-between px-6 py-4 bg-white border-b">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/settings"
+            className="text-gray-600 hover:text-black cursor-pointer"
+          >
+            <ChevronLeft />
+          </Link>
+          <h1 className="text-xl font-bold">Back</h1>
+        </div>
+        <Link
+          to="/logout"
+          className="text-red-500 font-medium hover:underline cursor-pointer"
+        >
+          <h1 className="text-xl font-bold">Logout</h1>
+        </Link>
+      </header>
+
+      {/* Main */}
+      <main className="flex-1 p-6 flex justify-center">
+        <div className="w-full max-w-lg bg-white rounded-xl border p-6">
+          {children}
+        </div>
+      </main>
     </div>
   );
 };
