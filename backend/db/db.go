@@ -1,49 +1,43 @@
 package db
 
 import (
-	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
-	
+	"fesapp/backend/db/models"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-var DB *sql.DB
+var DB *gorm.DB
 
-func InitDB(appName string) {
-	// Store DB in user's config/data folder
-	dir, err := os.UserConfigDir()
+// Example model
+type Note struct {
+	ID    uint `gorm:"primaryKey"`
+	Title string
+	Body  string
+}
+type User = models.User
+
+func Init() {
+	dir, _ := os.UserConfigDir()
+	appDir := filepath.Join(dir, "wails-app")
+	_ = os.MkdirAll(appDir, 0o755)
+	dbPath := filepath.Join(appDir, "fesapp.db")
+
+	var err error
+	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("failed to connect database: %v", err)
 	}
 
-	dbPath := filepath.Join(dir, appName, "app.db")
-
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
-		log.Fatal(err)
+	// Run migrations here
+	if err := DB.AutoMigrate(&Note{}); err != nil {
+		log.Fatalf("failed to migrate: %v", err)
 	}
 
-	DB, err = sql.Open("sqlite", dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := DB.Ping(); err != nil {
-		log.Fatal("DB connection failed:", err)
-	}
-
-	_, err = DB.Exec(`
-		CREATE TABLE IF NOT EXISTS notes (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			title TEXT,
-			content TEXT
-		);
-		`)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Println("SQLite initialized at:", dbPath)
+	fmt.Println("✅ Database initialized at", dbPath)
 }

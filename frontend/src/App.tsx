@@ -29,12 +29,17 @@ function App() {
     });
 
     return () => {
+      const timeStop = Date.now();
+      localStorage.setItem("ended", JSON.stringify(timeStop));
       off();
     };
   }, []);
 
   useEffect(() => {
+    console.log("WASSUP");
     const off = EventsOn("screenshot", (pictures: string[]) => {
+      console.log("screenshot is saved");
+
       const now = Date.now();
 
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
@@ -42,8 +47,16 @@ function App() {
     });
 
     return () => {
+      console.log("app is unmounted");
       off();
     };
+  }, []);
+
+  useEffect(() => {
+    const timeStartRecord = localStorage.getItem("started");
+    const timeStopRecord = localStorage.getItem("ended");
+
+    if (timeStartRecord && !timeStopRecord) StartTracking(timeStartRecord);
   }, []);
 
   return (
