@@ -4,9 +4,11 @@ import {context} from '../models';
 
 export function BeforeClose(arg1:context.Context):Promise<boolean>;
 
+export function CheckAuth(arg1:any):Promise<boolean>;
+
 export function GetMonitorCount():Promise<number>;
 
-export function Greet(arg1:string):Promise<string>;
+export function RegisterUser(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function StartTracking(arg1:string):Promise<void>;
 

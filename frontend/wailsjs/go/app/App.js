@@ -6,12 +6,16 @@ export function BeforeClose(arg1) {
   return window['go']['app']['App']['BeforeClose'](arg1);
 }
 
+export function CheckAuth(arg1) {
+  return window['go']['app']['App']['CheckAuth'](arg1);
+}
+
 export function GetMonitorCount() {
   return window['go']['app']['App']['GetMonitorCount']();
 }
 
-export function Greet(arg1) {
-  return window['go']['app']['App']['Greet'](arg1);
+export function RegisterUser(arg1, arg2, arg3) {
+  return window['go']['app']['App']['RegisterUser'](arg1, arg2, arg3);
 }
 
 export function StartTracking(arg1) {

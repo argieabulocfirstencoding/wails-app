@@ -8,8 +8,9 @@ import (
 
 	"fesapp/backend/db/models"
 
-	"gorm.io/driver/sqlite"
+	"github.com/Tryanks/gorm-sqlite" // Or another modernc.org/sqlite-based GORM driver
 	"gorm.io/gorm"
+	_ "modernc.org/sqlite"
 )
 
 var DB *gorm.DB
@@ -22,7 +23,7 @@ type Note struct {
 }
 type User = models.User
 
-func Init() {
+func Init() *gorm.DB {
 	dir, _ := os.UserConfigDir()
 	appDir := filepath.Join(dir, "wails-app")
 	_ = os.MkdirAll(appDir, 0o755)
@@ -35,9 +36,10 @@ func Init() {
 	}
 
 	// Run migrations here
-	if err := DB.AutoMigrate(&Note{}); err != nil {
+	if err := DB.AutoMigrate(&User{}); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
 
 	fmt.Println("✅ Database initialized at", dbPath)
+	return DB
 }

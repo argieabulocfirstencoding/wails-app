@@ -2,17 +2,20 @@ package app
 
 import (
 	"context"
+	"fesapp/backend/db"
 	"fesapp/backend/services"
-	"fmt"
 
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/zalando/go-keyring"
+	"gorm.io/gorm"
 )
 
 // App struct
 type App struct {
 	ctx               context.Context
 	ScreenshotService *services.ScreenshotService
+	Database          *gorm.DB
 	windowOpen        bool
 }
 
@@ -20,6 +23,7 @@ type App struct {
 func NewApp() *App {
 	return &App{
 		ScreenshotService: services.NewScreenshotService(),
+		Database:          db.Init(),
 	}
 }
 
@@ -49,7 +53,7 @@ func (a *App) Startup(ctx context.Context) {
 	trayMenu.AddText("Quit", nil, func(_ *menu.CallbackData) {
 		runtime.Quit(ctx)
 	})
-	
+
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -58,11 +62,6 @@ func (a *App) Shutdown(ctx context.Context) {
 	// cleanup logic here
 	runtime.EventsEmit(ctx, "app_shutdown")
 	runtime.LogPrint(ctx, "App is shutdown")
-}
-
-// Greet returns a greeting for the given name
-func (a *App) Greet(name string) string {
-	return fmt.Sprintf("Hello %s, It's show time!", name)
 }
 
 func (a *App) TakeScreenshot() []string {
@@ -98,4 +97,32 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 		return false
 	}
 	return dialog != "Yes"
+}
+
+func (a *App) CheckAuth(name *string) bool {
+	service := "fesapp"
+	if name == nil || *name == "" {
+		return false
+	}
+
+	_, err := keyring.Get(service, *name)
+	return err == nil
+}
+
+// TODO this is for testing purpose only
+func (a *App) RegisterUser(name, email, password string) (*db.User, error) {
+	user, err := services.CreateUser(name, email, password)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (a *App) LoginUser(email, password string) (*db.User, error) {
+	user, err := services.Login(email, password)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

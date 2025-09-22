@@ -60,16 +60,6 @@ const Signup = () => {
               className="rounded-lg"
             />
           </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              placeholder="Confirm your password"
-              className="rounded-lg"
-            />
-          </div>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3">

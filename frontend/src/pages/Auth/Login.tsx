@@ -1,4 +1,4 @@
-import React, { FormEvent } from "react";
+import React, { FormEvent, useState } from "react";
 import MainLayout from "../../layouts/MainLayout";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,13 @@ import { Link } from "react-router-dom";
 
 const Login = () => {
   const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   function loginUser(event: FormEvent) {
     event.preventDefault();
-    navigate("/");
+
+    // navigate("/");
   }
 
   return (
@@ -51,6 +54,8 @@ const Login = () => {
                 placeholder="name.firstencoding@gmail.com"
                 required
                 className="rounded-lg"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
 
@@ -72,6 +77,8 @@ const Login = () => {
                 placeholder="••••••••"
                 required
                 className="rounded-lg"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
 
