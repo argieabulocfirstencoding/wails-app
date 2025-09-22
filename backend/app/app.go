@@ -109,7 +109,7 @@ func (a *App) CheckAuth(name *string) bool {
 	return err == nil
 }
 
-// TODO this is for testing purpose only
+// TODO this is for testing purpose only, production backend server handles user registration
 func (a *App) RegisterUser(name, email, password string) (*db.User, error) {
 	user, err := services.CreateUser(name, email, password)
 	if err != nil {
@@ -118,6 +118,7 @@ func (a *App) RegisterUser(name, email, password string) (*db.User, error) {
 	return user, nil
 }
 
+// TODO production call to backend server for auth
 func (a *App) LoginUser(email, password string) (*db.User, error) {
 	user, err := services.Login(email, password)
 	if err != nil {
@@ -125,4 +126,12 @@ func (a *App) LoginUser(email, password string) (*db.User, error) {
 	}
 
 	return user, nil
+}
+
+func (a *App) LogoutUser(name *string) {
+	//TODO logout logic for now uses local db, production relies on api keys
+	if name == nil || *name == "" {
+		return
+	}
+	_ = keyring.Delete("fesapp", *name)
 }

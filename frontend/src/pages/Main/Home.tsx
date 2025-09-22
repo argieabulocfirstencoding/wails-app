@@ -5,6 +5,21 @@ import { useEffect } from "react";
 import { CheckAuth } from "@/../wailsjs/go/app/App";
 
 const Home = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    async function fetchUser() {
+      const username = localStorage.getItem("user");
+      const auth = await CheckAuth(username);
+
+      if (!auth) {
+        navigate("/login");
+      }
+    }
+
+    fetchUser();
+  }, []);
+  
   return (
     <MainLayout>
       <div className="p-6 border-b-2 flex justify-between items-center">
@@ -40,19 +55,6 @@ const Home = () => {
 
 const TaskItem = () => {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    async function fetchUser() {
-      const username = localStorage.getItem("user");
-      const auth = await CheckAuth(username);
-
-      if (!auth) {
-        navigate("/login");
-      }
-    }
-
-    fetchUser();
-  }, []);
 
   return (
     <>

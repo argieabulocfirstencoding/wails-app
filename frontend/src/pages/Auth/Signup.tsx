@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,9 +11,30 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import logo from "@/assets/images/first-encoding_logo.webp";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { RegisterUser } from "@/../wailsjs/go/app/App";
 
 const Signup = () => {
+  const navigate = useNavigate();
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  async function handleSubmit() {
+    try {
+      const user = await RegisterUser(name, email, password);
+
+      if (user) {
+        localStorage.setItem("user", user.Name);
+        console.log(user);
+        navigate("/");
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
       <Card className="w-full max-w-md shadow-lg rounded-2xl border border-gray-200">
@@ -38,6 +59,8 @@ const Signup = () => {
               type="text"
               placeholder="Enter your full name"
               className="rounded-lg"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
             />
           </div>
 
@@ -48,6 +71,8 @@ const Signup = () => {
               type="email"
               placeholder="Enter your email"
               className="rounded-lg"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
@@ -58,12 +83,15 @@ const Signup = () => {
               type="password"
               placeholder="Enter your password"
               className="rounded-lg"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3">
           <Button
+            onClick={handleSubmit}
             type="submit"
             className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase cursor-pointer tracking-widest"
             style={{ backgroundColor: "#166400" }}

@@ -24,7 +24,17 @@ const Login = () => {
 
   async function loginUser(event: FormEvent) {
     event.preventDefault();
+    try {
+      const user = await LoginUser(email, password);
 
+      if (user) {
+        localStorage.setItem("user", user.Name);
+        console.log(user);
+        navigate("/");
+      }
+    } catch (error) {
+      console.error(error);
+    }
     // navigate("/");
   }
 
