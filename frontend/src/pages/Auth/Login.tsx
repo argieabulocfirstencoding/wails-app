@@ -15,13 +15,14 @@ import {
 
 import logo from "@/assets/images/first-encoding_logo.webp";
 import { Link } from "react-router-dom";
+import { LoginUser } from "@/../wailsjs/go/app/App";
 
 const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  function loginUser(event: FormEvent) {
+  async function loginUser(event: FormEvent) {
     event.preventDefault();
 
     // navigate("/");

@@ -14,6 +14,10 @@ export function GetMonitorCount() {
   return window['go']['app']['App']['GetMonitorCount']();
 }
 
+export function LoginUser(arg1, arg2) {
+  return window['go']['app']['App']['LoginUser'](arg1, arg2);
+}
+
 export function RegisterUser(arg1, arg2, arg3) {
   return window['go']['app']['App']['RegisterUser'](arg1, arg2, arg3);
 }
