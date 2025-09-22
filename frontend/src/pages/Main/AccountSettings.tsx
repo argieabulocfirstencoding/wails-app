@@ -2,76 +2,94 @@ import React from "react";
 import AccountSettingsLayout from "@/layouts/AccountSettingsLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 
 const AccountSettings = () => {
   return (
     <AccountSettingsLayout>
-      <div className="flex items-center gap-4 mb-6">
-        <img
-          src="https://jaipuriaschoolsdeoria.com/wp-content/uploads/2016/06/team-1-640x640.jpg"
-          alt="Profile"
-          className="w-24 h-24 rounded-full"
-        />
+      <Card className="w-full max-w-2xl mx-auto shadow-lg rounded-2xl border border-gray-200">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-gray-800">
+            Account Settings
+          </CardTitle>
+        </CardHeader>
 
-        <div className="flex flex-col gap-2">
-          <Button variant="outline">Change Photo</Button>
-        </div>
-      </div>
+        <CardContent className="space-y-6">
+          <div className="flex items-center gap-6">
+            <img
+              src="https://jaipuriaschoolsdeoria.com/wp-content/uploads/2016/06/team-1-640x640.jpg"
+              alt="Profile"
+              className="w-24 h-24 rounded-full border-2 border-gray-300"
+            />
+            <Button variant="outline" className="rounded-lg">
+              Change Photo
+            </Button>
+          </div>
 
-      <form className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            First name
-          </label>
-          <Input type="text" defaultValue="John Paul" />
-        </div>
+          <form className="space-y-5">
+            <div className="grid gap-2">
+              <Label htmlFor="firstName">First Name</Label>
+              <Input
+                id="firstName"
+                type="text"
+                defaultValue="John Paul"
+                className="rounded-lg"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Last name
-          </label>
-          <Input type="text" defaultValue="Tunacao" />
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
+                id="lastName"
+                type="text"
+                defaultValue="Tunacao"
+                className="rounded-lg"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Email address
-          </label>
-          <Input
-            type="email"
-            defaultValue="johnpaultunacao.firstencoding@gmail.com"
-          />
-        </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                defaultValue="johnpaultunacao.firstencoding@gmail.com"
+                className="rounded-lg"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Position
-          </label>
-          <p className="w-full p-3 border rounded-lg bg-gray-50 text-gray-700">
-            Senior Sofware Developer
-          </p>
-        </div>
+            <div className="grid gap-2">
+              <Label>Position</Label>
+              <p className="w-full p-3 rounded-lg bg-gray-100 text-gray-700 border text-sm">
+                Senior Software Developer
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Birthdate
-          </label>
-          <p className="w-full p-3 border rounded-lg bg-gray-50 text-gray-700">
-            June 15, 2000
-          </p>
-        </div>
+            <div className="grid gap-2">
+              <Label>Birthdate</Label>
+              <p className="w-full p-3 rounded-lg bg-gray-100 text-gray-700 border text-sm">
+                June 15, 2000
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Contact Number
-          </label>
-          <Input type="tel" defaultValue="+63 912 345 6789" />
-        </div>
-
-        <Button type="submit" className="w-full">
-          Save
-        </Button>
-      </form>
+            <div className="grid gap-2">
+              <Label htmlFor="contact">Contact Number</Label>
+              <Input
+                id="contact"
+                type="tel"
+                defaultValue="+63 912 345 6789"
+                className="rounded-lg"
+              />
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </AccountSettingsLayout>
   );
 };

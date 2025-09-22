@@ -11,16 +11,15 @@ const AccountSettingsLayout: React.FC<AccountSettingsLayoutProps> = ({
 }) => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b">
         <div className="flex items-center gap-3">
           <Link
             to="/settings"
-            className="text-gray-600 hover:text-black cursor-pointer"
+            className="flex items-center text-gray-600 hover:text-black cursor-pointer"
           >
             <ChevronLeft />
+            <h1 className="text-xl font-bold">Back</h1>
           </Link>
-          <h1 className="text-xl font-bold">Back</h1>
         </div>
         <Link
           to="/logout"
@@ -30,11 +29,8 @@ const AccountSettingsLayout: React.FC<AccountSettingsLayoutProps> = ({
         </Link>
       </header>
 
-      {/* Main */}
       <main className="flex-1 p-6 flex justify-center">
-        <div className="w-full max-w-lg bg-white rounded-xl border p-6">
-          {children}
-        </div>
+        <div className="w-full max-w-lg bg-white rounded-xl">{children}</div>
       </main>
     </div>
   );
