@@ -29,7 +29,7 @@ const AccountSettingsLayout: React.FC<AccountSettingsLayoutProps> = ({
         </Link>
       </header>
 
-      <main className="flex-1 p-6 flex justify-center">
+      <main className="flex-1 flex justify-center">
         <div className="w-full max-w-lg bg-white rounded-xl">{children}</div>
       </main>
     </div>

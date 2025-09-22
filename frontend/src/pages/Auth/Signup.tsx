@@ -1,5 +1,4 @@
 import React from "react";
-import MainLayout from "@/layouts/MainLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,6 +11,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import logo from "@/assets/images/first-encoding_logo.webp";
+import { Link } from "react-router-dom";
 
 const Signup = () => {
   return (
@@ -75,20 +75,19 @@ const Signup = () => {
         <CardFooter className="flex flex-col gap-3">
           <Button
             type="submit"
-            className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase"
+            className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase cursor-pointer tracking-widest"
             style={{ backgroundColor: "#166400" }}
           >
             Sign Up
           </Button>
-
           <p className="text-sm text-gray-600 text-center">
             Already have an account?{" "}
-            <a
-              href="/login"
-              className="text-[#EF3737] font-medium hover:underline"
+            <Link
+              to="/login"
+              className="text-green-600 hover:underline font-medium"
             >
-              Login
-            </a>
+              Log In
+            </Link>
           </p>
         </CardFooter>
       </Card>

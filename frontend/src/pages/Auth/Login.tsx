@@ -87,7 +87,7 @@ const Login = () => {
 
         <CardFooter className="flex flex-col gap-3">
           <p className="text-sm text-gray-600 text-center">
-            Don’t have an account?{""}
+            Don’t have an account?{" "}
             <Link
               to="/signup"
               className="text-green-600 hover:underline font-medium"
@@ -95,17 +95,6 @@ const Login = () => {
               Sign Up
             </Link>
           </p>
-
-          <div className="text-xs text-gray-500 text-center space-y-1">
-            <p>First Encoding Services</p>
-            <p>© All rights reserved</p>
-            <a
-              href="https://firstencoding.app/fes-privacy"
-              className="hover:underline"
-            >
-              Privacy statement
-            </a>
-          </div>
         </CardFooter>
       </Card>
     </div>
