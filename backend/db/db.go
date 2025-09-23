@@ -8,20 +8,16 @@ import (
 
 	"fesapp/backend/db/models"
 
-	"github.com/Tryanks/gorm-sqlite" // Or another modernc.org/sqlite-based GORM driver
+	sqlite "github.com/Tryanks/gorm-sqlite" // Or another modernc.org/sqlite-based GORM driver
 	"gorm.io/gorm"
 	_ "modernc.org/sqlite"
 )
 
 var DB *gorm.DB
 
-// Example model
-type Note struct {
-	ID    uint `gorm:"primaryKey"`
-	Title string
-	Body  string
-}
 type User = models.User
+type Task = models.Task
+type TaskRecord = models.TaskRecord
 
 func Init() *gorm.DB {
 	dir, _ := os.UserConfigDir()
@@ -37,6 +33,12 @@ func Init() *gorm.DB {
 
 	// Run migrations here
 	if err := DB.AutoMigrate(&User{}); err != nil {
+		log.Fatalf("failed to migrate: %v", err)
+	}
+	if err := DB.AutoMigrate(&Task{}); err != nil {
+		log.Fatalf("failed to migrate: %v", err)
+	}
+	if err := DB.AutoMigrate(&TaskRecord{}); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
 
