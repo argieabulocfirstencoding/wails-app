@@ -1,11 +1,7 @@
 package models
 
-import (
-	"gorm.io/gorm"
-)
-
 type Task struct {
-	gorm.Model
+	ID         uint   `gorm:"primaryKey"`
 	Name       string `gorm:"uniqueIndex:idx_name_client" validate:"required"`
 	Client     string `gorm:"uniqueIndex:idx_name_client" validate:"required"`
 	UserID     uint

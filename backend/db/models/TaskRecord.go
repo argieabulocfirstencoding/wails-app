@@ -2,12 +2,10 @@ package models
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type TaskRecord struct {
-	gorm.Model
+	ID         uint      `gorm:"primaryKey"`
 	UserID     uint      `validate:"required"`
 	User       User      `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	TaskID     uint      `validate:"required"`
