@@ -14,6 +14,7 @@ import Logout from "./pages/Auth/Logout";
 import { StartTracking, StopTracking } from "../wailsjs/go/app/App";
 import { EventsOn } from "../wailsjs/runtime";
 import Signup from "./pages/Auth/Signup";
+import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 
 interface ScreenshotProps {
   date: number;
@@ -21,6 +22,8 @@ interface ScreenshotProps {
 }
 
 function App() {
+  useFirebaseAuth(); // 👈 keeps Zustand in sync with Firebase
+
   useEffect(() => {
     // TODO this is just temporary measures to ensure logging out of account means task end
     const off = EventsOn("app_shutdown", () => {

@@ -17,6 +17,14 @@ import logo from "@/assets/images/first-encoding_logo.webp";
 import { Link } from "react-router-dom";
 import { LoginUser } from "@/../wailsjs/go/app/App";
 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
+import { auth } from "@/firebase";
+
 const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -25,11 +33,12 @@ const Login = () => {
   async function loginUser(event: FormEvent) {
     event.preventDefault();
     try {
-      const user = await LoginUser(email, password);
+      // const user = await LoginUser(email, password);
+      const response = await signInWithEmailAndPassword(auth, email, password);
 
-      if (user) {
-        localStorage.setItem("user", user.Name);
-        console.log(user);
+      console.log(response);
+      if (response.user.email) {
+        localStorage.setItem("user", response.user.email);
         navigate("/");
       }
     } catch (error) {
