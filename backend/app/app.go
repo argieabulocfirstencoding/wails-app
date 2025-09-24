@@ -119,19 +119,36 @@ func (a *App) RegisterUser(name, email, password string) (*db.User, error) {
 }
 
 // TODO production call to backend server for auth
-func (a *App) LoginUser(email, password string) (*db.User, error) {
+func (a *App) LoginUser(email, password string) (*services.AuthUser, error) {
 	user, err := services.Login(email, password)
 	if err != nil {
 		return nil, err
 	}
 
-	return user, nil
+	authUser := &services.AuthUser{
+		LocalID: user.ID,
+		Email:   user.Email,
+	}
+
+	return authUser, nil
 }
 
-func (a *App) LogoutUser(name *string) {
-	//TODO logout logic for now uses local db, production relies on api keys
-	if name == nil || *name == "" {
-		return
+func (a *App) FirebaseLoginUser(email, password string) (*services.AuthUser, error) {
+	user, err := services.FirebaseLogin(email, password)
+	if err != nil {
+		return nil, err
 	}
-	_ = keyring.Delete("fesapp", *name)
+	// TODO in the future include returning the profile
+
+	authUser := &services.AuthUser{
+		LocalID: user.LocalID,
+		Email:   user.Email,
+	}
+
+	return authUser, nil
+}
+
+func (a *App) LogoutUser() {
+	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
+
 }

@@ -3,23 +3,25 @@ import MainLayout from "../../layouts/MainLayout";
 import { Plus, Search, RefreshCcw } from "lucide-react";
 import { useEffect } from "react";
 import { CheckAuth } from "@/../wailsjs/go/app/App";
+import { useAuthStore } from "@/store/AuthContext";
 
 const Home = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchUser() {
-      const username = localStorage.getItem("user");
-      const auth = await CheckAuth(username);
+      // const username = localStorage.getItem("user");
+      // const auth = await CheckAuth(username);
 
-      if (!auth) {
+      const user = useAuthStore.getState().user;
+      if (!user) {
         navigate("/login");
       }
     }
 
     fetchUser();
   }, []);
-  
+
   return (
     <MainLayout>
       <div className="p-6 border-b-2 flex justify-between items-center">

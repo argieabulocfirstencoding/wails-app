@@ -4,9 +4,14 @@ import (
 	"errors"
 	"fesapp/backend/db"
 
-	"github.com/zalando/go-keyring"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type AuthUser struct {
+	LocalID string `json:"localId"` // uid
+	Email   string  `json:"email"`
+	// TODO add profile
+}
 
 // NOTE for local login
 func Login(email, password string) (*db.User, error) {
@@ -23,7 +28,6 @@ func Login(email, password string) (*db.User, error) {
 	if err != nil {
 		return nil, errors.New("invalid email or password")
 	}
-	keyring.Set("fesapp", user.Name, user.Password)
 
 	return &user, nil
 }

@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { User } from "firebase/auth";
 
 type AuthUser = {
   uid: string;
@@ -22,9 +21,9 @@ type AuthState = {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
-  online: true,
+  online: navigator.onLine,
   setUser: (user) => set({ user }),
   setLoading: (loading) => set({ loading }),
-  setOnline: (online) => set({ online }),
-  reset: () => set({ user: null, loading: false }),
+  setOnline: (online) => set({ online: online }),
+  reset: () => set({ user: null, loading: false, online: navigator.onLine }),
 }));

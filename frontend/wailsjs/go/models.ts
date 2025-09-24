@@ -49,7 +49,7 @@ export namespace models {
 		}
 	}
 	export class User {
-	    ID: number;
+	    ID: string;
 	    Name: string;
 	    Email: string;
 	    Password: string;
@@ -127,6 +127,25 @@ export namespace models {
 		}
 	}
 	
+
+}
+
+export namespace services {
+	
+	export class AuthUser {
+	    localId: string;
+	    email: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuthUser(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.localId = source["localId"];
+	        this.email = source["email"];
+	    }
+	}
 
 }
 

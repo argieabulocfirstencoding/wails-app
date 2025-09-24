@@ -15,30 +15,35 @@ import {
 
 import logo from "@/assets/images/first-encoding_logo.webp";
 import { Link } from "react-router-dom";
-import { LoginUser } from "@/../wailsjs/go/app/App";
-
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-} from "firebase/auth";
-import { auth } from "@/firebase";
+import { FirebaseLoginUser, LoginUser } from "@/../wailsjs/go/app/App";
+import { useAuthStore } from "@/store/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { online } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   async function loginUser(event: FormEvent) {
     event.preventDefault();
     try {
-      // const user = await LoginUser(email, password);
-      const response = await signInWithEmailAndPassword(auth, email, password);
+      let authUser;
+      if (online) {
+        authUser = await FirebaseLoginUser(email, password);
+      } else {
+        authUser = await LoginUser(email, password);
+      }
 
-      console.log(response);
-      if (response.user.email) {
-        localStorage.setItem("user", response.user.email);
+      useAuthStore.getState().setUser({
+        uid: authUser.localId,
+        email: authUser.email,
+        offline: !online,
+      });
+
+      const user = useAuthStore.getState().user;
+      if (user) {
+        localStorage.setItem("user", JSON.stringify(user));
+        console.log(user);
         navigate("/");
       }
     } catch (error) {
