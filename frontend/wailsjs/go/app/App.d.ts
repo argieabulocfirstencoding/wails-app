@@ -14,9 +14,9 @@ export function GetMonitorCount():Promise<number>;
 
 export function LoginUser(arg1:string,arg2:string):Promise<services.AuthUser>;
 
-export function LogoutUser(arg1:any):Promise<void>;
+export function LogoutUser():Promise<void>;
 
-export function RegisterUser(arg1:string,arg2:string,arg3:string):Promise<models.User>;
+export function RegisterUser(arg1:string):Promise<models.User>;
 
 export function StartTracking(arg1:string):Promise<void>;
 

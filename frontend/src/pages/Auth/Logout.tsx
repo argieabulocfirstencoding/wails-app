@@ -13,7 +13,7 @@ const Logout = () => {
     async function removeCredentials() {
       // Clear tokens or user session
       const user = localStorage.getItem("user");
-      await LogoutUser(user);
+      await LogoutUser();
       localStorage.removeItem("authToken");
       localStorage.removeItem("user");
       reset();

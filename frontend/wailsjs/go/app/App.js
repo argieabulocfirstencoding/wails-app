@@ -22,12 +22,12 @@ export function LoginUser(arg1, arg2) {
   return window['go']['app']['App']['LoginUser'](arg1, arg2);
 }
 
-export function LogoutUser(arg1) {
-  return window['go']['app']['App']['LogoutUser'](arg1);
+export function LogoutUser() {
+  return window['go']['app']['App']['LogoutUser']();
 }
 
-export function RegisterUser(arg1, arg2, arg3) {
-  return window['go']['app']['App']['RegisterUser'](arg1, arg2, arg3);
+export function RegisterUser(arg1) {
+  return window['go']['app']['App']['RegisterUser'](arg1);
 }
 
 export function StartTracking(arg1) {

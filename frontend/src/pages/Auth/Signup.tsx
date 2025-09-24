@@ -23,10 +23,11 @@ const Signup = () => {
 
   async function handleSubmit() {
     try {
-      const user = await RegisterUser(name, email, password);
+      // FIX Remove this registrtaion is handled by firebase or bubble
+      const user = await RegisterUser(email);
 
       if (user) {
-        localStorage.setItem("user", user.Name);
+        localStorage.setItem("user", user.Email);
         console.log(user);
         navigate("/");
       }

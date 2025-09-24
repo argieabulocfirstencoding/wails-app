@@ -3,13 +3,11 @@ package services
 import (
 	"errors"
 	"fesapp/backend/db"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthUser struct {
 	LocalID string `json:"localId"` // uid
-	Email   string  `json:"email"`
+	Email   string `json:"email"`
 	// TODO add profile
 }
 
@@ -24,10 +22,7 @@ func Login(email, password string) (*db.User, error) {
 		return nil, errors.New("invalid email or password")
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-	if err != nil {
-		return nil, errors.New("invalid email or password")
-	}
+	// TODO figure out how to store data only with this info for offline mode
 
 	return &user, nil
 }

@@ -109,9 +109,9 @@ func (a *App) CheckAuth(name *string) bool {
 	return err == nil
 }
 
-// TODO this is for testing purpose only, production backend server handles user registration
-func (a *App) RegisterUser(name, email, password string) (*db.User, error) {
-	user, err := services.CreateUser(name, email, password)
+// FIX this is for testing purpose only, production backend server handles user registration
+func (a *App) RegisterUser(email string) (*db.User, error) {
+	user, err := services.CreateUser("123", email)
 	if err != nil {
 		return nil, err
 	}

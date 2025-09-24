@@ -50,9 +50,7 @@ export namespace models {
 	}
 	export class User {
 	    ID: string;
-	    Name: string;
 	    Email: string;
-	    Password: string;
 	    Tasks: Task[];
 	
 	    static createFrom(source: any = {}) {
@@ -62,9 +60,7 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
-	        this.Name = source["Name"];
 	        this.Email = source["Email"];
-	        this.Password = source["Password"];
 	        this.Tasks = this.convertValues(source["Tasks"], Task);
 	    }
 	
