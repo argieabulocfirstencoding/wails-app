@@ -1,5 +1,19 @@
 export namespace models {
 	
+	export class ExpTask {
+	    title: string;
+	    client: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExpTask(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.client = source["client"];
+	    }
+	}
 	export class TaskRecord {
 	    ID: number;
 	    UserID: number;
@@ -84,9 +98,9 @@ export namespace models {
 	}
 	export class Task {
 	    ID: number;
-	    Name: string;
+	    Title: string;
 	    Client: string;
-	    UserID: number;
+	    UserID: string;
 	    User: User;
 	    TaskRecord: TaskRecord[];
 	
@@ -97,7 +111,7 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
-	        this.Name = source["Name"];
+	        this.Title = source["Title"];
 	        this.Client = source["Client"];
 	        this.UserID = source["UserID"];
 	        this.User = this.convertValues(source["User"], User);
