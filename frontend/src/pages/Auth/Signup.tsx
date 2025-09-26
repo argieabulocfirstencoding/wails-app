@@ -36,7 +36,7 @@ const Signup = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-6">
       <Card className="w-full max-w-md shadow-lg rounded-2xl border border-gray-200">
         <CardHeader className="space-y-4 flex flex-col items-center">
           <img src={logo} alt="Company Logo" className="h-14 w-auto" />
