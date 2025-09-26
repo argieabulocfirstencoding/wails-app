@@ -230,8 +230,10 @@ const Task = () => {
             )}
           </div>
           <hr className="my-2" />
-          <div className="flex justify-between">
-            <span className="font-semibold">What are you working on?</span>
+          <div className="flex justify-between items-center">
+            <h3 className="text-base font-semibold text-gray-800">
+              What are you working on?
+            </h3>
             <EditWorkDialog
               initialMemo={memo}
               initialTag={tag}
@@ -243,14 +245,19 @@ const Task = () => {
               }}
             />
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm max-w-xs truncate">
-              <strong>Memo:</strong> {memo || "No memo set."}
-            </span>
-
-            <span className="text-sm max-w-md line-clamp-3">
-              <strong>Activity tag:</strong> {tag || "No tag set."}
-            </span>
+          <div className="space-y-1 text-sm">
+            <p>
+              <span className="font-medium text-gray-700">
+                📌 <strong>Memo:</strong>
+              </span>{" "}
+              <span className="truncate">{memo || "No memo set."}</span>
+            </p>
+            <p className="line-clamp-3">
+              <span className="font-medium text-gray-700">
+                🏷️ <strong>Activity tag:</strong>
+              </span>{" "}
+              {tag || "No tag set."}
+            </p>
           </div>
         </div>
 

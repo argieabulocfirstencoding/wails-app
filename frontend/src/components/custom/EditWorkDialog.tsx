@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Pencil } from "lucide-react";
 
 interface EditWorkDialogProps {
   initialMemo?: string;
@@ -50,8 +51,9 @@ export function EditWorkDialog({
       <DialogTrigger asChild>
         <Button
           variant="link"
-          className="text-green-600 font-medium px-0 cursor-pointer"
+          className="text-green-600 font-medium px-0 cursor-pointer gap-1"
         >
+          <Pencil className="w-3 h-3" />
           Edit
         </Button>
       </DialogTrigger>
@@ -89,7 +91,8 @@ export function EditWorkDialog({
               value={tag}
               onChange={(e) => setTag(e.target.value)}
               placeholder="Add detailed notes here..."
-              rows={4}
+              rows={5}
+              className="resize-none"
               maxLength={300}
             />
             <span className="text-xs text-gray-500">
