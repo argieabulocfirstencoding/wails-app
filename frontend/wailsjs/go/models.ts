@@ -1,5 +1,19 @@
 export namespace models {
 	
+	export class ExpTask {
+	    title: string;
+	    client: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExpTask(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.client = source["client"];
+	    }
+	}
 	export class TaskRecord {
 	    ID: number;
 	    UserID: number;
@@ -49,10 +63,8 @@ export namespace models {
 		}
 	}
 	export class User {
-	    ID: number;
-	    Name: string;
+	    ID: string;
 	    Email: string;
-	    Password: string;
 	    Tasks: Task[];
 	
 	    static createFrom(source: any = {}) {
@@ -62,9 +74,7 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
-	        this.Name = source["Name"];
 	        this.Email = source["Email"];
-	        this.Password = source["Password"];
 	        this.Tasks = this.convertValues(source["Tasks"], Task);
 	    }
 	
@@ -88,9 +98,9 @@ export namespace models {
 	}
 	export class Task {
 	    ID: number;
-	    Name: string;
+	    Title: string;
 	    Client: string;
-	    UserID: number;
+	    UserID: string;
 	    User: User;
 	    TaskRecord: TaskRecord[];
 	
@@ -101,7 +111,7 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
-	        this.Name = source["Name"];
+	        this.Title = source["Title"];
 	        this.Client = source["Client"];
 	        this.UserID = source["UserID"];
 	        this.User = this.convertValues(source["User"], User);
@@ -127,6 +137,25 @@ export namespace models {
 		}
 	}
 	
+
+}
+
+export namespace services {
+	
+	export class AuthUser {
+	    localId: string;
+	    email: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuthUser(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.localId = source["localId"];
+	        this.email = source["email"];
+	    }
+	}
 
 }
 

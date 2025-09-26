@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fesapp/backend/db"
+	"fesapp/backend/db/models"
 	"fesapp/backend/services"
 
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -17,6 +18,7 @@ type App struct {
 	ScreenshotService *services.ScreenshotService
 	Database          *gorm.DB
 	windowOpen        bool
+	AuthUser          *services.AuthUser
 }
 
 // NewApp creates a new App application struct
@@ -109,9 +111,9 @@ func (a *App) CheckAuth(name *string) bool {
 	return err == nil
 }
 
-// TODO this is for testing purpose only, production backend server handles user registration
-func (a *App) RegisterUser(name, email, password string) (*db.User, error) {
-	user, err := services.CreateUser(name, email, password)
+// FIX this is for testing purpose only, production backend server handles user registration
+func (a *App) RegisterUser(email string) (*db.User, error) {
+	user, err := services.CreateUser("123", email)
 	if err != nil {
 		return nil, err
 	}
@@ -119,19 +121,53 @@ func (a *App) RegisterUser(name, email, password string) (*db.User, error) {
 }
 
 // TODO production call to backend server for auth
-func (a *App) LoginUser(email, password string) (*db.User, error) {
+func (a *App) LoginUser(email, password string) (*services.AuthUser, error) {
 	user, err := services.Login(email, password)
 	if err != nil {
 		return nil, err
 	}
 
-	return user, nil
+	authUser := &services.AuthUser{
+		LocalID: user.ID,
+		Email:   user.Email,
+	}
+
+	a.AuthUser = authUser
+	return authUser, nil
 }
 
-func (a *App) LogoutUser(name *string) {
-	//TODO logout logic for now uses local db, production relies on api keys
-	if name == nil || *name == "" {
-		return
+func (a *App) FirebaseLoginUser(email, password string) (*services.AuthUser, error) {
+	user, err := services.FirebaseLogin(email, password)
+	if err != nil {
+		return nil, err
 	}
-	_ = keyring.Delete("fesapp", *name)
+	// TODO in the future include returning the profile
+
+	authUser := &services.AuthUser{
+		LocalID: user.LocalID,
+		Email:   user.Email,
+	}
+
+	a.AuthUser = authUser
+	return authUser, nil
 }
+
+func (a *App) LogoutUser() {
+	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
+
+}
+
+func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
+	task, err := services.CreateTask(a.AuthUser.LocalID, title, client)
+	if err != nil {
+		return nil, err
+	}
+
+	exportTask := task.ToExpTask()
+
+	return &exportTask, nil
+}
+
+// func (a *App) GetTasks() (*models.ExpTask, error) {
+
+// }

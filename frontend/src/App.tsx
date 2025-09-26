@@ -15,6 +15,7 @@ import { StartTracking, StopTracking } from "../wailsjs/go/app/App";
 import { EventsOn } from "../wailsjs/runtime";
 import Signup from "./pages/Auth/Signup";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
 
 interface ScreenshotProps {
   date: number;
@@ -22,7 +23,8 @@ interface ScreenshotProps {
 }
 
 function App() {
-  useFirebaseAuth(); // 👈 keeps Zustand in sync with Firebase
+  useFirebaseAuth();
+  useOnlineStatus();
 
   useEffect(() => {
     // TODO this is just temporary measures to ensure logging out of account means task end
@@ -40,7 +42,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    console.log("WASSUP");
     const off = EventsOn("screenshot", (pictures: string[]) => {
       console.log("screenshot is saved");
 

@@ -7,10 +7,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func CreateTask(name, client string) (*db.Task, error) {
+func CreateTask(userId string, title, client string) (*db.Task, error) {
 	task := db.Task{
-		Name:   name,
+		Title:  title,
 		Client: client,
+		UserID: userId,
 	}
 
 	if err := db.DB.Create(&task).Error; err != nil {
@@ -22,3 +23,4 @@ func CreateTask(name, client string) (*db.Task, error) {
 
 	return &task, nil
 }
+
