@@ -90,7 +90,11 @@ export function EditWorkDialog({
               onChange={(e) => setTag(e.target.value)}
               placeholder="Add detailed notes here..."
               rows={4}
+              maxLength={300}
             />
+            <span className="text-xs text-gray-500">
+              {tag.length}/300 characters
+            </span>
           </div>
         </div>
 

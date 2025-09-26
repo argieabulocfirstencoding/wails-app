@@ -18,7 +18,7 @@ const ProfileBar = () => {
           onClick={() => setOpen(true)}
           className="rounded-full border-2 border-green-500 p-3 hover:bg-green-50 transition cursor-pointer"
         >
-          <Settings className="w-6 h-6 text-green-600" />
+          <Settings className="w-6 h-6 text-green-600 transition-transform duration-500 group-hover:rotate-180" />
         </button>
 
         <span className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition">
