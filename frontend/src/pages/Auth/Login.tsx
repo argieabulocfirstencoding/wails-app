@@ -23,6 +23,7 @@ const Login = () => {
   const { online } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   async function loginUser(event: FormEvent) {
     event.preventDefault();
@@ -46,8 +47,9 @@ const Login = () => {
         console.log(user);
         navigate("/");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      setErrorMsg(error.message || "Login failed");
     }
     // navigate("/");
   }
@@ -114,6 +116,9 @@ const Login = () => {
             >
               Login
             </Button>
+            {errorMsg && (
+              <p className="text-red-600 text-sm text-center">{errorMsg}</p>
+            )}
           </form>
         </CardContent>
 

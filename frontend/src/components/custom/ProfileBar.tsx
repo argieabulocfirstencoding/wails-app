@@ -9,7 +9,7 @@ const ProfileBar = () => {
   return (
     <div className="flex px-6 py-4 border-t slight-shadow w-full justify-between sticky bottom-0 bg-white items-center">
       <img
-        src="https://www.shutterstock.com/image-vector/user-profile-icon-vector-avatar-600nw-2558760599.jpg"
+        src="https://lh3.googleusercontent.com/a/ACg8ocJWYobBkgAVfMMKK1NZZoAlx3Zk9xr1ONbhYI7bJL-W6cpYSNE=s288-c-no"
         className="rounded-full border-2 border-green-500 select-none"
         style={{ height: 52, width: 52 }}
       />

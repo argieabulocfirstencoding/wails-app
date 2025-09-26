@@ -10,6 +10,7 @@ import {
   StopTracking,
 } from "@/../wailsjs/go/app/App";
 import { EventsOn } from "@/../wailsjs/runtime";
+import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
 
 interface ScreenshotProps {
   date: number;
@@ -25,6 +26,8 @@ const Task = () => {
   const [monitor, setMonitor] = useState<number>(0);
   const [screenshots, setScreenshots] = useState<ScreenshotProps | null>(null);
   const [screenshotDate, setScreenshotDate] = useState<string>("");
+  const [memo, setMemo] = useState("");
+  const [tag, setTag] = useState("");
 
   function startTime() {
     resetTimer();
@@ -145,6 +148,11 @@ const Task = () => {
       setScreenshots(record);
     }
 
+    const memoRecord = localStorage.getItem("memo");
+    const tagRecord = localStorage.getItem("tag");
+    if (memoRecord) setMemo(memoRecord);
+    if (tagRecord) setTag(tagRecord);
+
     countMonitor();
   }, []);
 
@@ -224,11 +232,25 @@ const Task = () => {
           <hr className="my-2" />
           <div className="flex justify-between">
             <span className="font-semibold">What are you working on?</span>
-            <span className="text-green-500 font-bold">Edit</span>
+            <EditWorkDialog
+              initialMemo={memo}
+              initialTag={tag}
+              onSave={(newMemo, newTag) => {
+                setMemo(newMemo);
+                setTag(newTag);
+                localStorage.setItem("memo", newMemo);
+                localStorage.setItem("tag", newTag);
+              }}
+            />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm">Memo:</span>
-            <span className="text-sm">Activity tag:</span>
+            <span className="text-sm max-w-xs truncate">
+              <strong>Memo:</strong> {memo || "No memo set."}
+            </span>
+
+            <span className="text-sm max-w-md line-clamp-3">
+              <strong>Activity tag:</strong> {tag || "No tag set."}
+            </span>
           </div>
         </div>
 
