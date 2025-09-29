@@ -17,6 +17,7 @@ export namespace models {
 	    }
 	}
 	export class ExpTaskRecord {
+	    task_id: string;
 	    folder_name: string;
 	    // Go type: time
 	    started_at: any;
@@ -30,6 +31,7 @@ export namespace models {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.task_id = source["task_id"];
 	        this.folder_name = source["folder_name"];
 	        this.started_at = this.convertValues(source["started_at"], null);
 	        this.ended_at = this.convertValues(source["ended_at"], null);

@@ -29,9 +29,10 @@ function App() {
   const { taskID } = useAuthStore();
 
   useEffect(() => {
+    console.log("SHUTDOWN EVENT HANDLER LOADED");
     // TODO this is just temporary measures to ensure logging out of account means task end
     const off = EventsOn("app_shutdown", async () => {
-      console.log("HELLO MADLANG PEPOL CLOSING");
+      console.log("SHUTTING DOWN EVENT RECEIVED!");
       if (taskID) {
         await StopTracking(taskID);
         console.log("SHUTDOWN LOGGED OFF TRACKER");
@@ -39,11 +40,9 @@ function App() {
     });
 
     return () => {
-      const timeStop = Date.now();
-      localStorage.setItem("ended_" + taskID, JSON.stringify(timeStop));
       off();
     };
-  }, []);
+  }, [taskID]);
 
   return (
     <BrowserRouter>

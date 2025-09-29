@@ -62,6 +62,11 @@ func (a *App) Shutdown(ctx context.Context) {
 
 	// cleanup logic here
 	runtime.EventsEmit(ctx, "app_shutdown")
+	if a.WorkingTaskID != nil {
+		a.StopTracking(*a.WorkingTaskID)
+		runtime.LogPrintf(ctx, "Closing task: %s", *a.WorkingTaskID)
+	}
+
 	runtime.LogPrint(ctx, "App is shutdown")
 }
 
@@ -80,6 +85,7 @@ func (a *App) GetMonitorCount() int {
 
 func (a *App) StartTracking(taskId, localStorageValue string) {
 	a.ScreenshotService.FolderName = localStorageValue
+	a.WorkingTaskID = &taskId
 	services.StartTaskRecord(a.AuthUser.LocalID, taskId, localStorageValue)
 	a.ScreenshotService.Start(a.ctx)
 }
@@ -172,7 +178,12 @@ func (a *App) LogoutUser() {
 }
 
 func (a *App) GetLastTaskRecord(taskId string) *models.ExpTaskRecord {
-	return services.GetLastTaskRecord(a.AuthUser.LocalID, taskId)
+	record := services.GetLastTaskRecord(a.AuthUser.LocalID, taskId)
+	if record != nil {
+		a.WorkingTaskID = &record.TaskID
+	}
+
+	return record
 }
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
