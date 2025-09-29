@@ -30,10 +30,12 @@ function App() {
 
   useEffect(() => {
     // TODO this is just temporary measures to ensure logging out of account means task end
-    const off = EventsOn("app_shutdown", () => {
-      const timeStop = Date.now();
-      localStorage.setItem("ended_" + taskID, JSON.stringify(timeStop));
-      if (taskID) StopTracking(taskID);
+    const off = EventsOn("app_shutdown", async () => {
+      console.log("HELLO MADLANG PEPOL CLOSING");
+      if (taskID) {
+        await StopTracking(taskID);
+        console.log("SHUTDOWN LOGGED OFF TRACKER");
+      }
     });
 
     return () => {

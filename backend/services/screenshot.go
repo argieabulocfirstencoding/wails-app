@@ -48,7 +48,7 @@ func NewScreenshotService() *ScreenshotService {
 func (s *ScreenshotService) Start(ctx context.Context) {
 	s.ctx = ctx
 
-	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 10
+	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 2
 	if s.running {
 		return
 	}

@@ -32,6 +32,7 @@ const Home = () => {
     client: "",
   });
   const [tasks, setTasks] = useState<TaskProps[]>([]);
+  const { taskID } = useAuthStore();
 
   useEffect(() => {
     async function fetchUser() {
@@ -172,6 +173,7 @@ const Home = () => {
               taskId={task.taskId}
               title={task.title}
               client={task.client}
+              active={task.taskId === taskID}
             />
           ))
         ) : (
@@ -182,13 +184,22 @@ const Home = () => {
   );
 };
 
-const TaskItem = ({ taskId, title, client }: TaskProps) => {
+interface TaskItemProps {
+  taskId: string | null;
+  title: string;
+  client: string;
+  active: boolean;
+}
+
+const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
   const navigate = useNavigate();
 
   return (
     <>
       <div
-        className="grid grid-cols-2 px-6 cursor-pointer my-5"
+        className={`grid grid-cols-2 px-6 cursor-pointer py-5 ${
+          active && "bg-green-200"
+        }`}
         onClick={() => navigate("/task/" + taskId)}
       >
         <div className="flex flex-col">

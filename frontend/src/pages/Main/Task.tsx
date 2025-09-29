@@ -12,6 +12,7 @@ import {
 } from "@/../wailsjs/go/app/App";
 import { EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
+import { useAuthStore } from "@/store/AuthContext";
 
 interface ScreenshotProps {
   date: number;
@@ -30,6 +31,8 @@ const Task = () => {
   const [screenshotDate, setScreenshotDate] = useState<string>("");
   const [memo, setMemo] = useState("");
   const [tag, setTag] = useState("");
+
+  const { setTaskID } = useAuthStore();
 
   async function startTime() {
     resetTimer();
@@ -53,6 +56,7 @@ const Task = () => {
   }
 
   async function stopTime() {
+    setTaskID(null);
     const timeStop = Date.now();
     setStart(false);
     setEndTime(timeStop);
@@ -199,7 +203,8 @@ const Task = () => {
 
   useEffect(() => {
     // this continues when the user goes back to task
-    if (timeStarted && !timeEnded) {
+    if (timeStarted && !timeEnded && id) {
+      setTaskID(id);
       setStart(true);
     }
   }, [timeStarted, timeEnded]);
