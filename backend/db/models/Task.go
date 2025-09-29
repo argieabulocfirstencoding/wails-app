@@ -1,7 +1,13 @@
 package models
 
+import (
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
 type Task struct {
 	ID         uint   `gorm:"primaryKey"`
+	TaskID     string `gorm:"type:char(36);uniqueIndex"`
 	Title      string `gorm:"uniqueIndex:idx_name_client" validate:"required"`
 	Client     string `gorm:"uniqueIndex:idx_name_client" validate:"required"`
 	UserID     string
@@ -9,13 +15,23 @@ type Task struct {
 	TaskRecord []TaskRecord
 }
 
+
 type ExpTask struct {
+	TaskID string `json:"taskId"`
 	Title  string `json:"title"`
 	Client string `json:"client"`
 }
 
+func (t *Task) BeforeCreate(tx *gorm.DB) (err error) {
+	if t.TaskID == "" {
+		t.TaskID = uuid.New().String()
+	}
+	return
+}
+
 func (t Task) ToExpTask() ExpTask {
 	return ExpTask{
+		TaskID: t.TaskID,
 		Title:  t.Title,
 		Client: t.Client,
 	}
@@ -24,7 +40,8 @@ func (t Task) ToExpTask() ExpTask {
 func ToExpTasks(tasks []Task) []ExpTask {
 	exp := make([]ExpTask, len(tasks))
 	for i, t := range tasks {
-		exp[i] = ExpTask{Title: t.Title, Client: t.Client}
+		exp[i] = ExpTask{
+			TaskID: t.TaskID, Title: t.Title, Client: t.Client}
 	}
 	return exp
 }

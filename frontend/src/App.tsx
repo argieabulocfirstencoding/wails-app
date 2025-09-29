@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import logo from "./assets/images/logo-universal.png";
 import "./App.scss";
 import "./styles/style.scss";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -11,11 +10,12 @@ import Notifications from "./pages/Main/Notifications";
 import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
 
-import { StartTracking, StopTracking } from "../wailsjs/go/app/App";
+import { StopTracking } from "../wailsjs/go/app/App";
 import { EventsOn } from "../wailsjs/runtime";
 import Signup from "./pages/Auth/Signup";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
+import { useAuthStore } from "./store/AuthContext";
 
 interface ScreenshotProps {
   date: number;
@@ -26,42 +26,21 @@ function App() {
   useFirebaseAuth();
   useOnlineStatus();
 
+  const { taskID } = useAuthStore();
+
   useEffect(() => {
     // TODO this is just temporary measures to ensure logging out of account means task end
     const off = EventsOn("app_shutdown", () => {
       const timeStop = Date.now();
-      localStorage.setItem("ended", JSON.stringify(timeStop));
-      StopTracking();
+      localStorage.setItem("ended_" + taskID, JSON.stringify(timeStop));
+      if (taskID) StopTracking(taskID);
     });
 
     return () => {
       const timeStop = Date.now();
-      localStorage.setItem("ended", JSON.stringify(timeStop));
+      localStorage.setItem("ended_" + taskID, JSON.stringify(timeStop));
       off();
     };
-  }, []);
-
-  useEffect(() => {
-    const off = EventsOn("screenshot", (pictures: string[]) => {
-      console.log("screenshot is saved");
-
-      const now = Date.now();
-
-      const screenshotTaken: ScreenshotProps = { date: now, pictures };
-      localStorage.setItem("last_screenshot", JSON.stringify(screenshotTaken));
-    });
-
-    return () => {
-      console.log("app is unmounted");
-      off();
-    };
-  }, []);
-
-  useEffect(() => {
-    const timeStartRecord = localStorage.getItem("started");
-    const timeStopRecord = localStorage.getItem("ended");
-
-    if (timeStartRecord && !timeStopRecord) StartTracking(timeStartRecord);
   }, []);
 
   return (
@@ -69,7 +48,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/task" element={<Task />} />
+        <Route path="/task/:id" element={<Task />} />
         <Route path="/account-settings" element={<AccountSettings />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/activity-logs" element={<ActivityLogs />} />

@@ -18,8 +18,16 @@ export function FirebaseLoginUser(arg1, arg2) {
   return window['go']['app']['App']['FirebaseLoginUser'](arg1, arg2);
 }
 
+export function GetLastTaskRecord(arg1) {
+  return window['go']['app']['App']['GetLastTaskRecord'](arg1);
+}
+
 export function GetMonitorCount() {
   return window['go']['app']['App']['GetMonitorCount']();
+}
+
+export function GetTasks() {
+  return window['go']['app']['App']['GetTasks']();
 }
 
 export function LoginUser(arg1, arg2) {
@@ -34,12 +42,12 @@ export function RegisterUser(arg1) {
   return window['go']['app']['App']['RegisterUser'](arg1);
 }
 
-export function StartTracking(arg1) {
-  return window['go']['app']['App']['StartTracking'](arg1);
+export function StartTracking(arg1, arg2) {
+  return window['go']['app']['App']['StartTracking'](arg1, arg2);
 }
 
-export function StopTracking() {
-  return window['go']['app']['App']['StopTracking']();
+export function StopTracking(arg1) {
+  return window['go']['app']['App']['StopTracking'](arg1);
 }
 
 export function TakeScreenshot() {

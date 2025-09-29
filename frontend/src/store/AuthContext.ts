@@ -12,6 +12,7 @@ type AuthState = {
   user: AuthUser | null;
   loading: boolean;
   online: boolean;
+  taskID: string | null;
   setUser: (user: AuthState["user"]) => void;
   setLoading: (loading: boolean) => void;
   setOnline: (online: boolean) => void;
@@ -22,6 +23,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
   online: navigator.onLine,
+  taskID: null,
   setUser: (user) => set({ user }),
   setLoading: (loading) => set({ loading }),
   setOnline: (online) => set({ online: online }),

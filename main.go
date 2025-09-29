@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	"fesapp/backend/app"
+	"fesapp/backend/db"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -16,7 +17,7 @@ var assets embed.FS
 func main() {
 	// Create an instance of the app structure
 	app := app.NewApp()
-
+	db.Init()
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "FES App Tracker",
@@ -25,9 +26,9 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour:  &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:         app.Startup,
-		OnShutdown:        app.Shutdown,
+		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:        app.Startup,
+		OnShutdown:       app.Shutdown,
 		Bind: []interface{}{
 			app,
 		},

@@ -1,13 +1,14 @@
 import MainLayout from "@/layouts/MainLayout";
 import { ChevronLeft, CirclePlay, StopCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
 import {
   TakeScreenshot,
   GetMonitorCount,
   StartTracking,
   StopTracking,
+  GetLastTaskRecord,
 } from "@/../wailsjs/go/app/App";
 import { EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
@@ -19,6 +20,7 @@ interface ScreenshotProps {
 
 const Task = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
   const [isStarted, setStart] = useState(false);
   const [timeStarted, setStartTime] = useState<number>(0);
   const [timeEnded, setEndTime] = useState<number>();
@@ -29,31 +31,35 @@ const Task = () => {
   const [memo, setMemo] = useState("");
   const [tag, setTag] = useState("");
 
-  function startTime() {
+  async function startTime() {
     resetTimer();
+    if (!id) {
+      console.log("No Id has been set");
+      return;
+    }
 
     const timeStart = Date.now();
     const stringifiedDateTime = JSON.stringify(timeStart);
     setStart(true);
-    localStorage.setItem("started", stringifiedDateTime);
     setStartTime(timeStart);
-    StartTracking(stringifiedDateTime);
+    await StartTracking(id, stringifiedDateTime);
+    console.log("time started");
   }
 
   function resetTimer() {
     setStartTime(0);
     setEndTime(0);
     setElapsedTime(0);
-    localStorage.removeItem("ended");
-    localStorage.removeItem("started");
   }
 
-  function stopTime() {
+  async function stopTime() {
     const timeStop = Date.now();
     setStart(false);
     setEndTime(timeStop);
-    localStorage.setItem("ended", JSON.stringify(timeStop));
-    StopTracking();
+    if (id) {
+      await StopTracking(id);
+      console.log("Time stopeed");
+    }
   }
 
   function getFormattedTime() {
@@ -82,7 +88,10 @@ const Task = () => {
     if (pictures) {
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
 
-      localStorage.setItem("last_screenshot", JSON.stringify(screenshotTaken));
+      localStorage.setItem(
+        "last_screenshot_" + id,
+        JSON.stringify(screenshotTaken)
+      );
       setScreenshots(screenshotTaken);
     }
   }
@@ -137,16 +146,36 @@ const Task = () => {
   }, [screenshots]);
 
   useEffect(() => {
-    const timeStartRecord = localStorage.getItem("started");
-    const timeStopRecord = localStorage.getItem("ended");
-    const screenshotRecord = localStorage.getItem("last_screenshot");
+    async function fetchLastRecord() {
+      try {
+        if (!id) return;
 
-    if (timeStartRecord) setStartTime(JSON.parse(timeStartRecord));
-    if (timeStopRecord) setEndTime(JSON.parse(timeStopRecord));
-    if (screenshotRecord) {
-      const record = JSON.parse(screenshotRecord);
-      setScreenshots(record);
+        const response = await GetLastTaskRecord(id);
+        console.log("RESPONSE: " + JSON.stringify(response));
+        if (response) {
+          const started = new Date(response.started_at);
+          const ended = response.ended_at ? new Date(response.ended_at) : null;
+
+          setStartTime(started.getTime());
+          setEndTime(ended?.getTime());
+        }
+      } catch (error) {
+        console.log("Error fetching last record: " + error);
+      }
     }
+
+    fetchLastRecord();
+
+    // const timeStartRecord = localStorage.getItem("started");
+    // const timeStopRecord = localStorage.getItem("ended");
+    // const screenshotRecord = localStorage.getItem("last_screenshot");
+
+    // if (timeStartRecord) setStartTime(JSON.parse(timeStartRecord));
+    // if (timeStopRecord) setEndTime(JSON.parse(timeStopRecord));
+    // if (screenshotRecord) {
+    //   const record = JSON.parse(screenshotRecord);
+    //   setScreenshots(record);
+    // }
 
     const memoRecord = localStorage.getItem("memo");
     const tagRecord = localStorage.getItem("tag");
@@ -157,9 +186,8 @@ const Task = () => {
   }, []);
 
   useEffect(() => {
-    let endTime = localStorage.getItem("ended");
-
-    if (!isStarted || !timeStarted || endTime) return;
+    console.log("TaskID: ", id);
+    if (!isStarted || !timeStarted) return;
 
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - timeStarted) / 1000);
@@ -170,14 +198,11 @@ const Task = () => {
   }, [isStarted]);
 
   useEffect(() => {
-    const timeStartRecord = localStorage.getItem("started");
-    const timeStopRecord = localStorage.getItem("ended");
-
-    if (timeStartRecord && !timeStopRecord) {
-      setStartTime(JSON.parse(timeStartRecord));
+    // this continues when the user goes back to task
+    if (timeStarted && !timeEnded) {
       setStart(true);
     }
-  }, []);
+  }, [timeStarted, timeEnded]);
 
   useEffect(() => {
     const off = EventsOn("screenshot", (pictures: string[]) => {

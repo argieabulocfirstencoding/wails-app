@@ -3,15 +3,21 @@ package services
 import (
 	"errors"
 	"fesapp/backend/db"
+	"fmt"
 
 	"gorm.io/gorm"
 )
 
-func CreateTask(userId string, title, client string) (*db.Task, error) {
+// TODO on firebase task integration, use firebase task id
+func CreateTask(userId, title, client string, taskID *string) (*db.Task, error) {
 	task := db.Task{
 		Title:  title,
 		Client: client,
 		UserID: userId,
+	}
+
+	if taskID != nil {
+		task.TaskID = *taskID
 	}
 
 	if err := db.DB.Create(&task).Error; err != nil {
@@ -24,3 +30,17 @@ func CreateTask(userId string, title, client string) (*db.Task, error) {
 	return &task, nil
 }
 
+func GetTasks(userId string) ([]db.Task, error) {
+	if db.DB == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
+	var tasks []db.Task
+
+	result := db.DB.Where("user_id = ?", userId).Find(&tasks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return tasks, nil
+}

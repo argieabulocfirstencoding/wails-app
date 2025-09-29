@@ -5,27 +5,26 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
+	"fmt"
 
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
-	"gorm.io/gorm"
 )
 
 // App struct
 type App struct {
 	ctx               context.Context
 	ScreenshotService *services.ScreenshotService
-	Database          *gorm.DB
 	windowOpen        bool
 	AuthUser          *services.AuthUser
+	WorkingTaskID     *string
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
 		ScreenshotService: services.NewScreenshotService(),
-		Database:          db.Init(),
 	}
 }
 
@@ -79,13 +78,28 @@ func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
 }
 
-func (a *App) StartTracking(localStorageValue string) {
+func (a *App) StartTracking(taskId, localStorageValue string) {
 	a.ScreenshotService.FolderName = localStorageValue
+	services.StartTaskRecord(a.AuthUser.LocalID, taskId, localStorageValue)
 	a.ScreenshotService.Start(a.ctx)
 }
 
-func (a *App) StopTracking() {
+func (a *App) StopTracking(taskId string) {
+	if a.AuthUser == nil {
+		fmt.Println("StopTracking error: AuthUser is nil")
+		return
+	}
+
 	a.ScreenshotService.Stop()
+
+	err := services.StopTaskRecord(
+		a.AuthUser.LocalID,
+		taskId,
+		a.ScreenshotService.FolderName,
+	)
+	if err != nil {
+		fmt.Println("StopTaskRecord error:", err)
+	}
 }
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
@@ -157,17 +171,30 @@ func (a *App) LogoutUser() {
 
 }
 
+func (a *App) GetLastTaskRecord(taskId string) *models.ExpTaskRecord {
+	return services.GetLastTaskRecord(a.AuthUser.LocalID, taskId)
+}
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
-	task, err := services.CreateTask(a.AuthUser.LocalID, title, client)
+
+	task, err := services.CreateTask(a.AuthUser.LocalID, title, client, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	exportTask := task.ToExpTask()
-
-	return &exportTask, nil
+	expTask := task.ToExpTask()
+	return &expTask, nil
 }
 
-// func (a *App) GetTasks() (*models.ExpTask, error) {
+func (a *App) GetTasks() ([]models.ExpTask, error) {
+	if a.AuthUser == nil {
+		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
+	}
 
-// }
+	tasks, err := services.GetTasks(a.AuthUser.LocalID)
+	if err != nil {
+		return nil, err
+	}
+
+	expTasks := models.ToExpTasks(tasks)
+	return expTasks, nil
+}
