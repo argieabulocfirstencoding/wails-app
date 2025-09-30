@@ -12,7 +12,7 @@ export function CreateTask(arg1:string,arg2:string):Promise<models.ExpTask>;
 
 export function FirebaseLoginUser(arg1:string,arg2:string):Promise<services.AuthUser>;
 
-export function GetLastTaskRecord(arg1:string):Promise<models.ExpTaskRecord>;
+export function GetLastTaskRecord(arg1:string):Promise<models.TaskRecordWithScreenshots>;
 
 export function GetMonitorCount():Promise<number>;
 

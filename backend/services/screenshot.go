@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fesapp/backend/db"
+	"fesapp/backend/db/models"
 	"fmt"
 	"image/png"
 	"log"
@@ -14,6 +18,7 @@ import (
 	"github.com/gen2brain/beeep"
 	"github.com/kbinani/screenshot"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"gorm.io/gorm"
 )
 
 func screenshotNotify(message string) {
@@ -33,10 +38,11 @@ func GetMonitorCount() int {
 }
 
 type ScreenshotService struct {
-	ctx        context.Context
-	FolderName string
-	stopChan   chan struct{}
-	running    bool
+	ctx          context.Context
+	FolderName   string
+	stopChan     chan struct{}
+	running      bool
+	TaskRecordID *uint
 }
 
 func NewScreenshotService() *ScreenshotService {
@@ -98,6 +104,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	}
 
 	pictures := []string{}
+	paths := []string{}
 
 	// Timestamp name of the screenshots
 	now := time.Now()
@@ -124,8 +131,6 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		}
 		file.Close()
 
-		fmt.Printf("Saved %s\n", fileName)
-
 		// Convert to base64 for preview
 		var buf bytes.Buffer
 		if err := png.Encode(&buf, img); err != nil {
@@ -133,7 +138,23 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		}
 		base64Img := "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 
+		fmt.Printf("Saved %s\n", fileName)
 		pictures = append(pictures, base64Img)
+		paths = append(paths, fileName)
+	}
+
+	// JSON Paths to store array of screenshots in local db
+	jsonPaths, err := json.Marshal(paths)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.DB.Create(&models.Screenshot{
+		TaskRecordID: *s.TaskRecordID,
+		FilePath:     string(jsonPaths),
+		TakenAt:      time.Now().Local(),
+	}).Error; err != nil {
+		return nil, err
 	}
 
 	runtime.EventsEmit(s.ctx, "screenshot", pictures)
@@ -141,4 +162,48 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	screenshotNotify("Your work progress have been captured")
 
 	return pictures, nil
+}
+
+func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId string) (*models.TaskRecordWithScreenshots, error) {
+
+	trws := &models.TaskRecordWithScreenshots{}
+
+	expTaskRecord, err := GetLastTaskRecord(userId, taskId)
+	if err != nil {
+		return nil, err
+	}
+
+	var screenshot models.Screenshot
+	if err := db.DB.Where("task_record_id = ?", expTaskRecord.ID).Last(&screenshot).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// ✅ No screenshot found, not an error for your flow
+			fmt.Println("No screenshot found for task:", expTaskRecord.TaskID)
+		} else {
+			// ❌ Real DB error
+			fmt.Println("DB error:", err)
+			return nil, err
+		}
+	}
+
+	// ✅ Screenshot found, now you can unmarshal
+	fmt.Println("Found screenshot:", screenshot.FilePath)
+	// example: if FilePath is JSON array of paths
+	var pictures []string
+	var paths []string
+	if err := json.Unmarshal([]byte(screenshot.FilePath), &paths); err == nil {
+		for _, path := range paths {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
+			base64Img := "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
+			pictures = append(pictures, base64Img)
+		}
+	}
+
+	trws.Record = expTaskRecord
+	trws.Screenshots = pictures
+	trws.Date = screenshot.TakenAt
+
+	return trws, nil
 }

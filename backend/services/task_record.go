@@ -14,35 +14,34 @@ func GetActiveTaskRecord(userId string) {
 
 }
 
-func GetLastTaskRecord(userId, taskId string) *models.ExpTaskRecord {
+func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
 	// TODO add fetch on firebase
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND task_id = ?", userId, taskId).Last(&taskRecord).Error; err != nil {
 		fmt.Println("DB error:", err)
-		return nil
+		return nil, err
 	}
 
 	taskRecordExp := taskRecord.ToExp()
-
-	return &taskRecordExp
+	return &taskRecordExp, nil
 }
 
-func StartTaskRecord(userId, taskId, folderName string) error {
+func StartTaskRecord(userId, taskId string) (*db.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
 		fmt.Print(err)
 	} else {
 		if err := UpdateRecord(&taskRecord); err != nil {
-			return err
+			return nil, err
 		}
 
 		// TODO add edge cases where forgot to logout due to power problem
 	}
 
-	_, err := NewTaskRecord(userId, taskId, folderName)
-	return err
+	record, err := NewTaskRecord(userId, taskId)
+	return record, err
 }
-func StopTaskRecord(userId, taskId, folderName string) error {
+func StopTaskRecord(userId, taskId string) error {
 	var taskRecord models.TaskRecord
 
 	err := db.DB.Where("user_id = ? AND task_id = ? AND ended_at IS NULL", userId, taskId).
@@ -67,11 +66,10 @@ func StopTaskRecord(userId, taskId, folderName string) error {
 	return nil
 }
 
-func NewTaskRecord(userId string, taskId, foldername string) (*models.TaskRecord, error) {
+func NewTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
 	record := models.TaskRecord{
-		UserID:     userId,
-		TaskID:     taskId,
-		FolderName: foldername,
+		UserID: userId,
+		TaskID: taskId,
 	}
 
 	err := db.DB.Create(&record).Error

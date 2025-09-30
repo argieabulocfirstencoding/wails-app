@@ -86,7 +86,11 @@ func (a *App) GetMonitorCount() int {
 func (a *App) StartTracking(taskId, localStorageValue string) {
 	a.ScreenshotService.FolderName = localStorageValue
 	a.WorkingTaskID = &taskId
-	services.StartTaskRecord(a.AuthUser.LocalID, taskId, localStorageValue)
+	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId)
+	if err != nil {
+		fmt.Print(err)
+	}
+	a.ScreenshotService.TaskRecordID = &record.ID
 	a.ScreenshotService.Start(a.ctx)
 }
 
@@ -97,11 +101,11 @@ func (a *App) StopTracking(taskId string) {
 	}
 
 	a.ScreenshotService.Stop()
+	a.ScreenshotService.TaskRecordID = nil
 
 	err := services.StopTaskRecord(
 		a.AuthUser.LocalID,
 		taskId,
-		a.ScreenshotService.FolderName,
 	)
 	if err != nil {
 		fmt.Println("StopTaskRecord error:", err)
@@ -177,13 +181,14 @@ func (a *App) LogoutUser() {
 
 }
 
-func (a *App) GetLastTaskRecord(taskId string) *models.ExpTaskRecord {
-	record := services.GetLastTaskRecord(a.AuthUser.LocalID, taskId)
-	if record != nil {
-		a.WorkingTaskID = &record.TaskID
+func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {
+	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
+	if err != nil {
+		return nil, err
 	}
 
-	return record
+	a.WorkingTaskID = &record.Record.TaskID
+	return record, nil
 }
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 

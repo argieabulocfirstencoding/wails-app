@@ -157,11 +157,25 @@ const Task = () => {
         const response = await GetLastTaskRecord(id);
         console.log("RESPONSE: " + JSON.stringify(response));
         if (response) {
-          const started = new Date(response.started_at);
-          const ended = response.ended_at ? new Date(response.ended_at) : null;
+          const record = response.record;
+          const screenshots = response.screenshots;
+          const date = response.takenAt;
 
-          setStartTime(started.getTime());
-          setEndTime(ended?.getTime());
+          if (record) {
+            const started = new Date(record.started_at);
+            const ended = record.ended_at ? new Date(record.ended_at) : null;
+
+            setStartTime(started.getTime());
+            setEndTime(ended?.getTime());
+          }
+
+          if (screenshots && date) {
+            const screenshotTaken: ScreenshotProps = {
+              date,
+              pictures: screenshots,
+            };
+            setScreenshots(screenshotTaken);
+          }
         }
       } catch (error) {
         console.log("Error fetching last record: " + error);
@@ -169,17 +183,6 @@ const Task = () => {
     }
 
     fetchLastRecord();
-
-    // const timeStartRecord = localStorage.getItem("started");
-    // const timeStopRecord = localStorage.getItem("ended");
-    // const screenshotRecord = localStorage.getItem("last_screenshot");
-
-    // if (timeStartRecord) setStartTime(JSON.parse(timeStartRecord));
-    // if (timeStopRecord) setEndTime(JSON.parse(timeStopRecord));
-    // if (screenshotRecord) {
-    //   const record = JSON.parse(screenshotRecord);
-    //   setScreenshots(record);
-    // }
 
     const memoRecord = localStorage.getItem("memo");
     const tagRecord = localStorage.getItem("tag");

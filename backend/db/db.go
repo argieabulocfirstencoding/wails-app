@@ -18,6 +18,7 @@ var DB *gorm.DB
 type User = models.User
 type Task = models.Task
 type TaskRecord = models.TaskRecord
+type Screenshot = models.Screenshot
 
 func Init() *gorm.DB {
 	dir, _ := os.UserConfigDir()
@@ -39,6 +40,9 @@ func Init() *gorm.DB {
 		log.Fatalf("failed to migrate: %v", err)
 	}
 	if err := DB.AutoMigrate(&TaskRecord{}); err != nil {
+		log.Fatalf("failed to migrate: %v", err)
+	}
+	if err := DB.AutoMigrate(&Screenshot{}); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
 

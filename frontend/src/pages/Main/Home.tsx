@@ -31,6 +31,7 @@ const Home = () => {
     title: "",
     client: "",
   });
+  const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskProps[]>([]);
   const { taskID } = useAuthStore();
 
@@ -61,6 +62,9 @@ const Home = () => {
           title: "",
           client: "",
         });
+      setOpen(false);
+
+      fetchTasks();
     } catch (error) {
       console.log("Error creating task" + error);
     }
@@ -83,7 +87,7 @@ const Home = () => {
       <div className="p-6 border-b-2 flex justify-between items-center">
         <h1 className="text-2xl font-extrabold">All Task</h1>
         {/* ==================================================================== */}
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
           <form>
             <DialogTrigger asChild>
               <Plus className="cursor-pointer" />
