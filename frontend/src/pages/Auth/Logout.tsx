@@ -12,14 +12,17 @@ const Logout = () => {
   useEffect(() => {
     async function removeCredentials() {
       // Clear tokens or user session
-      const user = localStorage.getItem("user");
-      await LogoutUser();
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("user");
-      reset();
+      try {
+        await LogoutUser();
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("user");
+        reset();
 
-      // Redirect to login page
-      navigate("/login");
+        // Redirect to login page
+        navigate("/login");
+      } catch (error) {
+        console.log("ERROR LOGGING OUT: ", error);
+      }
     }
 
     removeCredentials();

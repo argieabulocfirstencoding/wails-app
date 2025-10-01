@@ -6,8 +6,8 @@ import (
 )
 
 type AuthUser struct {
-	LocalID string `json:"localId"` // uid
-	Email   string `json:"email"`
+	UserID string `json:"localId"` // uid
+	Email  string `json:"email"`
 	// TODO add profile
 }
 

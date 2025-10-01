@@ -2,14 +2,17 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
 	"fmt"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
+	"gorm.io/gorm"
 )
 
 // App struct
@@ -19,6 +22,7 @@ type App struct {
 	windowOpen        bool
 	AuthUser          *services.AuthUser
 	WorkingTaskID     *string
+	AttendanceID      *uint
 }
 
 // NewApp creates a new App application struct
@@ -86,7 +90,7 @@ func (a *App) GetMonitorCount() int {
 func (a *App) StartTracking(taskId, localStorageValue string) {
 	a.ScreenshotService.FolderName = localStorageValue
 	a.WorkingTaskID = &taskId
-	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId)
+	record, err := services.StartTaskRecord(a.AuthUser.UserID, taskId, *a.AttendanceID)
 	if err != nil {
 		fmt.Print(err)
 	}
@@ -105,7 +109,7 @@ func (a *App) StopTracking(taskId string) {
 	a.ScreenshotService.TaskRecordID = nil
 
 	err := services.StopTaskRecord(
-		a.AuthUser.LocalID,
+		a.AuthUser.UserID,
 		taskId,
 	)
 	if err != nil {
@@ -153,8 +157,8 @@ func (a *App) LoginUser(email, password string) (*services.AuthUser, error) {
 	}
 
 	authUser := &services.AuthUser{
-		LocalID: user.ID,
-		Email:   user.Email,
+		UserID: user.ID,
+		Email:  user.Email,
 	}
 
 	a.AuthUser = authUser
@@ -169,21 +173,54 @@ func (a *App) FirebaseLoginUser(email, password string) (*services.AuthUser, err
 	// TODO in the future include returning the profile
 
 	authUser := &services.AuthUser{
-		LocalID: user.LocalID,
-		Email:   user.Email,
+		UserID: user.LocalID,
+		Email:  user.Email,
 	}
 
+	attendanceID, err := services.LoginAttendance(authUser.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	taskRecord, err := services.GetActiveTaskRecord(authUser.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			fmt.Print("No active record")
+		} else {
+			fmt.Printf("Error getting active record %v", err)
+		}
+	}
+
+	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
+	if taskRecord != nil {
+
+		a.WorkingTaskID = &taskRecord.TaskID
+		a.ScreenshotService.TaskID = a.WorkingTaskID
+		a.ScreenshotService.TaskRecordID = &taskRecord.ID
+		a.ScreenshotService.FolderName = fmt.Sprintf("%d", time.Now().UnixMilli())
+		a.ScreenshotService.Start(a.ctx)
+	}
+
 	return authUser, nil
 }
 
-func (a *App) LogoutUser() {
+func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
 
+	if a.WorkingTaskID != nil {
+		a.StopTracking(*a.WorkingTaskID)
+	}
+
+	if err := services.LogoutAttendance(*a.AttendanceID); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {
-	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
+	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.UserID, taskId)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +230,7 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 }
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
-	task, err := services.CreateTask(a.AuthUser.LocalID, title, client, nil)
+	task, err := services.CreateTask(a.AuthUser.UserID, title, client, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +244,7 @@ func (a *App) GetTasks() ([]models.ExpTask, error) {
 		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
 	}
 
-	tasks, err := services.GetTasks(a.AuthUser.LocalID)
+	tasks, err := services.GetTasks(a.AuthUser.UserID)
 	if err != nil {
 		return nil, err
 	}

@@ -5,15 +5,17 @@ import (
 )
 
 type TaskRecord struct {
-	ID          uint      `gorm:"primaryKey"`
-	UserID      string    `validate:"required"`
-	User        User      `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TaskID      string    `gorm:"not null"` // foreign key
-	Task        Task      `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	StartedAt   time.Time `gorm:"autoCreateTime"`
-	EndedAt     *time.Time
-	Duration    *int32
-	Screenshots []Screenshot
+	ID           uint       `gorm:"primaryKey"`
+	UserID       string     `validate:"required"`
+	User         User       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	AttendanceID uint       `gorm:"not null"`
+	Attendance   Attendance `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TaskID       string     `gorm:"not null"` // foreign key
+	Task         Task       `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	StartedAt    time.Time  `gorm:"autoCreateTime"`
+	EndedAt      *time.Time
+	Duration     *int32
+	Screenshots  []Screenshot
 }
 
 type ExpTaskRecord struct {

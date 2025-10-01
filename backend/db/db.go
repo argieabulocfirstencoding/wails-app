@@ -45,6 +45,9 @@ func Init() *gorm.DB {
 	if err := DB.AutoMigrate(&Screenshot{}); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
+	if err := DB.AutoMigrate(&models.Attendance{}); err != nil {
+		log.Fatalf("failed to migrate: %v", err)
+	}
 
 	fmt.Println("✅ Database initialized at", dbPath)
 	return DB

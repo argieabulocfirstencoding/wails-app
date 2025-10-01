@@ -6,15 +6,14 @@ import (
 )
 
 type Task struct {
-	ID         uint   `gorm:"primaryKey"`
-	TaskID     string `gorm:"type:char(36);uniqueIndex"`
-	Title      string `gorm:"uniqueIndex:idx_name_client" validate:"required"`
-	Client     string `gorm:"uniqueIndex:idx_name_client" validate:"required"`
-	UserID     string
-	User       User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TaskRecord []TaskRecord
+	ID           uint       `gorm:"primaryKey"`
+	TaskID       string     `gorm:"type:char(36);uniqueIndex"`
+	Title        string     `gorm:"uniqueIndex:idx_name_client" validate:"required"`
+	Client       string     `gorm:"uniqueIndex:idx_name_client" validate:"required"`
+	UserID       string
+	User         User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TaskRecord   []TaskRecord
 }
-
 
 type ExpTask struct {
 	TaskID string `json:"taskId"`

@@ -1,41 +1,82 @@
 export namespace models {
 	
-	export class ExpTask {
-	    taskId: string;
-	    title: string;
-	    client: string;
+	export class Screenshot {
+	    ID: number;
+	    TaskRecordID: number;
+	    TaskRecord: TaskRecord;
+	    TaskID: string;
+	    Task: Task;
+	    FilePath: string;
+	    CloudURL?: string;
+	    // Go type: time
+	    TakenAt: any;
 	
 	    static createFrom(source: any = {}) {
-	        return new ExpTask(source);
+	        return new Screenshot(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.taskId = source["taskId"];
-	        this.title = source["title"];
-	        this.client = source["client"];
+	        this.ID = source["ID"];
+	        this.TaskRecordID = source["TaskRecordID"];
+	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
+	        this.TaskID = source["TaskID"];
+	        this.Task = this.convertValues(source["Task"], Task);
+	        this.FilePath = source["FilePath"];
+	        this.CloudURL = source["CloudURL"];
+	        this.TakenAt = this.convertValues(source["TakenAt"], null);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
-	export class ExpTaskRecord {
-	    id: number;
-	    task_id: string;
+	export class TaskRecord {
+	    ID: number;
+	    UserID: string;
+	    User: User;
+	    AttendanceID: number;
+	    Attendance: Attendance;
+	    TaskID: string;
+	    Task: Task;
 	    // Go type: time
-	    started_at: any;
+	    StartedAt: any;
 	    // Go type: time
-	    ended_at?: any;
-	    duration?: number;
+	    EndedAt?: any;
+	    Duration?: number;
+	    Screenshots: Screenshot[];
 	
 	    static createFrom(source: any = {}) {
-	        return new ExpTaskRecord(source);
+	        return new TaskRecord(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.task_id = source["task_id"];
-	        this.started_at = this.convertValues(source["started_at"], null);
-	        this.ended_at = this.convertValues(source["ended_at"], null);
-	        this.duration = source["duration"];
+	        this.ID = source["ID"];
+	        this.UserID = source["UserID"];
+	        this.User = this.convertValues(source["User"], User);
+	        this.AttendanceID = source["AttendanceID"];
+	        this.Attendance = this.convertValues(source["Attendance"], Attendance);
+	        this.TaskID = source["TaskID"];
+	        this.Task = this.convertValues(source["Task"], Task);
+	        this.StartedAt = this.convertValues(source["StartedAt"], null);
+	        this.EndedAt = this.convertValues(source["EndedAt"], null);
+	        this.Duration = source["Duration"];
+	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -132,34 +173,37 @@ export namespace models {
 		    return a;
 		}
 	}
-	export class TaskRecord {
+	export class Attendance {
 	    ID: number;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	    // Go type: gorm
+	    DeletedAt: any;
 	    UserID: string;
 	    User: User;
-	    TaskID: string;
-	    Task: Task;
 	    // Go type: time
-	    StartedAt: any;
+	    TimeIn: any;
 	    // Go type: time
-	    EndedAt?: any;
-	    Duration?: number;
-	    Screenshots: Screenshot[];
+	    TimeOut?: any;
+	    SyncID?: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new TaskRecord(source);
+	        return new Attendance(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	        this.DeletedAt = this.convertValues(source["DeletedAt"], null);
 	        this.UserID = source["UserID"];
 	        this.User = this.convertValues(source["User"], User);
-	        this.TaskID = source["TaskID"];
-	        this.Task = this.convertValues(source["Task"], Task);
-	        this.StartedAt = this.convertValues(source["StartedAt"], null);
-	        this.EndedAt = this.convertValues(source["EndedAt"], null);
-	        this.Duration = source["Duration"];
-	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
+	        this.TimeIn = this.convertValues(source["TimeIn"], null);
+	        this.TimeOut = this.convertValues(source["TimeOut"], null);
+	        this.SyncID = source["SyncID"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -180,31 +224,42 @@ export namespace models {
 		    return a;
 		}
 	}
-	export class Screenshot {
-	    ID: number;
-	    TaskRecordID: number;
-	    TaskRecord: TaskRecord;
-	    TaskID: string;
-	    Task: Task;
-	    FilePath: string;
-	    CloudURL?: string;
-	    // Go type: time
-	    TakenAt: any;
+	export class ExpTask {
+	    taskId: string;
+	    title: string;
+	    client: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new Screenshot(source);
+	        return new ExpTask(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.TaskRecordID = source["TaskRecordID"];
-	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
-	        this.TaskID = source["TaskID"];
-	        this.Task = this.convertValues(source["Task"], Task);
-	        this.FilePath = source["FilePath"];
-	        this.CloudURL = source["CloudURL"];
-	        this.TakenAt = this.convertValues(source["TakenAt"], null);
+	        this.taskId = source["taskId"];
+	        this.title = source["title"];
+	        this.client = source["client"];
+	    }
+	}
+	export class ExpTaskRecord {
+	    id: number;
+	    task_id: string;
+	    // Go type: time
+	    started_at: any;
+	    // Go type: time
+	    ended_at?: any;
+	    duration?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExpTaskRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.task_id = source["task_id"];
+	        this.started_at = this.convertValues(source["started_at"], null);
+	        this.ended_at = this.convertValues(source["ended_at"], null);
+	        this.duration = source["duration"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -225,6 +280,7 @@ export namespace models {
 		    return a;
 		}
 	}
+	
 	
 	
 	export class TaskRecordWithScreenshots {

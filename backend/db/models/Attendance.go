@@ -1,8 +1,16 @@
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type Attendance struct {
 	gorm.Model
-	// UserID 		
+	UserID  string `gorm:"not null"`
+	User    User   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TimeIn  time.Time
+	TimeOut *time.Time
+	SyncID  *string
 }

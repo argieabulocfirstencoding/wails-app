@@ -10,8 +10,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetActiveTaskRecord(userId string) {
+func GetActiveTaskRecord(userId string) (*models.ExpTaskRecord, error) {
+	// TODO firebase fetch
+	var taskRecord models.TaskRecord
+	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
+		return nil, err
+	}
 
+	expTaskRecord := taskRecord.ToExp()
+	return &expTaskRecord, nil
 }
 
 func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
@@ -26,7 +33,7 @@ func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
 	return &taskRecordExp, nil
 }
 
-func StartTaskRecord(userId, taskId string) (*db.TaskRecord, error) {
+func StartTaskRecord(userId, taskId string, attendanceId uint) (*db.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
 		fmt.Print(err)
@@ -38,7 +45,7 @@ func StartTaskRecord(userId, taskId string) (*db.TaskRecord, error) {
 		// TODO add edge cases where forgot to logout due to power problem
 	}
 
-	record, err := NewTaskRecord(userId, taskId)
+	record, err := NewTaskRecord(userId, taskId, attendanceId)
 	return record, err
 }
 func StopTaskRecord(userId, taskId string) error {
@@ -66,10 +73,11 @@ func StopTaskRecord(userId, taskId string) error {
 	return nil
 }
 
-func NewTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
+func NewTaskRecord(userId, taskId string, attendanceId uint) (*models.TaskRecord, error) {
 	record := models.TaskRecord{
-		UserID: userId,
-		TaskID: taskId,
+		UserID:       userId,
+		AttendanceID: attendanceId,
+		TaskID:       taskId,
 	}
 
 	err := db.DB.Create(&record).Error
