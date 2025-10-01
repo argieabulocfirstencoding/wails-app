@@ -90,6 +90,7 @@ func (a *App) StartTracking(taskId, localStorageValue string) {
 	if err != nil {
 		fmt.Print(err)
 	}
+	a.ScreenshotService.TaskID = a.WorkingTaskID
 	a.ScreenshotService.TaskRecordID = &record.ID
 	a.ScreenshotService.Start(a.ctx)
 }

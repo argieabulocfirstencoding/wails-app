@@ -43,6 +43,7 @@ type ScreenshotService struct {
 	stopChan     chan struct{}
 	running      bool
 	TaskRecordID *uint
+	TaskID       *string
 }
 
 func NewScreenshotService() *ScreenshotService {
@@ -65,6 +66,11 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 		ticker := time.NewTicker(time.Minute * TIME_TO_SCREENSHOT_IN_MINUTES)
 		defer ticker.Stop()
 
+		_, err := s.Screenshot()
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		for {
 			select {
 			case <-ticker.C:
@@ -74,6 +80,11 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 					log.Fatal(err)
 				}
 			case <-s.stopChan:
+				_, err := s.Screenshot()
+				if err != nil {
+					log.Fatal(err)
+				}
+
 				fmt.Println("Stopping screenshot service...")
 				s.running = false
 				return
@@ -151,6 +162,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	if err := db.DB.Create(&models.Screenshot{
 		TaskRecordID: *s.TaskRecordID,
+		TaskID:       *s.TaskID,
 		FilePath:     string(jsonPaths),
 		TakenAt:      time.Now().Local(),
 	}).Error; err != nil {
@@ -174,7 +186,7 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 	}
 
 	var screenshot models.Screenshot
-	if err := db.DB.Where("task_record_id = ?", expTaskRecord.ID).Last(&screenshot).Error; err != nil {
+	if err := db.DB.Where("task_id = ?", expTaskRecord.TaskID).Last(&screenshot).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// ✅ No screenshot found, not an error for your flow
 			fmt.Println("No screenshot found for task:", expTaskRecord.TaskID)

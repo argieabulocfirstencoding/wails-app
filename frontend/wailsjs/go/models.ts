@@ -184,6 +184,8 @@ export namespace models {
 	    ID: number;
 	    TaskRecordID: number;
 	    TaskRecord: TaskRecord;
+	    TaskID: string;
+	    Task: Task;
 	    FilePath: string;
 	    CloudURL?: string;
 	    // Go type: time
@@ -198,6 +200,8 @@ export namespace models {
 	        this.ID = source["ID"];
 	        this.TaskRecordID = source["TaskRecordID"];
 	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
+	        this.TaskID = source["TaskID"];
+	        this.Task = this.convertValues(source["Task"], Task);
 	        this.FilePath = source["FilePath"];
 	        this.CloudURL = source["CloudURL"];
 	        this.TakenAt = this.convertValues(source["TakenAt"], null);
