@@ -80,11 +80,6 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 					log.Fatal(err)
 				}
 			case <-s.stopChan:
-				_, err := s.Screenshot()
-				if err != nil {
-					log.Fatal(err)
-				}
-
 				fmt.Println("Stopping screenshot service...")
 				s.running = false
 				return
