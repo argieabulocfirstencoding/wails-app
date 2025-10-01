@@ -32,6 +32,7 @@ type TaskRecordWithScreenshots struct {
 
 func (tr TaskRecord) ToExp() ExpTaskRecord {
 	return ExpTaskRecord{
+		ID:        tr.ID,
 		TaskID:    tr.TaskID,
 		StartedAt: tr.StartedAt,
 		EndedAt:   tr.EndedAt,

@@ -170,6 +170,7 @@ const Task = () => {
           }
 
           if (screenshots && date) {
+            console.log("Screenshots: " + screenshots);
             const screenshotTaken: ScreenshotProps = {
               date,
               pictures: screenshots,

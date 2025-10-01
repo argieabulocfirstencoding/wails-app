@@ -186,7 +186,6 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 	}
 
 	// ✅ Screenshot found, now you can unmarshal
-	fmt.Println("Found screenshot:", screenshot.FilePath)
 	// example: if FilePath is JSON array of paths
 	var pictures []string
 	var paths []string
@@ -204,6 +203,5 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 	trws.Record = expTaskRecord
 	trws.Screenshots = pictures
 	trws.Date = screenshot.TakenAt
-
 	return trws, nil
 }
