@@ -10,7 +10,6 @@ import (
 	"fesapp/backend/db/models"
 	"fmt"
 	"image/png"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -65,23 +64,25 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(time.Minute * TIME_TO_SCREENSHOT_IN_MINUTES)
 		defer ticker.Stop()
+		defer func() { s.running = false }()
 
-		_, err := s.Screenshot()
-		if err != nil {
-			log.Fatal(err)
-		}
+		go func() {
+			if _, err := s.Screenshot(); err != nil {
+				fmt.Println("screenshot error:", err) // don't kill app
+			}
+		}()
 
 		for {
 			select {
 			case <-ticker.C:
-				// TODO: take screenshot here
-				_, err := s.Screenshot()
-				if err != nil {
-					log.Fatal(err)
+				if _, err := s.Screenshot(); err != nil {
+					fmt.Println("screenshot error:", err)
 				}
 			case <-s.stopChan:
 				fmt.Println("Stopping screenshot service...")
-				s.running = false
+				return
+			case <-ctx.Done():
+				fmt.Println("Context canceled, stopping screenshot service...")
 				return
 			}
 		}
@@ -92,7 +93,10 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 func (s *ScreenshotService) Stop() {
 	fmt.Println("Stopped Screenshot Tracking")
 	if s.running {
-		s.stopChan <- struct{}{}
+		select {
+		case s.stopChan <- struct{}{}:
+		default: // avoid blocking if already stopped
+		}
 	}
 }
 

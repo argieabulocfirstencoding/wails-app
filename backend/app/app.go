@@ -7,9 +7,11 @@ import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 	"gorm.io/gorm"
@@ -39,26 +41,44 @@ func (a *App) Startup(ctx context.Context) {
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
 
-	// --- Tray setup ---
-	trayMenu := menu.NewMenu()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Println("Recovered from panic in systray:", r)
+			}
+		}()
 
-	// Toggle window show/hide
-	trayMenu.AddText("Toggle Window", nil, func(_ *menu.CallbackData) {
-		if a.windowOpen {
-			runtime.WindowHide(ctx)
-		} else {
-			runtime.WindowShow(ctx)
-			runtime.WindowUnminimise(ctx)
-		}
-	})
+		systray.Run(func() {
 
-	trayMenu.AddSeparator()
+			exePath, _ := os.Executable()
+			root := filepath.Dir(exePath)
+			iconPath := filepath.Join(root, "icon.ico")
+			icon, _ := os.ReadFile(iconPath)
 
-	// Quit option
-	trayMenu.AddText("Quit", nil, func(_ *menu.CallbackData) {
-		runtime.Quit(ctx)
-	})
+			systray.SetIcon(icon)
+			systray.SetTitle("FESApp")
+			systray.SetTooltip("FESApp")
 
+			mOpen := systray.AddMenuItem("Open", "Show the app window")
+			mQuit := systray.AddMenuItem("Quit", "Exit app")
+
+			go func() {
+				for {
+					select {
+					case <-mOpen.ClickedCh:
+						runtime.WindowShow(ctx)
+						runtime.WindowUnminimise(ctx)
+					case <-mQuit.ClickedCh:
+						systray.Quit()
+						runtime.Quit(ctx)
+						return
+					}
+				}
+			}()
+		}, func() {
+			// cleanup on exit
+		})
+	}()
 }
 
 func (a *App) Shutdown(ctx context.Context) {
