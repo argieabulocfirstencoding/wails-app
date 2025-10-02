@@ -178,7 +178,7 @@ func (a *App) FirebaseLoginUser(email, password string) (*services.AuthUser, err
 	}
 
 	attendanceID, err := services.LoginAttendance(authUser.UserID)
-	if err != nil {
+	if attendanceID == nil {
 		return nil, err
 	}
 
