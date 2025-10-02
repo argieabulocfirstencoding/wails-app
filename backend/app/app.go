@@ -38,6 +38,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	db.Init(ctx)
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
 
@@ -55,9 +56,17 @@ func (a *App) Startup(ctx context.Context) {
 			iconPath := filepath.Join(root, "icon.ico")
 			icon, _ := os.ReadFile(iconPath)
 
+			env := runtime.Environment(ctx)
+
 			systray.SetIcon(icon)
+			if env.BuildType == "dev" {
+			systray.SetTitle("FESApp Dev")
+			systray.SetTooltip("FESApp Dev")
+			} else {
 			systray.SetTitle("FESApp")
 			systray.SetTooltip("FESApp")
+			}
+
 
 			mOpen := systray.AddMenuItem("Open", "Show the app window")
 			mQuit := systray.AddMenuItem("Quit", "Exit app")

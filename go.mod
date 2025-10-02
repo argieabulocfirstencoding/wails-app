@@ -12,7 +12,6 @@ require (
 	github.com/wailsapp/wails/v2 v2.10.2
 	github.com/zalando/go-keyring v0.2.6
 	gorm.io/gorm v1.31.0
-	modernc.org/sqlite v1.39.0
 )
 
 require (
@@ -75,6 +74,7 @@ require (
 	modernc.org/libc v1.66.9 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
+	modernc.org/sqlite v1.39.0 // indirect
 )
 
 // replace github.com/wailsapp/wails/v2 v2.10.2 => C:\Users\user\go\pkg\mod

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -8,9 +9,9 @@ import (
 
 	"fesapp/backend/db/models"
 
-	sqlite "github.com/Tryanks/gorm-sqlite" // Or another modernc.org/sqlite-based GORM driver
+	sqlite "github.com/Tryanks/gorm-sqlite" // modernc.org/sqlite-based GORM driver
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
-	_ "modernc.org/sqlite"
 )
 
 var DB *gorm.DB
@@ -20,32 +21,38 @@ type Task = models.Task
 type TaskRecord = models.TaskRecord
 type Screenshot = models.Screenshot
 
-func Init() *gorm.DB {
+// Init initializes the database
+func Init(ctx context.Context) *gorm.DB {
+	// Use user config directory
 	dir, _ := os.UserConfigDir()
 	appDir := filepath.Join(dir, "wails-app")
 	_ = os.MkdirAll(appDir, 0o755)
-	dbPath := filepath.Join(appDir, "fesapp.db")
 
+	// Detect environment via Wails
+	env := runtime.Environment(ctx)
+
+	var dbPath string
+	if env.BuildType == "dev" {
+		dbPath = filepath.Join(appDir, "fesapp-dev.db")
+	} else {
+		dbPath = filepath.Join(appDir, "fesapp.db")
+	}
+
+	// Open database
 	var err error
 	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
 
-	// Run migrations here
-	if err := DB.AutoMigrate(&User{}); err != nil {
-		log.Fatalf("failed to migrate: %v", err)
-	}
-	if err := DB.AutoMigrate(&Task{}); err != nil {
-		log.Fatalf("failed to migrate: %v", err)
-	}
-	if err := DB.AutoMigrate(&TaskRecord{}); err != nil {
-		log.Fatalf("failed to migrate: %v", err)
-	}
-	if err := DB.AutoMigrate(&Screenshot{}); err != nil {
-		log.Fatalf("failed to migrate: %v", err)
-	}
-	if err := DB.AutoMigrate(&models.Attendance{}); err != nil {
+	// Run migrations
+	if err := DB.AutoMigrate(
+		&User{},
+		&Task{},
+		&TaskRecord{},
+		&Screenshot{},
+		&models.Attendance{},
+	); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}
 

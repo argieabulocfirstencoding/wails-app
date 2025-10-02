@@ -9,5 +9,14 @@
   "author": {
     "name": "FESTrainee01",
     "email": "trainee.webdev.01.firstenconding@gmail.com"
+  },
+  "windows": {
+    "arch": "amd64",
+    "icon": "build/windows/icon.ico",
+    "info": {
+      "CompanyName": "First Encoding Services",
+      "FileDescription": "Tracking App used by First Encoding Services",
+      "ProductName": "FESApp"
+    }
   }
 }
