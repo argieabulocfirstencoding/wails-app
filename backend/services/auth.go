@@ -5,12 +5,6 @@ import (
 	"fesapp/backend/db"
 )
 
-type AuthUser struct {
-	UserID string `json:"localId"` // uid
-	Email  string `json:"email"`
-	// TODO add profile
-}
-
 // NOTE for local login
 func Login(email, password string) (*db.User, error) {
 

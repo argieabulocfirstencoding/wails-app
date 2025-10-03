@@ -15,6 +15,7 @@ type TaskRecord struct {
 	StartedAt    time.Time  `gorm:"autoCreateTime"`
 	EndedAt      *time.Time
 	Duration     *int32
+	SyncedAt     *time.Time
 	Screenshots  []Screenshot
 }
 

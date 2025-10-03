@@ -21,8 +21,9 @@ import (
 type App struct {
 	ctx               context.Context
 	ScreenshotService *services.ScreenshotService
+	SyncService       *services.SyncService
 	windowOpen        bool
-	AuthUser          *services.AuthUser
+	AuthUser          *models.AuthUser
 	WorkingTaskID     *string
 	AttendanceID      *uint
 }
@@ -31,6 +32,7 @@ type App struct {
 func NewApp() *App {
 	return &App{
 		ScreenshotService: services.NewScreenshotService(),
+		SyncService:       services.NewSyncService(),
 	}
 }
 
@@ -42,6 +44,7 @@ func (a *App) Startup(ctx context.Context) {
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
 
+	// System Tray startup
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -60,13 +63,12 @@ func (a *App) Startup(ctx context.Context) {
 
 			systray.SetIcon(icon)
 			if env.BuildType == "dev" {
-			systray.SetTitle("FESApp Dev")
-			systray.SetTooltip("FESApp Dev")
+				systray.SetTitle("FESApp Dev")
+				systray.SetTooltip("FESApp Dev")
 			} else {
-			systray.SetTitle("FESApp")
-			systray.SetTooltip("FESApp")
+				systray.SetTitle("FESApp")
+				systray.SetTooltip("FESApp")
 			}
-
 
 			mOpen := systray.AddMenuItem("Open", "Show the app window")
 			mQuit := systray.AddMenuItem("Quit", "Exit app")
@@ -119,7 +121,7 @@ func (a *App) GetMonitorCount() int {
 func (a *App) StartTracking(taskId, localStorageValue string) {
 	a.ScreenshotService.FolderName = localStorageValue
 	a.WorkingTaskID = &taskId
-	record, err := services.StartTaskRecord(a.AuthUser.UserID, taskId, *a.AttendanceID)
+	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID)
 	if err != nil {
 		fmt.Print(err)
 	}
@@ -138,7 +140,7 @@ func (a *App) StopTracking(taskId string) {
 	a.ScreenshotService.TaskRecordID = nil
 
 	err := services.StopTaskRecord(
-		a.AuthUser.UserID,
+		a.AuthUser.LocalID,
 		taskId,
 	)
 	if err != nil {
@@ -179,58 +181,42 @@ func (a *App) RegisterUser(email string) (*db.User, error) {
 }
 
 // TODO production call to backend server for auth
-func (a *App) LoginUser(email, password string) (*services.AuthUser, error) {
+func (a *App) LoginUser(email, password string) (*models.AuthUser, error) {
 	user, err := services.Login(email, password)
 	if err != nil {
 		return nil, err
 	}
 
-	authUser := &services.AuthUser{
-		UserID: user.ID,
-		Email:  user.Email,
+	authUser := &models.AuthUser{
+		LocalID: user.ID,
+		Email:   user.Email,
 	}
 
-	a.AuthUser = authUser
 	return authUser, nil
 }
 
-func (a *App) FirebaseLoginUser(email, password string) (*services.AuthUser, error) {
+func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error) {
 	user, err := services.FirebaseLogin(email, password)
 	if err != nil {
 		return nil, err
 	}
 	// TODO in the future include returning the profile
 
-	authUser := &services.AuthUser{
-		UserID: user.LocalID,
-		Email:  user.Email,
+	authUser := &models.AuthUser{
+		LocalID: user.LocalID,
+		Email:   user.Email,
 	}
 
-	attendanceID, err := services.LoginAttendance(authUser.UserID)
+	attendanceID, err := services.LoginAttendance(authUser.LocalID)
 	if attendanceID == nil {
 		return nil, err
 	}
 
-	taskRecord, err := services.GetActiveTaskRecord(authUser.UserID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			fmt.Print("No active record")
-		} else {
-			fmt.Printf("Error getting active record %v", err)
-		}
-	}
-
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
-	if taskRecord != nil {
 
-		a.WorkingTaskID = &taskRecord.TaskID
-		a.ScreenshotService.TaskID = a.WorkingTaskID
-		a.ScreenshotService.TaskRecordID = &taskRecord.ID
-		a.ScreenshotService.FolderName = fmt.Sprintf("%d", time.Now().UnixMilli())
-		a.ScreenshotService.Start(a.ctx)
-	}
-
+	a.SyncService.Connect(a.ctx, user)
+	a.SyncService.SyncTasks()
 	return authUser, nil
 }
 
@@ -248,8 +234,29 @@ func (a *App) LogoutUser() error {
 	return nil
 }
 
+func (a *App) GetActiveTaskRecord() *string {
+	taskRecord, err := services.GetActiveTaskRecord(a.AuthUser.LocalID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			fmt.Print("No active record")
+		} else {
+			fmt.Printf("Error getting active record %v", err)
+		}
+	}
+
+	if taskRecord != nil {
+		a.WorkingTaskID = &taskRecord.TaskID
+		a.ScreenshotService.TaskID = a.WorkingTaskID
+		a.ScreenshotService.TaskRecordID = &taskRecord.ID
+		a.ScreenshotService.FolderName = fmt.Sprintf("%d", time.Now().UnixMilli())
+		a.ScreenshotService.Start(a.ctx)
+	}
+
+	return a.WorkingTaskID
+}
+
 func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {
-	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.UserID, taskId)
+	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +266,7 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 }
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
-	task, err := services.CreateTask(a.AuthUser.UserID, title, client, nil)
+	task, err := services.CreateTask(a.AuthUser.LocalID, title, client, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +280,7 @@ func (a *App) GetTasks() ([]models.ExpTask, error) {
 		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
 	}
 
-	tasks, err := services.GetTasks(a.AuthUser.UserID)
+	tasks, err := services.GetTasks(a.AuthUser.LocalID)
 	if err != nil {
 		return nil, err
 	}

@@ -58,6 +58,8 @@ export namespace models {
 	    // Go type: time
 	    EndedAt?: any;
 	    Duration?: number;
+	    // Go type: time
+	    SyncedAt?: any;
 	    Screenshots: Screenshot[];
 	
 	    static createFrom(source: any = {}) {
@@ -76,6 +78,7 @@ export namespace models {
 	        this.StartedAt = this.convertValues(source["StartedAt"], null);
 	        this.EndedAt = this.convertValues(source["EndedAt"], null);
 	        this.Duration = source["Duration"];
+	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
 	    }
 	
@@ -224,6 +227,20 @@ export namespace models {
 		    return a;
 		}
 	}
+	export class AuthUser {
+	    localId: string;
+	    email: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuthUser(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.localId = source["localId"];
+	        this.email = source["email"];
+	    }
+	}
 	export class ExpTask {
 	    taskId: string;
 	    title: string;
@@ -317,25 +334,6 @@ export namespace models {
 		    }
 		    return a;
 		}
-	}
-
-}
-
-export namespace services {
-	
-	export class AuthUser {
-	    localId: string;
-	    email: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new AuthUser(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.localId = source["localId"];
-	        this.email = source["email"];
-	    }
 	}
 
 }

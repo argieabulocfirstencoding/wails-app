@@ -104,3 +104,43 @@ func UpdateRecord(tr *models.TaskRecord) error {
 		Duration: tr.Duration,
 	}).Error
 }
+
+// Fetch total hours worked on a specific task in a day
+func GetAttendanceTaskTotalHours(userId, taskId string, attendanceId uint) (*int32, error) {
+	var totalDuration int32
+	if err := db.DB.Model(&models.TaskRecord{}).Select("SUM(duration)").Where("user_id = ? AND task_id = ? AND attendance_id = ?", userId, taskId, attendanceId).Scan(&totalDuration).Error; err != nil {
+		return nil, err
+	}
+
+	return &totalDuration, nil
+}
+
+// Fetch total hours worked on a specific task in a week
+func GetAttendanceTaskTotalHoursWeek(userId, taskId string) (*int32, error) {
+	var totalDuration int32
+
+	monday, sunday := weekRange(time.Now())
+
+	if err := db.DB.Model(&models.TaskRecord{}).Select("SUM(duration)").Where("user_id = ? AND task_id = ? AND started_at >= ? AND started_at <= ?", userId, taskId, monday, sunday).Scan(&totalDuration).Error; err != nil {
+		return nil, err
+	}
+
+	return &totalDuration, nil
+}
+
+func weekRange(now time.Time) (monday, sunday time.Time) {
+	// Ensure we’re working with the same location
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		// Go treats Sunday as 0, so adjust to 7
+		weekday = 7
+	}
+	// Find Monday (start of week)
+	monday = now.AddDate(0, 0, -(weekday - 1))
+	monday = time.Date(monday.Year(), monday.Month(), monday.Day(), 0, 0, 0, 0, monday.Location())
+	// Find Sunday (end of week)
+	sunday = now.AddDate(0, 0, 6)
+	sunday = time.Date(sunday.Year(), sunday.Month(), sunday.Day(), 23, 59, 59, 0, sunday.Location())
+
+	return monday, sunday
+}
