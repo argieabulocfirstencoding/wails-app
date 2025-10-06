@@ -33,6 +33,16 @@ func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
 	return &taskRecordExp, nil
 }
 
+func GetTaskRecordFormID(taskRecordId uint) (*models.TaskRecord, error) {
+	var taskRecord models.TaskRecord
+	if err := db.DB.Where("task_records.id = ?", taskRecordId).First(&taskRecord).Error; err != nil {
+		fmt.Println("DB error:", err)
+		return nil, err
+	}
+
+	return &taskRecord, nil
+}
+
 func StartTaskRecord(userId, taskId string, attendanceId uint) (*db.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {

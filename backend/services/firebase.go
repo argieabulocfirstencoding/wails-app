@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,10 +63,25 @@ func FirebaseLogin(email, password string) (*models.FirebaseLoginResponse, error
 	return &result, nil
 }
 
-func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *string, err error) {
+
+func FirebaseAccessTokenIsExpired(expiresIn string) (bool) {
+	seconds, err := strconv.ParseInt(expiresIn, 10, 64)
+	if err != nil {
+		return true
+	}
+	expTime := time.Now().Add(time.Duration(seconds) * time.Second)
+
+	const refreshBuffer = 5 * time.Minute
+
+	// If current time is after (expiration - 5min), consider expired
+	return time.Now().After(expTime.Add(-refreshBuffer))
+}
+
+
+func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *string, expiresIn *string, err error) {
 	refreshToken, err := keyring.Get("refresh", email)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	endpoint := fmt.Sprintf("https://securetoken.googleapis.com/v1/token?key=%s", config.FIREBASE_API)
@@ -76,31 +92,31 @@ func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *stri
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to refresh token: %s", string(bodyBytes))
+		return nil, nil, fmt.Errorf("failed to refresh token: %s", string(bodyBytes))
 	}
 
 	var out models.FirebaseRefreshResponse
 	if err := json.Unmarshal(bodyBytes, &out); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if out.RefreshToken != "" {
 		_ = keyring.Set("refresh", email, out.RefreshToken)
 	}
 
-	return &out.IDToken, nil
+	return &out.IDToken, &out.ExpiresIn, nil
 }
 
 func FirebaseRequest(ctx context.Context, url, method string, body interface{}, headers map[string]string) ([]byte, error) {

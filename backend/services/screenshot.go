@@ -10,6 +10,7 @@ import (
 	"fesapp/backend/db/models"
 	"fmt"
 	"image/png"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -43,11 +44,13 @@ type ScreenshotService struct {
 	running      bool
 	TaskRecordID *uint
 	TaskID       *string
+	SyncService  *SyncService
 }
 
-func NewScreenshotService() *ScreenshotService {
+func NewScreenshotService(sync *SyncService) *ScreenshotService {
 	return &ScreenshotService{
-		stopChan: make(chan struct{}),
+		stopChan:    make(chan struct{}),
+		SyncService: sync,
 	}
 }
 
@@ -69,6 +72,18 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 		go func() {
 			if _, err := s.Screenshot(); err != nil {
 				fmt.Println("screenshot error:", err) // don't kill app
+			}
+			// Retrieving TaskRecord from TaskRecordID
+			log.Print("Attempting to sync record")
+			taskRecord, err := GetTaskRecordFormID(*s.TaskRecordID)
+			if err != nil {
+				log.Printf("error retrieving task record: %v\n", err)
+			}
+
+			log.Printf("Syncing record: %v\n", taskRecord)
+			// Syncing TaskRecord to Firebase
+			if err := s.SyncService.SyncTaskRecord(taskRecord); err != nil {
+				log.Printf("error syncing task_record: %v", err)
 			}
 		}()
 
@@ -92,6 +107,7 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 
 func (s *ScreenshotService) Stop() {
 	fmt.Println("Stopped Screenshot Tracking")
+	// Retrieving TaskRecord from TaskRecordID
 	if s.running {
 		select {
 		case s.stopChan <- struct{}{}:
@@ -102,7 +118,7 @@ func (s *ScreenshotService) Stop() {
 
 func (s *ScreenshotService) Screenshot() ([]string, error) {
 	n := GetMonitorCount()
-
+	fmt.Println("📸 Taking screenshot...")
 	// File path where screenshots are saved
 	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots", s.FolderName))
 	if err != nil {
@@ -169,7 +185,6 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	}
 
 	runtime.EventsEmit(s.ctx, "screenshot", pictures)
-	fmt.Println("📸 Taking screenshot...")
 	screenshotNotify("Your work progress have been captured")
 
 	return pictures, nil

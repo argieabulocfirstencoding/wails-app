@@ -7,6 +7,7 @@ import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,9 +31,12 @@ type App struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
+	syncService := services.NewSyncService()
+	screenshotService := services.NewScreenshotService(syncService)
+
 	return &App{
-		ScreenshotService: services.NewScreenshotService(),
-		SyncService:       services.NewSyncService(),
+		ScreenshotService: screenshotService,
+		SyncService:       syncService,
 	}
 }
 
@@ -135,10 +139,7 @@ func (a *App) StopTracking(taskId string) {
 		fmt.Println("StopTracking error: AuthUser is nil")
 		return
 	}
-
 	a.ScreenshotService.Stop()
-	a.ScreenshotService.TaskRecordID = nil
-
 	err := services.StopTaskRecord(
 		a.AuthUser.LocalID,
 		taskId,
@@ -146,6 +147,21 @@ func (a *App) StopTracking(taskId string) {
 	if err != nil {
 		fmt.Println("StopTaskRecord error:", err)
 	}
+	
+	// Retrieving TaskRecord from TaskRecordID
+	log.Print("Attempting to sync record")
+	taskRecord, err := services.GetTaskRecordFormID(*a.ScreenshotService.TaskRecordID)
+	if err != nil {
+		log.Printf("error retrieving task record: %v\n", err)
+	}
+
+	log.Printf("Syncing record: %v\n", taskRecord)
+	// Syncing TaskRecord to Firebase
+	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
+		log.Printf("error syncing task_record: %v", err)
+	}
+	
+	a.ScreenshotService.TaskRecordID = nil
 }
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
