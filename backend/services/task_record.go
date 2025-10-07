@@ -67,7 +67,7 @@ func StopTaskRecord(userId, taskId string) error {
 		fmt.Printf("no active task found for user %s task %s", userId, taskId)
 	}
 	if err != nil {
-		return fmt.Errorf("db error: %w", err)
+		return err
 	}
 
 	// ✅ only call UpdateRecord if we really have a record

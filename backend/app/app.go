@@ -45,6 +45,9 @@ func NewApp() *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	db.Init(ctx)
+	db.DB.Exec("PRAGMA journal_mode = WAL;")
+	db.DB.Exec("PRAGMA busy_timeout = 5000;")
+	
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
 
@@ -139,6 +142,7 @@ func (a *App) StopTracking(taskId string) {
 		fmt.Println("StopTracking error: AuthUser is nil")
 		return
 	}
+
 	a.ScreenshotService.Stop()
 	err := services.StopTaskRecord(
 		a.AuthUser.LocalID,
@@ -146,8 +150,15 @@ func (a *App) StopTracking(taskId string) {
 	)
 	if err != nil {
 		fmt.Println("StopTaskRecord error:", err)
+		return
 	}
-	
+
+	// Check before dereferencing
+	if a.ScreenshotService.TaskRecordID == nil {
+		log.Println("No TaskRecordID available to sync, skipping Firebase sync.")
+		return
+	}
+
 	// Retrieving TaskRecord from TaskRecordID
 	log.Print("Attempting to sync record")
 	taskRecord, err := services.GetTaskRecordFormID(*a.ScreenshotService.TaskRecordID)
@@ -160,7 +171,7 @@ func (a *App) StopTracking(taskId string) {
 	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
 		log.Printf("error syncing task_record: %v", err)
 	}
-	
+
 	a.ScreenshotService.TaskRecordID = nil
 }
 
@@ -236,15 +247,50 @@ func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error
 	return authUser, nil
 }
 
+// TODO recheck if this will sustain online login method
+func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) error {
+	user := &models.FirebaseLoginResponse{
+		LocalID:      user_id,
+		Email:        email,
+		IDToken:      accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    expiresIn,
+	}
+
+	authUser := &models.AuthUser{
+		LocalID: user.LocalID,
+		Email:   user.Email,
+	}
+
+	attendanceID, err := services.LoginAttendance(authUser.LocalID)
+	if attendanceID == nil {
+		return err
+	}
+
+	a.AttendanceID = attendanceID
+	a.AuthUser = authUser
+
+	a.SyncService.Connect(a.ctx, user)
+	a.SyncService.SyncTasks()
+
+	return nil
+}
+
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
 
 	if a.WorkingTaskID != nil {
 		a.StopTracking(*a.WorkingTaskID)
+		log.Printf("WorkingTaskID: %s", *a.WorkingTaskID)
 	}
 
-	if err := services.LogoutAttendance(*a.AttendanceID); err != nil {
-		return err
+	if a.AttendanceID != nil {
+		log.Printf("Attendance ID: %d", *a.AttendanceID)
+		if err := services.LogoutAttendance(*a.AttendanceID); err != nil {
+			return err
+		}
+	} else {
+		log.Println("No active AttendanceID")
 	}
 
 	return nil

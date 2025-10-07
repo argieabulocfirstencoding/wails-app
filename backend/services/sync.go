@@ -42,29 +42,19 @@ func NewSyncService() *SyncService {
 func (s *SyncService) Connect(ctx context.Context, authUser *models.FirebaseLoginResponse) error {
 	s.ctx = ctx
 	s.AuthUser = authUser
-	s.isConnected = CheckFirebaseConnection()
+	// s.isConnected = CheckFirebaseConnection()
+	s.isConnected = true
 	if !s.isConnected {
-		// retry
+		return fmt.Errorf("no connection established")
 	}
-	idToken, expiresIn, err := FirebaseUpdateAccessToken(s.ctx, s.AuthUser.Email)
-	if err != nil {
-		return err
-	}
-	s.idToken = idToken
-	s.AuthUser.IDToken = *idToken
-	s.AuthUser.ExpiresIn = *expiresIn
+	s.idToken = &authUser.IDToken
 	return nil
 }
 
 func (s *SyncService) Reconnect() error {
+	// TODO do a reconnect attempt 5 times
 	s.isConnected = CheckFirebaseConnection()
-	idToken, expiresIn, err := FirebaseUpdateAccessToken(s.ctx, s.AuthUser.Email)
-	if err != nil {
-		return err
-	}
-	s.idToken = idToken
-	s.AuthUser.IDToken = *idToken
-	s.AuthUser.ExpiresIn = *expiresIn
+	s.RefreshAccessToken()
 	return nil
 }
 

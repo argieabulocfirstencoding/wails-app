@@ -15,8 +15,14 @@ import {
 
 import logo from "@/assets/images/first-encoding_logo.webp";
 import { Link } from "react-router-dom";
-import { FirebaseLoginUser, LoginUser } from "@/../wailsjs/go/app/App";
+import {
+  BackendFirebaseSync,
+  FirebaseLoginUser,
+  LoginUser,
+} from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
+import { IdTokenResult, signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/firebase";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -30,16 +36,42 @@ const Login = () => {
     try {
       let authUser;
       if (online) {
-        authUser = await FirebaseLoginUser(email, password);
+        authUser = await signInWithEmailAndPassword(auth, email, password);
+        const user = authUser.user;
+        const tokenResult = await user.getIdTokenResult();
+
+        if (!user.email) return;
+
+        const payload = {
+          idToken: tokenResult.token,
+          refreshToken: user.refreshToken,
+          expiresIn: "3000", // assumes 50 minutes to expire
+          userId: user.uid,
+          email: user.email,
+        };
+
+        await BackendFirebaseSync(
+          payload.userId,
+          payload.email,
+          payload.idToken,
+          payload.refreshToken,
+          payload.expiresIn
+        );
+
+        useAuthStore.getState().setUser({
+          uid: authUser.user.uid,
+          email: authUser.user.email,
+          offline: !online,
+        });
       } else {
         authUser = await LoginUser(email, password);
-      }
 
-      useAuthStore.getState().setUser({
-        uid: authUser.localId,
-        email: authUser.email,
-        offline: !online,
-      });
+        useAuthStore.getState().setUser({
+          uid: authUser.localId,
+          email: authUser.email,
+          offline: !online,
+        });
+      }
 
       const user = useAuthStore.getState().user;
       if (user) {

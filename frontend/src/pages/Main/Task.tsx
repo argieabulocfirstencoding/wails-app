@@ -155,7 +155,6 @@ const Task = () => {
         if (!id) return;
 
         const response = await GetLastTaskRecord(id);
-        console.log("RESPONSE: " + JSON.stringify(response));
         if (response) {
           const record = response.record;
           const screenshots = response.screenshots;
@@ -170,7 +169,6 @@ const Task = () => {
           }
 
           if (screenshots && date) {
-            console.log("Screenshots: " + screenshots);
             const screenshotTaken: ScreenshotProps = {
               date,
               pictures: screenshots,

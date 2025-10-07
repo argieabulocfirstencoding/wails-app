@@ -19,13 +19,24 @@ import (
 
 func CheckFirebaseConnection() bool {
 	client := http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get("https://www.googleapis.com/generate_204")
+
+	// Firebase Auth "signInWithPassword" endpoint
+	testURL := fmt.Sprintf("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=%s", config.FIREBASE_API)
+
+	// Instead of POSTing, we just do a GET to verify DNS + HTTPS reachability.
+	resp, err := client.Get(testURL)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode == 204
+	// Firebase will return 400 (Bad Request) for GET (since it's expecting POST),
+	// but that’s perfect — it means the server is reachable.
+	if resp.StatusCode == 400 || resp.StatusCode == 403 || resp.StatusCode == 404 {
+		return true
+	}
+
+	return false
 }
 
 func FirebaseLogin(email, password string) (*models.FirebaseLoginResponse, error) {
@@ -63,8 +74,7 @@ func FirebaseLogin(email, password string) (*models.FirebaseLoginResponse, error
 	return &result, nil
 }
 
-
-func FirebaseAccessTokenIsExpired(expiresIn string) (bool) {
+func FirebaseAccessTokenIsExpired(expiresIn string) bool {
 	seconds, err := strconv.ParseInt(expiresIn, 10, 64)
 	if err != nil {
 		return true
@@ -76,7 +86,6 @@ func FirebaseAccessTokenIsExpired(expiresIn string) (bool) {
 	// If current time is after (expiration - 5min), consider expired
 	return time.Now().After(expTime.Add(-refreshBuffer))
 }
-
 
 func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *string, expiresIn *string, err error) {
 	refreshToken, err := keyring.Get("refresh", email)
