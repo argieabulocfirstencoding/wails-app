@@ -13,6 +13,8 @@ export function CreateTask(arg1:string,arg2:string):Promise<models.ExpTask>;
 
 export function FirebaseLoginUser(arg1:string,arg2:string):Promise<models.AuthUser>;
 
+export function GetAccounts():Promise<Array<models.User>>;
+
 export function GetActiveTaskRecord():Promise<any>;
 
 export function GetLastTaskRecord(arg1:string):Promise<models.TaskRecordWithScreenshots>;
@@ -21,7 +23,7 @@ export function GetMonitorCount():Promise<number>;
 
 export function GetTasks():Promise<Array<models.ExpTask>>;
 
-export function LoginUser(arg1:string,arg2:string):Promise<models.AuthUser>;
+export function LoginUser(arg1:string):Promise<models.AuthUser>;
 
 export function LogoutUser():Promise<void>;
 

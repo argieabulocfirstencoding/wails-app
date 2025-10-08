@@ -16,6 +16,7 @@ import Signup from "./pages/Auth/Signup";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useAuthStore } from "./store/AuthContext";
+import OfflineLogin from "./pages/Auth/OfflineLogin";
 
 interface ScreenshotProps {
   date: number;
@@ -49,6 +50,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/offline-login" element={<OfflineLogin />} />
         <Route path="/task/:id" element={<Task />} />
         <Route path="/account-settings" element={<AccountSettings />} />
         <Route path="/notifications" element={<Notifications />} />

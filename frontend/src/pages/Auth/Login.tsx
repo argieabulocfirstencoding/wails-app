@@ -15,18 +15,14 @@ import {
 
 import logo from "@/assets/images/first-encoding_logo.webp";
 import { Link } from "react-router-dom";
-import {
-  BackendFirebaseSync,
-  FirebaseLoginUser,
-  LoginUser,
-} from "@/../wailsjs/go/app/App";
+import { BackendFirebaseSync, LoginUser } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { IdTokenResult, signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { online } = useAuthStore();
+  const { online, setSynced } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -34,49 +30,41 @@ const Login = () => {
   async function loginUser(event: FormEvent) {
     event.preventDefault();
     try {
-      let authUser;
-      if (online) {
-        authUser = await signInWithEmailAndPassword(auth, email, password);
-        const user = authUser.user;
-        const tokenResult = await user.getIdTokenResult();
+      if (!online) console.log("no internet connection!");
 
-        if (!user.email) return;
+      let authUser = await signInWithEmailAndPassword(auth, email, password);
+      const tokenResult = await authUser.user.getIdTokenResult();
 
-        const payload = {
-          idToken: tokenResult.token,
-          refreshToken: user.refreshToken,
-          expiresIn: "3000", // assumes 50 minutes to expire
-          userId: user.uid,
-          email: user.email,
-        };
+      if (!authUser.user.email) return;
 
-        await BackendFirebaseSync(
-          payload.userId,
-          payload.email,
-          payload.idToken,
-          payload.refreshToken,
-          payload.expiresIn
-        );
+      const payload = {
+        idToken: tokenResult.token,
+        refreshToken: authUser.user.refreshToken,
+        expiresIn: "3000", // assumes 50 minutes to expire
+        userId: authUser.user.uid,
+        email: authUser.user.email,
+      };
 
-        useAuthStore.getState().setUser({
-          uid: authUser.user.uid,
-          email: authUser.user.email,
-          offline: !online,
-        });
-      } else {
-        authUser = await LoginUser(email, password);
+      await BackendFirebaseSync(
+        payload.userId,
+        payload.email,
+        payload.idToken,
+        payload.refreshToken,
+        payload.expiresIn
+      );
 
-        useAuthStore.getState().setUser({
-          uid: authUser.localId,
-          email: authUser.email,
-          offline: !online,
-        });
-      }
+      useAuthStore.getState().setUser({
+        uid: authUser.user.uid,
+        email: authUser.user.email,
+        offline: !online,
+      });
 
       const user = useAuthStore.getState().user;
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
         console.log(user);
+        
+        setSynced(true);
         navigate("/");
       }
     } catch (error: any) {
@@ -156,12 +144,12 @@ const Login = () => {
 
         <CardFooter className="flex flex-col gap-3">
           <p className="text-sm text-gray-600 text-center">
-            Don’t have an account?{" "}
+            Having slow Internet? {""}
             <Link
-              to="/login"
+              to="/offline-login"
               className="text-green-600 hover:underline font-medium"
             >
-              Sign Up
+              SignIn Offline
             </Link>
           </p>
         </CardFooter>

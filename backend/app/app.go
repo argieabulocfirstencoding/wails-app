@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
@@ -159,17 +160,19 @@ func (a *App) StopTracking(taskId string) {
 		return
 	}
 
-	// Retrieving TaskRecord from TaskRecordID
-	log.Print("Attempting to sync record")
-	taskRecord, err := services.GetTaskRecordFormID(*a.ScreenshotService.TaskRecordID)
-	if err != nil {
-		log.Printf("error retrieving task record: %v\n", err)
-	}
-
-	log.Printf("Syncing record: %v\n", taskRecord)
 	// Syncing TaskRecord to Firebase
-	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
-		log.Printf("error syncing task_record: %v", err)
+	if config.OnlineMode {
+		// Retrieving TaskRecord from TaskRecordID
+		log.Print("Attempting to sync record")
+		taskRecord, err := services.GetTaskRecordFormID(*a.ScreenshotService.TaskRecordID)
+		if err != nil {
+			log.Printf("error retrieving task record: %v\n", err)
+		}
+		log.Printf("Syncing record: %v\n", taskRecord)
+
+		if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
+			log.Printf("error syncing task_record: %v", err)
+		}
 	}
 
 	a.ScreenshotService.TaskRecordID = nil
@@ -208,8 +211,8 @@ func (a *App) RegisterUser(email string) (*db.User, error) {
 }
 
 // TODO production call to backend server for auth
-func (a *App) LoginUser(email, password string) (*models.AuthUser, error) {
-	user, err := services.Login(email, password)
+func (a *App) LoginUser(email string) (*models.AuthUser, error) {
+	user, err := services.OfflineLogin(email)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +221,15 @@ func (a *App) LoginUser(email, password string) (*models.AuthUser, error) {
 		LocalID: user.ID,
 		Email:   user.Email,
 	}
+
+	attendanceID, err := services.LoginAttendance(authUser.LocalID)
+	if attendanceID == nil {
+		return nil, err
+	}
+
+	a.AttendanceID = attendanceID
+	a.AuthUser = authUser
+	config.OnlineMode = false
 
 	return authUser, nil
 }
@@ -273,6 +285,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	a.SyncService.Connect(a.ctx, user)
 	a.SyncService.SyncTasks()
 
+	config.OnlineMode = true
 	return nil
 }
 
@@ -351,4 +364,17 @@ func (a *App) GetTasks() ([]models.ExpTask, error) {
 
 	expTasks := models.ToExpTasks(tasks)
 	return expTasks, nil
+}
+
+func (a *App) GetAccounts() ([]models.User, error) {
+	var users []models.User
+
+	if err := db.DB.Model(&models.User{}).Find(&users).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("no users found: %v", err)
+		}
+		return nil, err
+	}
+
+	return users, nil
 }

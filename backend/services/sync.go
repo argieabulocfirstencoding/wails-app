@@ -184,6 +184,38 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	return nil
 }
 
+func (s *SyncService) SyncAttendance() error {
+	var unsynced []models.Attendance
+	if err := db.DB.Where("user_id = ? and synced_at IS NULL").Find(&unsynced).Error; err != nil {
+		return err
+	}
+	// TODO get the attendance record in firebase that is currently active or not yet concluded.
+	// Change the local copy of start time to the ones in firebase.
+	// Sync all local task records to firebase
+	// How to know if the 
+
+	// ============= REQUEST CONFIG ==============
+	// path := ""
+	// method := "PATCH"
+	// body := map[string]interface{}{
+	// 	"fields": fields,
+	// }
+	s.RefreshAccessToken()
+
+	if s.isConnected {
+		// _, err := FirebaseDocumentRequest(s.ctx, *s.idToken, path, method, body)
+		// if err != nil {
+		// 	return err
+		// }
+
+		// now := time.Now()
+		// taskRecord.SyncedAt = &now
+		// db.DB.Save(&taskRecord)
+	}
+
+	return nil
+}
+
 func (s *SyncService) SyncUnsyncedRecords() error {
 	var unsynced []models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND synced_at IS NULL OR (ended_at IS NOT NULL AND synced_at < ended_at)", s.AuthUser.LocalID).

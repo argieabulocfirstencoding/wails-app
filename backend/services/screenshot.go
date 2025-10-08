@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
@@ -73,18 +74,23 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 			if _, err := s.Screenshot(); err != nil {
 				fmt.Println("screenshot error:", err) // don't kill app
 			}
-			// Retrieving TaskRecord from TaskRecordID
-			log.Print("Attempting to sync record")
-			taskRecord, err := GetTaskRecordFormID(*s.TaskRecordID)
-			if err != nil {
-				log.Printf("error retrieving task record: %v\n", err)
+
+			// SYNCING PROCESS
+			if config.OnlineMode {
+				// Retrieving TaskRecord from TaskRecordID
+				log.Print("Attempting to sync record")
+				taskRecord, err := GetTaskRecordFormID(*s.TaskRecordID)
+				if err != nil {
+					log.Printf("error retrieving task record: %v\n", err)
+				}
+
+				log.Printf("Syncing record: %v\n", taskRecord)
+				// Syncing TaskRecord to Firebase
+				if err := s.SyncService.SyncTaskRecord(taskRecord); err != nil {
+					log.Printf("error syncing task_record: %v", err)
+				}
 			}
 
-			log.Printf("Syncing record: %v\n", taskRecord)
-			// Syncing TaskRecord to Firebase
-			if err := s.SyncService.SyncTaskRecord(taskRecord); err != nil {
-				log.Printf("error syncing task_record: %v", err)
-			}
 		}()
 
 		for {

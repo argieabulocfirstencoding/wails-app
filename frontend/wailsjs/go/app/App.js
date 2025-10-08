@@ -22,6 +22,10 @@ export function FirebaseLoginUser(arg1, arg2) {
   return window['go']['app']['App']['FirebaseLoginUser'](arg1, arg2);
 }
 
+export function GetAccounts() {
+  return window['go']['app']['App']['GetAccounts']();
+}
+
 export function GetActiveTaskRecord() {
   return window['go']['app']['App']['GetActiveTaskRecord']();
 }
@@ -38,8 +42,8 @@ export function GetTasks() {
   return window['go']['app']['App']['GetTasks']();
 }
 
-export function LoginUser(arg1, arg2) {
-  return window['go']['app']['App']['LoginUser'](arg1, arg2);
+export function LoginUser(arg1) {
+  return window['go']['app']['App']['LoginUser'](arg1);
 }
 
 export function LogoutUser() {

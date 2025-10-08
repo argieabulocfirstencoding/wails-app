@@ -38,8 +38,13 @@ const Home = () => {
   });
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskProps[]>([]);
-  const { taskID, setFetchedActiveRecord, fetchedActiveRecord, setTaskID } =
-    useAuthStore();
+  const {
+    taskID,
+    setFetchedActiveRecord,
+    fetchedActiveRecord,
+    setTaskID,
+    online,
+  } = useAuthStore();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,7 +65,7 @@ const Home = () => {
   }, []);
 
   async function fetchActiveRecord() {
-    if (!fetchedActiveRecord) {
+    if (online && !fetchedActiveRecord) {
       const taskID = await GetActiveTaskRecord();
 
       if (taskID) {

@@ -6,17 +6,13 @@ import (
 )
 
 // NOTE for local login
-func Login(email, password string) (*db.User, error) {
-
-	// TODO add api token check
+func OfflineLogin(email string) (*db.User, error) {
 	var user db.User
 
 	result := db.DB.Where("email = ?", email).First(&user)
 	if result.Error != nil {
-		return nil, errors.New("invalid email or password")
+		return nil, errors.New("no account with that email found")
 	}
-
-	// TODO figure out how to store data only with this info for offline mode
 
 	return &user, nil
 }
