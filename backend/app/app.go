@@ -47,7 +47,7 @@ func (a *App) Startup(ctx context.Context) {
 	db.Init(ctx)
 	db.DB.Exec("PRAGMA journal_mode = WAL;")
 	db.DB.Exec("PRAGMA busy_timeout = 5000;")
-	
+
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
 
@@ -304,6 +304,8 @@ func (a *App) GetActiveTaskRecord() *string {
 		} else {
 			fmt.Printf("Error getting active record %v", err)
 		}
+
+		return nil
 	}
 
 	if taskRecord != nil {

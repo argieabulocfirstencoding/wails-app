@@ -2,7 +2,11 @@ import { useNavigate } from "react-router-dom";
 import MainLayout from "../../layouts/MainLayout";
 import { Plus, Search, RefreshCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { CreateTask, GetTasks } from "@/../wailsjs/go/app/App";
+import {
+  CreateTask,
+  GetActiveTaskRecord,
+  GetTasks,
+} from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Loader from "@/components/custom/Loader";
 
 interface TaskProps {
   taskId: string | null;
@@ -33,7 +38,9 @@ const Home = () => {
   });
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskProps[]>([]);
-  const { taskID } = useAuthStore();
+  const { taskID, setFetchedActiveRecord, fetchedActiveRecord, setTaskID } =
+    useAuthStore();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchUser() {
@@ -48,7 +55,20 @@ const Home = () => {
 
     fetchUser();
     fetchTasks();
+    fetchActiveRecord();
+    setLoading(false);
   }, []);
+
+  async function fetchActiveRecord() {
+    if (!fetchedActiveRecord) {
+      const taskID = await GetActiveTaskRecord();
+
+      if (taskID) {
+        setTaskID(taskID);
+      }
+      setFetchedActiveRecord(true);
+    }
+  }
 
   async function createTask() {
     if (!newTask?.title || !newTask?.client) {
@@ -71,14 +91,21 @@ const Home = () => {
   }
 
   async function fetchTasks() {
+    setLoading(true);
     try {
       const tasks = await GetTasks();
       if (tasks) {
         console.log(tasks);
         setTasks(tasks);
       }
+
+      fetchActiveRecord();
     } catch (error) {
       console.log("error fetching tasks" + error);
+    } finally {
+      setTimeout(() => {
+        setLoading(false);
+      }, 1500);
     }
   }
 
@@ -169,8 +196,10 @@ const Home = () => {
         <span>Contract</span>
         <span>This week's hours</span>
       </div>
-      <div className="">
-        {tasks && tasks.length > 0 ? (
+      <div className="flex flex-col min-h-100">
+        {loading ? (
+          <Loader />
+        ) : tasks && tasks.length > 0 ? (
           tasks.map((task, index) => (
             <TaskItem
               key={index}

@@ -13,11 +13,13 @@ type AuthState = {
   loading: boolean;
   online: boolean;
   taskID: string | null;
+  fetchedActiveRecord: boolean;
   setTaskID: (taskID: string | null) => void;
   setUser: (user: AuthState["user"]) => void;
   setLoading: (loading: boolean) => void;
   setOnline: (online: boolean) => void;
   reset: () => void;
+  setFetchedActiveRecord: (record: boolean) => void;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -25,9 +27,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
   online: navigator.onLine,
   taskID: null,
+  fetchedActiveRecord: false,
   setTaskID: (taskID) => set({ taskID }),
   setUser: (user) => set({ user }),
   setLoading: (loading) => set({ loading }),
-  setOnline: (online) => set({ online: online }),
-  reset: () => set({ user: null, loading: false, online: navigator.onLine }),
+  setOnline: (online) => set({ online }),
+  setFetchedActiveRecord: (fetchedActiveRecord) => set({ fetchedActiveRecord }),
+  reset: () =>
+    set({
+      user: null,
+      loading: false,
+      online: navigator.onLine,
+      taskID: null,
+      fetchedActiveRecord: false,
+    }),
 }));
