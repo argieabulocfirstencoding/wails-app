@@ -273,6 +273,8 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		LocalID: user.LocalID,
 		Email:   user.Email,
 	}
+	// Creates a local representation of your account
+	services.CreateUser(user.LocalID, user.Email)
 
 	attendanceID, err := services.LoginAttendance(authUser.LocalID)
 	if attendanceID == nil {
@@ -377,4 +379,20 @@ func (a *App) GetAccounts() ([]models.User, error) {
 	}
 
 	return users, nil
+}
+
+func (a *App) SyncAttendance() error {
+	if err := a.SyncService.SyncAllAttendance(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *App) SyncUnsyncedRecords() error {
+	if err := a.SyncService.SyncUnsyncedRecords(); err != nil {
+		return err
+	}
+
+	return nil
 }

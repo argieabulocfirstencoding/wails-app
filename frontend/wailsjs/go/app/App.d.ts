@@ -33,4 +33,8 @@ export function StartTracking(arg1:string,arg2:string):Promise<void>;
 
 export function StopTracking(arg1:string):Promise<void>;
 
+export function SyncAttendance():Promise<void>;
+
+export function SyncUnsyncedRecords():Promise<void>;
+
 export function TakeScreenshot():Promise<Array<string>>;

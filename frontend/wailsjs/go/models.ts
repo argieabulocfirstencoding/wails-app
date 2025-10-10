@@ -60,6 +60,7 @@ export namespace models {
 	    Duration?: number;
 	    // Go type: time
 	    SyncedAt?: any;
+	    SyncStatus: string;
 	    Screenshots: Screenshot[];
 	
 	    static createFrom(source: any = {}) {
@@ -79,6 +80,7 @@ export namespace models {
 	        this.EndedAt = this.convertValues(source["EndedAt"], null);
 	        this.Duration = source["Duration"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
+	        this.SyncStatus = source["SyncStatus"];
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
 	    }
 	
@@ -190,7 +192,8 @@ export namespace models {
 	    TimeIn: any;
 	    // Go type: time
 	    TimeOut?: any;
-	    SyncID?: string;
+	    // Go type: time
+	    SyncedAt?: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new Attendance(source);
@@ -206,7 +209,7 @@ export namespace models {
 	        this.User = this.convertValues(source["User"], User);
 	        this.TimeIn = this.convertValues(source["TimeIn"], null);
 	        this.TimeOut = this.convertValues(source["TimeOut"], null);
-	        this.SyncID = source["SyncID"];
+	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

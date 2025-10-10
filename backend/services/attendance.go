@@ -47,3 +47,13 @@ func LogoutAttendance(attendanceId uint) error {
 
 	return nil
 }
+
+func getAttendanceFromID(attendanceID uint) (*models.Attendance, error) {
+	var attendance models.Attendance
+
+	if err := db.DB.Where("attendances.id = ?", attendanceID).First(&attendance).Error; err != nil {
+		return nil, err
+	}
+
+	return &attendance, nil
+}

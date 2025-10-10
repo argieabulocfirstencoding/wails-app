@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fesapp/backend/db"
+	"fesapp/backend/db/models"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -43,4 +44,14 @@ func GetTasks(userId string) ([]db.Task, error) {
 	}
 
 	return tasks, nil
+}
+
+func getTaskFromID(taskID string) (*models.Task, error) {
+	var task models.Task
+
+	if err := db.DB.Where("tasks.id = ?", taskID).First(&task).Error; err != nil {
+		return nil, err
+	}
+
+	return &task, nil
 }

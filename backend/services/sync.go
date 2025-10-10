@@ -139,12 +139,24 @@ func (s *SyncService) SyncTasks() {
 
 func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	// ============== PRE DEFINITION =============
-	startedAt := taskRecord.StartedAt.UTC().Format("20060102T150405")
-	recordID := taskRecord.UserID + "_" + taskRecord.TaskID + "_" + startedAt
+	recordID := taskRecord.StartedAt.UTC().Format("20060102T150405")
+	attendance, err := getAttendanceFromID(taskRecord.AttendanceID)
+	if err != nil {
+		return err
+	}
+	task, err := getTaskFromID(taskRecord.TaskID)
+	if err != nil {
+		return err
+	}
+
+	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")
 
 	fields := map[string]interface{}{
 		"task_id": map[string]string{
 			"stringValue": taskRecord.TaskID,
+		},
+		"task_name": map[string]string{
+			"stringValue": task.Title,
 		},
 		"started_at": map[string]string{
 			"timestampValue": taskRecord.StartedAt.UTC().Format(time.RFC3339),
@@ -162,8 +174,8 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("documents/users/%s/tasks/%s/task_records/%s",
-		taskRecord.UserID, taskRecord.TaskID, recordID,
+	path := fmt.Sprintf("documents/users/%s/attendance/%s/tasks/%s/task_records/%s",
+		taskRecord.UserID, attendanceFormattedID, taskRecord.TaskID, recordID,
 	)
 	method := "PATCH"
 	body := map[string]interface{}{
@@ -181,10 +193,60 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		db.DB.Save(&taskRecord)
 	}
 
+	// updates database that record is synced
+	db.DB.Model(&taskRecord).Update("sync_status", "synced")
 	return nil
 }
 
-func (s *SyncService) SyncAttendance() error {
+func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
+	now := time.Now()
+	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")
+	s.RefreshAccessToken()
+
+	fields := map[string]interface{}{
+		"synced_at": map[string]string{
+			"timestampValue": now.UTC().Format(time.RFC3339),
+		},
+		"started_at": map[string]string{
+			"timestampValue": attendance.TimeIn.UTC().Format(time.RFC3339),
+		},
+		"duration": map[string]string{
+			"integerValue": fmt.Sprintf("%d", int(now.Sub(attendance.TimeIn).Seconds())),
+		},
+	}
+
+	if attendance.TimeOut != nil {
+		fields["ended_at"] = map[string]string{
+			"timestampValue": attendance.TimeOut.UTC().Format(time.RFC3339),
+		}
+		fields["duration"] = map[string]string{
+			"integerValue": fmt.Sprintf("%d", int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds())),
+		}
+	}
+	// ============= REQUEST CONFIG ==============
+	path := fmt.Sprintf("documents/users/%s/attendance/%s",
+		attendance.UserID, attendanceFormattedID,
+	)
+	method := "PATCH"
+	body := map[string]interface{}{
+		"fields": fields,
+	}
+
+	if s.isConnected {
+		_, err := FirebaseDocumentRequest(s.ctx, *s.idToken, path, method, body)
+		if err != nil {
+			return err
+		}
+
+		now := time.Now()
+		attendance.SyncedAt = &now
+		db.DB.Save(&attendance)
+	}
+
+	return nil
+}
+
+func (s *SyncService) SyncAllAttendance() error {
 	var unsynced []models.Attendance
 	if err := db.DB.Where("user_id = ? and synced_at IS NULL").Find(&unsynced).Error; err != nil {
 		return err
@@ -192,25 +254,19 @@ func (s *SyncService) SyncAttendance() error {
 	// TODO get the attendance record in firebase that is currently active or not yet concluded.
 	// Change the local copy of start time to the ones in firebase.
 	// Sync all local task records to firebase
-	// How to know if the 
+	// How to know if the
 
-	// ============= REQUEST CONFIG ==============
-	// path := ""
-	// method := "PATCH"
-	// body := map[string]interface{}{
-	// 	"fields": fields,
-	// }
-	s.RefreshAccessToken()
+	//TODO new way
+	// Sync Attendance creates a summary of how many working hours(attendance), total tasks time, idle times, breaks, in duration as a summary
+	// or consider adding a summary when the start and end of tasks as well as it's
 
 	if s.isConnected {
-		// _, err := FirebaseDocumentRequest(s.ctx, *s.idToken, path, method, body)
-		// if err != nil {
-		// 	return err
-		// }
-
-		// now := time.Now()
-		// taskRecord.SyncedAt = &now
-		// db.DB.Save(&taskRecord)
+		for _, attendance := range unsynced {
+			if err := s.SyncAttendance(&attendance); err != nil {
+				log.Printf("error syncing task_record: %v", err)
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -218,7 +274,7 @@ func (s *SyncService) SyncAttendance() error {
 
 func (s *SyncService) SyncUnsyncedRecords() error {
 	var unsynced []models.TaskRecord
-	if err := db.DB.Where("user_id = ? AND synced_at IS NULL OR (ended_at IS NOT NULL AND synced_at < ended_at)", s.AuthUser.LocalID).
+	if err := db.DB.Where("user_id = ? AND sync_status = 'pending'", s.AuthUser.LocalID).
 		Find(&unsynced).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Print("no unsynced records")
@@ -231,6 +287,7 @@ func (s *SyncService) SyncUnsyncedRecords() error {
 	for _, record := range unsynced {
 		if err := s.SyncTaskRecord(&record); err != nil {
 			log.Printf("error syncing task_record: %v", err)
+			return err
 		}
 	}
 

@@ -8,9 +8,9 @@ import (
 
 type Attendance struct {
 	gorm.Model
-	UserID  string `gorm:"not null"`
-	User    User   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TimeIn  time.Time
-	TimeOut *time.Time
-	SyncID  *string
+	UserID   string `gorm:"not null"`
+	User     User   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TimeIn   time.Time
+	TimeOut  *time.Time
+	SyncedAt *time.Time
 }

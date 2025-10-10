@@ -62,6 +62,14 @@ export function StopTracking(arg1) {
   return window['go']['app']['App']['StopTracking'](arg1);
 }
 
+export function SyncAttendance() {
+  return window['go']['app']['App']['SyncAttendance']();
+}
+
+export function SyncUnsyncedRecords() {
+  return window['go']['app']['App']['SyncUnsyncedRecords']();
+}
+
 export function TakeScreenshot() {
   return window['go']['app']['App']['TakeScreenshot']();
 }

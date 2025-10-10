@@ -6,7 +6,7 @@ import (
 
 type TaskRecord struct {
 	ID           uint       `gorm:"primaryKey"`
-	UserID       string     `validate:"required"`
+	UserID       string     `gorm:"not null"`
 	User         User       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	AttendanceID uint       `gorm:"not null"`
 	Attendance   Attendance `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
@@ -16,6 +16,7 @@ type TaskRecord struct {
 	EndedAt      *time.Time
 	Duration     *int32
 	SyncedAt     *time.Time
+	SyncStatus   string 	`gorm:"not null;default:'pending'"`
 	Screenshots  []Screenshot
 }
 
