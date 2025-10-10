@@ -15,9 +15,9 @@ import {
 
 import logo from "@/assets/images/first-encoding_logo.webp";
 import { Link } from "react-router-dom";
-import { BackendFirebaseSync, LoginUser } from "@/../wailsjs/go/app/App";
+import { BackendFirebaseSync } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
-import { IdTokenResult, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
 
 const Login = () => {
@@ -63,13 +63,31 @@ const Login = () => {
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
         console.log(user);
-        
+
         setSynced(true);
         navigate("/");
       }
     } catch (error: any) {
       console.error(error);
-      setErrorMsg(error.message || "Login failed");
+
+      switch (error.code) {
+        case "auth/invalid-credential":
+          setErrorMsg("Invalid email or password. Please try again.");
+          break;
+
+        case "auth/invalid-email":
+          setErrorMsg("Please enter a valid email address.");
+          break;
+
+        case "auth/missing-password":
+        case "auth/weak-password":
+          setErrorMsg("Please enter a valid password.");
+          break;
+
+        default:
+          setErrorMsg("Unexpected error: " + error.message);
+          break;
+      }
     }
     // navigate("/");
   }

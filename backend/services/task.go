@@ -49,7 +49,7 @@ func GetTasks(userId string) ([]db.Task, error) {
 func getTaskFromID(taskID string) (*models.Task, error) {
 	var task models.Task
 
-	if err := db.DB.Where("tasks.id = ?", taskID).First(&task).Error; err != nil {
+	if err := db.DB.Where("tasks.task_id = ?", taskID).First(&task).Error; err != nil {
 		return nil, err
 	}
 
