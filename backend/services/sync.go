@@ -139,6 +139,7 @@ func (s *SyncService) SyncTasks() {
 
 func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	// ============== PRE DEFINITION =============
+	now := time.Now()
 	recordID := taskRecord.StartedAt.UTC().Format("20060102T150405")
 	attendance, err := getAttendanceFromID(taskRecord.AttendanceID)
 	if err != nil {
@@ -150,8 +151,11 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")
-
+	// NOTE if failed to end task, use synced_at as ended_at
 	fields := map[string]interface{}{
+		"synced_at": map[string]string{
+			"timestampValue": now.UTC().Format(time.RFC3339),
+		},
 		"task_id": map[string]string{
 			"stringValue": taskRecord.TaskID,
 		},
@@ -161,7 +165,14 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		"started_at": map[string]string{
 			"timestampValue": taskRecord.StartedAt.UTC().Format(time.RFC3339),
 		},
+		"ended_at": map[string]string{
+			"timestampValue": now.UTC().Format(time.RFC3339),
+		},
+		"duration": map[string]string{
+			"integerValue": fmt.Sprintf("%d", int(now.Sub(taskRecord.StartedAt).Seconds())),
+		},
 	}
+
 	if taskRecord.EndedAt != nil {
 		fields["ended_at"] = map[string]string{
 			"timestampValue": taskRecord.EndedAt.UTC().Format(time.RFC3339),
@@ -199,6 +210,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
+	// ============== PRE DEFINITION =============
 	now := time.Now()
 	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")
 	s.RefreshAccessToken()
