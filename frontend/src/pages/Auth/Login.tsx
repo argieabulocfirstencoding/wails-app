@@ -89,19 +89,18 @@ const Login = () => {
           break;
       }
     }
-    // navigate("/");
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200">
+    <div className="flex min-h-screen items-center justify-center px-6 bg-gray-50 dark:bg-gray-950">
+      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
         <CardHeader className="space-y-4 flex flex-col items-center">
           <img src={logo} alt="Company Logo" className="h-14 w-auto" />
           <div className="space-y-2 text-center">
-            <CardTitle className="text-2xl font-bold text-gray-800">
+            <CardTitle className="text-2xl font-bold text-gray-800 dark:text-gray-100">
               Sign In to First Encoding Account
             </CardTitle>
-            <CardDescription className="text-gray-500">
+            <CardDescription className="text-gray-500 dark:text-gray-400">
               Use your email and password to access your account.
             </CardDescription>
           </div>
@@ -110,7 +109,10 @@ const Login = () => {
         <CardContent>
           <form onSubmit={loginUser} className="space-y-5">
             <div className="grid gap-2">
-              <Label htmlFor="email" className="text-gray-700">
+              <Label
+                htmlFor="email"
+                className="text-gray-700 dark:text-gray-300"
+              >
                 Email
               </Label>
               <Input
@@ -118,7 +120,7 @@ const Login = () => {
                 type="email"
                 placeholder="name.firstencoding@gmail.com"
                 required
-                className="rounded-lg"
+                className="rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -126,7 +128,10 @@ const Login = () => {
 
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-gray-700">
+                <Label
+                  htmlFor="password"
+                  className="text-gray-700 dark:text-gray-300"
+                >
                   Password
                 </Label>
                 <a
@@ -141,7 +146,7 @@ const Login = () => {
                 type="password"
                 placeholder="••••••••"
                 required
-                className="rounded-lg"
+                className="rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -149,25 +154,26 @@ const Login = () => {
 
             <Button
               type="submit"
-              className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase cursor-pointer tracking-widest"
-              style={{ backgroundColor: "#166400" }}
+              className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase cursor-pointer tracking-widest bg-green-700 hover:bg-green-800"
             >
               Login
             </Button>
             {errorMsg && (
-              <p className="text-red-600 text-sm text-center">{errorMsg}</p>
+              <p className="text-red-600 dark:text-red-400 text-sm text-center">
+                {errorMsg}
+              </p>
             )}
           </form>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3">
-          <p className="text-sm text-gray-600 text-center">
-            Having slow Internet? {""}
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+            Having slow internet?{" "}
             <Link
               to="/offline-login"
               className="text-green-600 hover:underline font-medium"
             >
-              SignIn Offline
+              Signin Offline
             </Link>
           </p>
         </CardFooter>

@@ -36,17 +36,12 @@ const Task = () => {
 
   async function startTime() {
     resetTimer();
-    if (!id) {
-      console.log("No Id has been set");
-      return;
-    }
-
+    if (!id) return;
     const timeStart = Date.now();
     const stringifiedDateTime = JSON.stringify(timeStart);
     setStart(true);
     setStartTime(timeStart);
     await StartTracking(id, stringifiedDateTime);
-    console.log("time started");
   }
 
   function resetTimer() {
@@ -60,10 +55,7 @@ const Task = () => {
     const timeStop = Date.now();
     setStart(false);
     setEndTime(timeStop);
-    if (id) {
-      await StopTracking(id);
-      console.log("Time stopeed");
-    }
+    if (id) await StopTracking(id);
   }
 
   function getFormattedTime() {
@@ -88,10 +80,8 @@ const Task = () => {
   async function screenshotNow() {
     const now = Date.now();
     const pictures = await TakeScreenshot();
-
     if (pictures) {
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
-
       localStorage.setItem(
         "last_screenshot_" + id,
         JSON.stringify(screenshotTaken)
@@ -107,41 +97,24 @@ const Task = () => {
 
   function getLastScreenshotTime() {
     let screenshotTimeAgo = "No screenshots yet.";
-
     const lastScreenshotDate = screenshots?.date;
     if (lastScreenshotDate) {
-      // console.log("nisud diri");
       screenshotTimeAgo = formatDistance(lastScreenshotDate, new Date(), {
         addSuffix: true,
       });
-      console.log(screenshotTimeAgo);
     }
-
     setScreenshotDate(screenshotTimeAgo);
   }
 
   function openPreview(base64: string) {
-    const newWindow = window.open(
-      "",
-      "_blank",
-      `width=200,height=200,resizable=yes,left=0,top=500`
-    );
+    const newWindow = window.open("", "_blank", `width=200,height=200`);
     if (newWindow) {
       const img = newWindow.document.createElement("img");
       img.src = base64;
-      img.style.objectPosition = "cover";
+      img.style.width = "1280px";
       img.style.height = "auto";
-      img.style.width = "1280";
-
-      newWindow.document.body.style.margin = "0"; // remove margins
+      newWindow.document.body.style.margin = "0";
       newWindow.document.body.appendChild(img);
-
-      img.onload = () => {
-        const w = img.width;
-        const h = img.height;
-        newWindow.resizeTo(w + 20, h + 40);
-        // +20/+40 padding for window chrome/borders
-      };
     }
   }
 
@@ -151,9 +124,8 @@ const Task = () => {
 
   useEffect(() => {
     async function fetchLastRecord() {
+      if (!id) return;
       try {
-        if (!id) return;
-
         const response = await GetLastTaskRecord(id);
         if (response) {
           const record = response.record;
@@ -163,7 +135,6 @@ const Task = () => {
           if (record) {
             const started = new Date(record.started_at);
             const ended = record.ended_at ? new Date(record.ended_at) : null;
-
             setStartTime(started.getTime());
             setEndTime(ended?.getTime());
           }
@@ -182,29 +153,23 @@ const Task = () => {
     }
 
     fetchLastRecord();
-
     const memoRecord = localStorage.getItem("memo");
     const tagRecord = localStorage.getItem("tag");
     if (memoRecord) setMemo(memoRecord);
     if (tagRecord) setTag(tagRecord);
-
     countMonitor();
   }, []);
 
   useEffect(() => {
-    console.log("TaskID: ", id);
     if (!isStarted || !timeStarted) return;
-
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - timeStarted) / 1000);
       setElapsedTime(elapsed);
     }, 1000);
-
     return () => clearInterval(interval);
   }, [isStarted]);
 
   useEffect(() => {
-    // this continues when the user goes back to task
     if (timeStarted && !timeEnded && id) {
       setTaskID(id);
       setStart(true);
@@ -217,11 +182,7 @@ const Task = () => {
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
       setScreenshots(screenshotTaken);
     });
-
-    return () => {
-      console.log("app is unmounted");
-      off();
-    };
+    return () => off();
   }, []);
 
   return (
@@ -229,29 +190,38 @@ const Task = () => {
       <div className="p-4">
         <button
           onClick={() => navigate("/")}
-          className="flex gap-2 font-bold cursor-pointer"
+          className="flex gap-2 font-bold cursor-pointer text-foreground"
         >
           <ChevronLeft />
           Back
         </button>
-        <h1 className="text-2xl font-bold mt-2 line-clamp-2">
+        <h1 className="text-2xl font-bold mt-2 line-clamp-2 text-foreground">
           WordPress Website Maker Needed for Custom Site Developer
         </h1>
         <div className="flex flex-col mt-1">
-          <span className="font-extrabold text-gray-600">Omar Taha</span>
-          <span className="text-[10px] text-gray-500 mt-[-6px]">Client </span>
+          <span className="font-extrabold text-gray-600 dark:text-gray-300">
+            Omar Taha
+          </span>
+          <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-[-6px]">
+            Client
+          </span>
         </div>
       </div>
-      <hr />
+
+      <hr className="border-gray-200 dark:border-gray-700" />
+
       <div className="p-5">
-        <div className="rounded border p-4">
-          <span className="font-bold">
+        <div className="rounded border border-gray-300 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+          <span className="font-bold text-foreground">
             {isStarted ? "Current" : "Last"} session
           </span>
+
           <div className="flex justify-between items-center">
             <div className="flex flex-col">
-              <span className="font-bold text-2xl">{getFormattedTime()}</span>
-              <span className="text-sm">
+              <span className="font-bold text-2xl text-foreground">
+                {getFormattedTime()}
+              </span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 Time tracking {isStarted ? "on" : "off"}
               </span>
             </div>
@@ -261,9 +231,11 @@ const Task = () => {
               <StartButton onClick={() => startTime()} />
             )}
           </div>
-          <hr className="my-2" />
+
+          <hr className="my-2 border-gray-200 dark:border-gray-700" />
+
           <div className="flex justify-between items-center">
-            <h3 className="text-base font-semibold text-gray-800">
+            <h3 className="text-base font-semibold text-foreground">
               What are you working on?
             </h3>
             <EditWorkDialog
@@ -277,15 +249,16 @@ const Task = () => {
               }}
             />
           </div>
+
           <div className="space-y-1 text-sm">
             <p>
-              <span className="font-medium text-gray-700">
+              <span className="font-medium text-gray-700 dark:text-gray-300">
                 📌 <strong>Memo:</strong>
               </span>{" "}
               <span className="truncate">{memo || "No memo set."}</span>
             </p>
             <p className="line-clamp-3">
-              <span className="font-medium text-gray-700">
+              <span className="font-medium text-gray-700 dark:text-gray-300">
                 🏷️ <strong>Activity tag:</strong>
               </span>{" "}
               {tag || "No tag set."}
@@ -295,14 +268,24 @@ const Task = () => {
 
         <div className="flex flex-col mt-3 mb-1">
           <div className="flex justify-between">
-            <h2 className="font-bold">Latest screenshot</h2>
-            <button onClick={screenshotNow}>Screenshot</button>
+            <h2 className="font-bold text-foreground">Latest screenshot</h2>
+            <button
+              onClick={screenshotNow}
+              className="px-3 py-1 rounded bg-green-500 text-white hover:bg-green-600 transition"
+            >
+              Screenshot
+            </button>
           </div>
-          <div className="flex justify-between items-baseline">
-            <span>Active monitors: {monitor}</span>
-            <span className="text-xs">{screenshotDate}</span>
+          <div className="flex justify-between items-baseline text-sm">
+            <span className="text-gray-600 dark:text-gray-400">
+              Active monitors: {monitor}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {screenshotDate}
+            </span>
           </div>
         </div>
+
         <div>
           {screenshots &&
             screenshots.pictures.map((value, index) => (
@@ -310,7 +293,7 @@ const Task = () => {
                 key={index}
                 src={value}
                 alt=""
-                className="w-full border rounded-2xl mb-2 object-cover"
+                className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700"
                 onClick={() => openPreview(value)}
               />
             ))}
@@ -330,7 +313,7 @@ function StartButton({ onClick }: ButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="flex bg-green-500 px-4 py-2 rounded text-white gap-2 cursor-pointer"
+      className="flex bg-green-500 px-4 py-2 rounded text-white gap-2 cursor-pointer hover:bg-green-600 transition"
     >
       <CirclePlay />
       <span>Start</span>
@@ -342,7 +325,7 @@ function StopButton({ onClick }: ButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="flex bg-red-500 px-4 py-2 rounded text-white gap-2 cursor-pointer"
+      className="flex bg-red-500 px-4 py-2 rounded text-white gap-2 cursor-pointer hover:bg-red-600 transition"
     >
       <StopCircle />
       <span>Stop</span>

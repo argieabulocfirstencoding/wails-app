@@ -17,7 +17,7 @@ func CreateUser(id string, email string) (*db.User, error) {
 	if err := validate.Struct(user); err != nil {
 		return nil, err
 	}
-	
+
 	// TODO add update as well the time when the user logs in
 
 	// Save to DB

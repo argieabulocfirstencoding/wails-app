@@ -38,6 +38,8 @@ const Home = () => {
   });
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskProps[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const {
     taskID,
     setFetchedActiveRecord,
@@ -49,9 +51,6 @@ const Home = () => {
 
   useEffect(() => {
     async function fetchUser() {
-      // const username = localStorage.getItem("user");
-      // const auth = await CheckAuth(username);
-
       const user = useAuthStore.getState().user;
       if (!user) {
         navigate("/login");
@@ -61,13 +60,11 @@ const Home = () => {
     fetchUser();
     fetchTasks();
     fetchActiveRecord();
-    setLoading(false);
   }, []);
 
   async function fetchActiveRecord() {
     if (online && !fetchedActiveRecord) {
       const taskID = await GetActiveTaskRecord();
-
       if (taskID) {
         setTaskID(taskID);
       }
@@ -76,27 +73,23 @@ const Home = () => {
   }
 
   async function createTask() {
-    if (!newTask?.title || !newTask?.client) {
-      return;
-    }
+    if (!newTask?.title || !newTask?.client) return;
+
     try {
       const task = await CreateTask(newTask.title, newTask.client);
-      if (task)
-        setNewTask({
-          taskId: null,
-          title: "",
-          client: "",
-        });
-      setOpen(false);
-
-      fetchTasks();
+      if (task) {
+        setNewTask({ taskId: null, title: "", client: "" });
+        setOpen(false);
+        fetchTasks();
+      }
     } catch (error) {
-      console.log("Error creating task" + error);
+      console.log("Error creating task: ", error);
     }
   }
 
   async function fetchTasks() {
     setLoading(true);
+    setIsRefreshing(true);
     try {
       const tasks = await GetTasks();
       if (tasks) {
@@ -104,39 +97,56 @@ const Home = () => {
         setTasks(tasks);
       }
 
-      fetchActiveRecord();
+      await fetchActiveRecord();
     } catch (error) {
-      console.log("error fetching tasks" + error);
+      console.log("Error fetching tasks:", error);
     } finally {
       setTimeout(() => {
+        setIsRefreshing(false);
         setLoading(false);
-      }, 1500);
+      }, 600);
     }
   }
 
+  const filteredTasks = tasks.filter(
+    (task) =>
+      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      task.client.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <MainLayout>
-      <div className="p-6 border-b-2 flex justify-between items-center">
-        <h1 className="text-2xl font-extrabold">All Task</h1>
-        {/* ==================================================================== */}
+      {/* Header */}
+      <div className="p-6 border-b-2 flex justify-between items-center dark:border-gray-700">
+        <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">
+          All Tasks
+        </h1>
+
+        {/* Add Task Dialog */}
         <Dialog open={open} onOpenChange={setOpen}>
           <form>
             <DialogTrigger asChild>
-              <Plus className="cursor-pointer" />
+              <Plus className="cursor-pointer text-gray-700 dark:text-gray-300" />
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>Add Task</DialogTitle>
-                <DialogDescription>
-                  Make sure task made are approved by your direct superior.
+                <DialogTitle className="text-gray-900 dark:text-white">
+                  Add Task
+                </DialogTitle>
+                <DialogDescription className="text-gray-600 dark:text-gray-400">
+                  Make sure tasks are approved by your direct superior.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4">
                 <div className="grid gap-3">
-                  <Label htmlFor="name-1">Title</Label>
+                  <Label
+                    htmlFor="task-title"
+                    className="text-gray-700 dark:text-gray-300"
+                  >
+                    Title
+                  </Label>
                   <Input
-                    id="name-1"
-                    name="name"
+                    id="task-title"
                     placeholder="Ex. Training"
                     value={newTask.title}
                     onChange={(e) =>
@@ -148,10 +158,14 @@ const Home = () => {
                   />
                 </div>
                 <div className="grid gap-3">
-                  <Label htmlFor="username-1">Client name</Label>
+                  <Label
+                    htmlFor="task-client"
+                    className="text-gray-700 dark:text-gray-300"
+                  >
+                    Client Name
+                  </Label>
                   <Input
-                    id="username-1"
-                    name="username"
+                    id="task-client"
                     placeholder="Ex. Edward Collins"
                     value={newTask.client}
                     onChange={(e) =>
@@ -170,7 +184,7 @@ const Home = () => {
                 <Button
                   type="submit"
                   onClick={createTask}
-                  className="bg-green-500"
+                  className="bg-green-600 hover:bg-green-700 cursor-pointer text-white"
                 >
                   Add
                 </Button>
@@ -178,34 +192,45 @@ const Home = () => {
             </DialogContent>
           </form>
         </Dialog>
-        {/* ==================================================================== */}
       </div>
 
+      {/* Search + Refresh */}
       <div className="flex items-center p-5 gap-5">
-        <div className="p-2 border flex gap-4 rounded-md flex-grow">
-          <Search />
+        <div className="p-2 border flex gap-4 rounded-md flex-grow dark:border-gray-700">
+          <Search className="text-gray-600 dark:text-gray-300" />
           <input
             type="text"
-            name=""
-            id=""
-            className="outline-none border-none"
+            placeholder="Search tasks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="outline-none border-none w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
         </div>
-        <div className="flex gap-3">
-          <div className="border-2 border-green-500 rounded-full p-2">
-            <RefreshCcw color="green" onClick={fetchTasks} />
-          </div>
+        <div
+          className="border-2 border-green-500 rounded-full p-2 cursor-pointer"
+          onClick={fetchTasks}
+        >
+          <RefreshCcw
+            color="green"
+            className={isRefreshing ? "animate-spin" : ""}
+          />
         </div>
       </div>
-      <div className="flex justify-between items-center px-6 font-bold pb-2 border-b">
-        <span>Contract</span>
-        <span>This week's hours</span>
+
+      {/* Task list header */}
+      <div className="flex justify-between items-center px-6 font-bold pb-2 border-b dark:border-gray-700">
+        <span className="text-gray-800 dark:text-gray-200">Contract</span>
+        <span className="text-gray-800 dark:text-gray-200">
+          This week's hours
+        </span>
       </div>
-      <div className="flex flex-col min-h-100">
+
+      {/* Task List */}
+      <div>
         {loading ? (
           <Loader />
-        ) : tasks && tasks.length > 0 ? (
-          tasks.map((task, index) => (
+        ) : filteredTasks.length > 0 ? (
+          filteredTasks.map((task, index) => (
             <TaskItem
               key={index}
               taskId={task.taskId}
@@ -215,7 +240,9 @@ const Home = () => {
             />
           ))
         ) : (
-          <div className="mt-5 text-center">No tasks yet.</div>
+          <div className="mt-5 text-center text-gray-500 dark:text-gray-400">
+            No tasks found.
+          </div>
         )}
       </div>
     </MainLayout>
@@ -235,21 +262,45 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
   return (
     <>
       <div
-        className={`grid grid-cols-2 px-6 cursor-pointer py-5 ${
-          active && "bg-green-200"
-        }`}
+        className={`grid grid-cols-2 px-6 py-4 cursor-pointer transition-all duration-300 
+          ${
+            active
+              ? "bg-green-100 dark:bg-green-900 border-l-4 border-green-600 shadow-sm"
+              : "hover:bg-gray-50 dark:hover:bg-gray-800"
+          }`}
         onClick={() => navigate("/task/" + taskId)}
       >
         <div className="flex flex-col">
-          <span className="text-green-500 line-clamp-2">{title}</span>
-          <span className="truncate font-bold">{client}</span>
-          <span className="text-xs font-semibold text-gray-500">
+          <span
+            className={`line-clamp-2 font-semibold ${
+              active
+                ? "text-green-700 dark:text-green-400"
+                : "text-green-500 dark:text-green-300"
+            }`}
+          >
+            {title}
+          </span>
+          <span
+            className={`truncate ${
+              active
+                ? "font-extrabold text-gray-900 dark:text-white"
+                : "font-bold text-gray-700 dark:text-gray-300"
+            }`}
+          >
+            {client}
+          </span>
+          <span
+            className={`text-xs font-medium ${
+              active
+                ? "text-green-600 dark:text-green-400"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
             Time last tracked Sep 12, 2025
           </span>
         </div>
-        <div></div>
       </div>
-      <hr />
+      <hr className="border-gray-200 dark:border-gray-700" />
     </>
   );
 };

@@ -14,7 +14,7 @@ const AccountSettingsLayout: React.FC<AccountSettingsLayoutProps> = ({
       <header className="flex items-center justify-between px-6 py-4 bg-white border-b">
         <div className="flex items-center gap-3">
           <Link
-            to="/settings"
+            to="/account-settings"
             className="flex items-center text-gray-600 hover:text-black cursor-pointer"
           >
             <ChevronLeft />

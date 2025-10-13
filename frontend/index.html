@@ -3,7 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <link rel="icon" href="/frontend/src/assets/images/favicon.ico" />
     <title>FES App</title>
+    <script>
+      (function () {
+        try {
+          const theme = localStorage.getItem("theme"); // "light" | "dark" | "system" | null
+          const prefersDark =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+          if (theme === "dark" || (!theme && prefersDark)) {
+            document.documentElement.classList.add("dark");
+          } else {
+            document.documentElement.classList.remove("dark");
+          }
+        } catch (e) {
+          // ignore
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
