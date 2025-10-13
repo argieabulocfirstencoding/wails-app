@@ -1,11 +1,11 @@
 import React from "react";
 
-const SpinnerLoader = () => {
-  return (
-    <div className="flex items-center justify-center flex-1">
-      <div className="spinner-loader"></div>
-    </div>
-  );
+interface SpinnerLoaderProps {
+  className?: string | undefined;
+}
+
+const SpinnerLoader: React.FC<SpinnerLoaderProps> = ({ className }) => {
+  return <div className={className + " spinner-loader"}></div>;
 };
 
 export default SpinnerLoader;

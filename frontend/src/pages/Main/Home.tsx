@@ -226,9 +226,12 @@ const Home = () => {
       </div>
 
       {/* Task List */}
-      <div>
+      <div className="">
         {loading ? (
-          <Loader />
+          <div className="w-full min-h-100 flex items-center justify-center flex-col">
+            <Loader />
+            <span className="mt-5">Fetching Tasks</span>
+          </div>
         ) : filteredTasks.length > 0 ? (
           filteredTasks.map((task, index) => (
             <TaskItem

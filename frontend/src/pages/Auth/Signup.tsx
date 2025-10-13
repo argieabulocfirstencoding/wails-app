@@ -29,7 +29,7 @@ const Signup = () => {
       if (user) {
         localStorage.setItem("user", user.Email);
         console.log(user);
-        navigate("/");
+        navigate("/home");
       }
     } catch (error) {
       console.error(error);

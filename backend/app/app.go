@@ -284,8 +284,10 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
 
-	a.SyncService.Connect(a.ctx, user)
-	a.SyncService.SyncTasks()
+	go func(){
+		a.SyncService.Connect(a.ctx, user)
+		a.SyncService.SyncTasks()
+	}()
 
 	config.OnlineMode = true
 	return nil
@@ -355,6 +357,10 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 }
 
 func (a *App) GetTasks() ([]models.ExpTask, error) {
+	go func(){
+		a.SyncService.SyncTasks()
+	}()
+
 	if a.AuthUser == nil {
 		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
 	}

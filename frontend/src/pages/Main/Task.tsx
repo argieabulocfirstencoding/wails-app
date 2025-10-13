@@ -189,7 +189,7 @@ const Task = () => {
     <MainLayout>
       <div className="p-4">
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/home")}
           className="flex gap-2 font-bold cursor-pointer text-foreground"
         >
           <ChevronLeft />
@@ -269,12 +269,12 @@ const Task = () => {
         <div className="flex flex-col mt-3 mb-1">
           <div className="flex justify-between">
             <h2 className="font-bold text-foreground">Latest screenshot</h2>
-            <button
+            {/* <button
               onClick={screenshotNow}
               className="px-3 py-1 rounded bg-green-500 text-white hover:bg-green-600 transition"
             >
               Screenshot
-            </button>
+            </button> */}
           </div>
           <div className="flex justify-between items-baseline text-sm">
             <span className="text-gray-600 dark:text-gray-400">

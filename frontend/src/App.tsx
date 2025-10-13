@@ -17,6 +17,7 @@ import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useAuthStore } from "./store/AuthContext";
 import OfflineLogin from "./pages/Auth/OfflineLogin";
+import Landing from "./pages/Landing";
 
 interface ScreenshotProps {
   date: number;
@@ -48,7 +49,8 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/offline-login" element={<OfflineLogin />} />
         <Route path="/task/:id" element={<Task />} />

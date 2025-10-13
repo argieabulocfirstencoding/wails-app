@@ -15,8 +15,8 @@ input:-webkit-autofill:active {
 
 .dark input:-webkit-autofill {
   background-color: transparent !important;
-  -webkit-box-shadow: 0 0 0px 1000px #111827 inset !important; 
-  -webkit-text-fill-color: #f9fafb !important; 
+  -webkit-box-shadow: 0 0 0px 1000px #111827 inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
 }
 
 .light input:-webkit-autofill {
@@ -38,10 +38,6 @@ input:-webkit-autofill:active {
 }
 
 .loader-container {
-  flex-grow: 1;
-  height: 100%;
-  width: 100%;
-
   display: flex;
   align-items: center;
   justify-content: center;

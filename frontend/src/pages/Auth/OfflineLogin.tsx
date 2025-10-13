@@ -17,7 +17,6 @@ import logo from "@/assets/images/first-encoding_logo.webp";
 import { Link } from "react-router-dom";
 import { GetAccounts, LoginUser } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
-import { auth } from "@/firebase";
 
 import {
   Select,
@@ -48,7 +47,7 @@ const OfflineLogin = () => {
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
         console.log(user);
-        navigate("/");
+        navigate("/home");
       }
     } catch (error: any) {
       console.error(error);
@@ -68,7 +67,7 @@ const OfflineLogin = () => {
 
         setEmails(emails);
       }
-    } catch (error) {
+    } catch (error) { 
       console.log("Error fetching accounts: ", error);
     }
   }
@@ -84,7 +83,7 @@ const OfflineLogin = () => {
           <img src={logo} alt="Company Logo" className="h-14 w-auto" />
           <div className="space-y-2 text-center">
             <CardTitle className="text-2xl font-bold text-gray-800">
-              Offline Sign In to First Encoding Account
+              Local Sign In to First Encoding Account
             </CardTitle>
             <CardDescription className="text-gray-500">
               You must still authenticate your account to sync your work to our
@@ -117,7 +116,7 @@ const OfflineLogin = () => {
               type="submit"
               className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase cursor-pointer tracking-widest bg-gray-800"
             >
-              Login Offline
+              Local Login
             </Button>
             {errorMsg && (
               <p className="text-red-600 text-sm text-center">{errorMsg}</p>
