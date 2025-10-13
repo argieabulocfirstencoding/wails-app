@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/AuthContext";
 
 const Logout = () => {
   const navigate = useNavigate();
-  const { reset } = useAuthStore();
+  const { synced, reset } = useAuthStore();
 
   useEffect(() => {
     async function removeCredentials() {
@@ -17,6 +17,8 @@ const Logout = () => {
         localStorage.removeItem("authToken");
         localStorage.removeItem("user");
         reset();
+
+        console.log("Synced: ", synced)
 
         // Redirect to login page
         navigate("/login");

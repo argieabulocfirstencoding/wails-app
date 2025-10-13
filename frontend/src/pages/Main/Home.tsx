@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import MainLayout from "../../layouts/MainLayout";
 import { Plus, Search, RefreshCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CreateTask,
   GetActiveTaskRecord,
@@ -37,7 +37,7 @@ const Home = () => {
     client: "",
   });
   const [open, setOpen] = useState(false);
-  const [tasks, setTasks] = useState<TaskProps[]>([]);
+  const tasksRef = useRef<TaskProps[]>();
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const {
@@ -47,7 +47,7 @@ const Home = () => {
     setTaskID,
     online,
   } = useAuthStore();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function fetchUser() {
@@ -57,9 +57,8 @@ const Home = () => {
       }
     }
 
+    if (!fetchedActiveRecord) fetchTasks();
     fetchUser();
-    fetchTasks();
-    fetchActiveRecord();
   }, []);
 
   async function fetchActiveRecord() {
@@ -88,27 +87,28 @@ const Home = () => {
   }
 
   async function fetchTasks() {
+    if (!online) return;
+
     setLoading(true);
     setIsRefreshing(true);
+
     try {
       const tasks = await GetTasks();
       if (tasks) {
         console.log(tasks);
-        setTasks(tasks);
+        tasksRef.current = tasks;
       }
 
       await fetchActiveRecord();
     } catch (error) {
       console.log("Error fetching tasks:", error);
     } finally {
-      setTimeout(() => {
-        setIsRefreshing(false);
-        setLoading(false);
-      }, 600);
+      setIsRefreshing(false);
+      setLoading(false);
     }
   }
 
-  const filteredTasks = tasks.filter(
+  const filteredTasks = tasksRef.current?.filter(
     (task) =>
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       task.client.toLowerCase().includes(searchQuery.toLowerCase())
@@ -232,7 +232,7 @@ const Home = () => {
             <Loader />
             <span className="mt-5">Fetching Tasks</span>
           </div>
-        ) : filteredTasks.length > 0 ? (
+        ) : filteredTasks && filteredTasks.length > 0 ? (
           filteredTasks.map((task, index) => (
             <TaskItem
               key={index}

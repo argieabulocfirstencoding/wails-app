@@ -7,11 +7,11 @@ import (
 
 type Task struct {
 	ID           uint       `gorm:"primaryKey"`
-	TaskID       string     `gorm:"type:char(36);uniqueIndex"`
-	Title        string     `gorm:"uniqueIndex:idx_name_client" validate:"required"`
-	Client       string     `gorm:"uniqueIndex:idx_name_client" validate:"required"`
+	TaskID       string     `gorm:"type:char(36);"`
+	Title        string     `validate:"required"`
+	Client       string     `validate:"required"`
 	UserID       string
-	User         User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	User         User 		`gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	TaskRecord   []TaskRecord
 }
 

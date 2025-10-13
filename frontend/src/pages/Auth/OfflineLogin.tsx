@@ -67,7 +67,7 @@ const OfflineLogin = () => {
 
         setEmails(emails);
       }
-    } catch (error) { 
+    } catch (error) {
       console.log("Error fetching accounts: ", error);
     }
   }

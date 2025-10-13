@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Settings } from "lucide-react";
 import Drawer from "@/components/custom/Drawer";
@@ -46,7 +46,7 @@ const ProfileBar = () => {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate("/login");
+    navigate("/logout");
   };
 
   async function syncAccount() {
@@ -123,6 +123,10 @@ const ProfileBar = () => {
     }
   }
 
+  useEffect(() => {
+    console.log("Synced: ", synced);
+  }, []);
+
   return (
     <div className="sticky bottom-0">
       {!synced && online && (
@@ -196,7 +200,7 @@ const ProfileBar = () => {
             </form>
           </Dialog>
           <div className="w-full bg-orange-300 text-sm flex justify-around">
-            <span className="font-bold text-gray-800">Offline Mode</span>
+            <span className="font-bold text-gray-800">Local Mode</span>
           </div>
         </>
       )}

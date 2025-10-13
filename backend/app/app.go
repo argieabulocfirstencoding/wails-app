@@ -284,7 +284,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
 
-	go func(){
+	go func() {
 		a.SyncService.Connect(a.ctx, user)
 		a.SyncService.SyncTasks()
 	}()
@@ -357,9 +357,7 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 }
 
 func (a *App) GetTasks() ([]models.ExpTask, error) {
-	go func(){
-		a.SyncService.SyncTasks()
-	}()
+	a.SyncService.SyncTasks()
 
 	if a.AuthUser == nil {
 		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
