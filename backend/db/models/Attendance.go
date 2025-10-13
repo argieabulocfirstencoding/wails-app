@@ -13,4 +13,5 @@ type Attendance struct {
 	TimeIn   time.Time
 	TimeOut  *time.Time
 	SyncedAt *time.Time
+	SyncStatus string `gorm:"not null;default:'pending'"`
 }

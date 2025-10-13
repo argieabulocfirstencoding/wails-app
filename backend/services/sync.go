@@ -206,6 +206,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 
 	// updates database that record is synced
 	db.DB.Model(&taskRecord).Update("sync_status", "synced")
+	db.DB.Model(&attendance).Update("sync_status", "pending")
 	return nil
 }
 
@@ -252,6 +253,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 
 		now := time.Now()
 		attendance.SyncedAt = &now
+		attendance.SyncStatus = "pending"
 		db.DB.Save(&attendance)
 	}
 
