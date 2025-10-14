@@ -194,6 +194,7 @@ export namespace models {
 	    TimeOut?: any;
 	    // Go type: time
 	    SyncedAt?: any;
+	    SyncStatus: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Attendance(source);
@@ -210,6 +211,7 @@ export namespace models {
 	        this.TimeIn = this.convertValues(source["TimeIn"], null);
 	        this.TimeOut = this.convertValues(source["TimeOut"], null);
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
+	        this.SyncStatus = source["SyncStatus"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

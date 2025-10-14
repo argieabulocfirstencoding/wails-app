@@ -37,7 +37,6 @@ const Home = () => {
     client: "",
   });
   const [open, setOpen] = useState(false);
-  const tasksRef = useRef<TaskProps[]>();
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const {
@@ -46,6 +45,8 @@ const Home = () => {
     fetchedActiveRecord,
     setTaskID,
     online,
+    tasks,
+    setTasks,
   } = useAuthStore();
   const [loading, setLoading] = useState(false);
 
@@ -93,10 +94,10 @@ const Home = () => {
     setIsRefreshing(true);
 
     try {
-      const tasks = await GetTasks();
-      if (tasks) {
-        console.log(tasks);
-        tasksRef.current = tasks;
+      const fethedTasks = await GetTasks();
+      if (fethedTasks) {
+        console.log(fethedTasks);
+        setTasks(fethedTasks);
       }
 
       await fetchActiveRecord();
@@ -108,7 +109,7 @@ const Home = () => {
     }
   }
 
-  const filteredTasks = tasksRef.current?.filter(
+  const filteredTasks = tasks.filter(
     (task) =>
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       task.client.toLowerCase().includes(searchQuery.toLowerCase())

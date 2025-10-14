@@ -1,3 +1,4 @@
+import { models } from "wailsjs/go/models";
 import { create } from "zustand";
 
 type AuthUser = {
@@ -15,7 +16,9 @@ type AuthState = {
   taskID: string | null;
   fetchedActiveRecord: boolean;
   synced: boolean;
+  tasks: models.ExpTask[];
   setTaskID: (taskID: string | null) => void;
+  setTasks: (tasks: models.ExpTask[]) => void;
   setUser: (user: AuthState["user"]) => void;
   setLoading: (loading: boolean) => void;
   setOnline: (online: boolean) => void;
@@ -31,6 +34,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   taskID: null,
   fetchedActiveRecord: false,
   synced: false,
+  tasks: [],
+  setTasks: (tasks) => set({ tasks }),
   setTaskID: (taskID) => set({ taskID }),
   setUser: (user) => set({ user }),
   setLoading: (loading) => set({ loading }),
