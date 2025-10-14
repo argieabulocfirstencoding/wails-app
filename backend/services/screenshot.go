@@ -42,7 +42,7 @@ type ScreenshotService struct {
 	ctx          context.Context
 	FolderName   string
 	stopChan     chan struct{}
-	running      bool
+	Running      bool
 	TaskRecordID *uint
 	TaskID       *string
 	SyncService  *SyncService
@@ -59,16 +59,16 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 	s.ctx = ctx
 
 	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 5
-	if s.running {
+	if s.Running {
 		return
 	}
-	s.running = true
+	s.Running = true
 
 	fmt.Println("Started Screenshot Tracking")
 	go func() {
 		ticker := time.NewTicker(time.Minute * TIME_TO_SCREENSHOT_IN_MINUTES)
 		defer ticker.Stop()
-		defer func() { s.running = false }()
+		defer func() { s.Running = false }()
 
 		go func() {
 			if _, err := s.Screenshot(); err != nil {
@@ -114,7 +114,7 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 func (s *ScreenshotService) Stop() {
 	fmt.Println("Stopped Screenshot Tracking")
 	// Retrieving TaskRecord from TaskRecordID
-	if s.running {
+	if s.Running {
 		select {
 		case s.stopChan <- struct{}{}:
 		default: // avoid blocking if already stopped

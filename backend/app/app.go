@@ -127,6 +127,9 @@ func (a *App) GetMonitorCount() int {
 }
 
 func (a *App) StartTracking(taskId, localStorageValue string) {
+	if (a.ScreenshotService.Running) {
+		a.ScreenshotService.Stop()
+	}
 	a.ScreenshotService.FolderName = localStorageValue
 	a.WorkingTaskID = &taskId
 	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID)
