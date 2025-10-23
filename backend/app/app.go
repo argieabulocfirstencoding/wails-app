@@ -98,6 +98,8 @@ func (a *App) Startup(ctx context.Context) {
 			// cleanup on exit
 		})
 	}()
+
+	a.SyncService.Backblaze.Connect(a.ctx)
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -127,7 +129,7 @@ func (a *App) GetMonitorCount() int {
 }
 
 func (a *App) StartTracking(taskId, localStorageValue string) {
-	if (a.ScreenshotService.Running) {
+	if a.ScreenshotService.Running {
 		a.ScreenshotService.Stop()
 	}
 	a.ScreenshotService.FolderName = localStorageValue
@@ -257,7 +259,7 @@ func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
 
-	a.SyncService.Connect(a.ctx, user)
+	a.SyncService.Connect(a.ctx)
 	a.SyncService.SyncTasks()
 	return authUser, nil
 }
@@ -286,9 +288,14 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
+	a.SyncService.Backblaze.AuthUser = user
+	a.SyncService.AuthUser = user
+	a.SyncService.IdToken = &user.IDToken
 
+
+	// TODO handle checking connection and only one connection attempt at a time
 	go func() {
-		a.SyncService.Connect(a.ctx, user)
+		a.SyncService.Connect(a.ctx)
 		a.SyncService.SyncTasks()
 	}()
 

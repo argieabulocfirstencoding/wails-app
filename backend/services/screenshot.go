@@ -57,6 +57,7 @@ func NewScreenshotService(sync *SyncService) *ScreenshotService {
 
 func (s *ScreenshotService) Start(ctx context.Context) {
 	s.ctx = ctx
+	taskRecordIDCopy := *s.TaskRecordID
 
 	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 5
 	if s.Running {
@@ -79,7 +80,7 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 			if config.OnlineMode {
 				// Retrieving TaskRecord from TaskRecordID
 				log.Print("Attempting to sync record")
-				taskRecord, err := GetTaskRecordFormID(*s.TaskRecordID)
+				taskRecord, err := GetTaskRecordFormID(taskRecordIDCopy)
 				if err != nil {
 					log.Printf("error retrieving task record: %v\n", err)
 				}
@@ -123,6 +124,8 @@ func (s *ScreenshotService) Stop() {
 }
 
 func (s *ScreenshotService) Screenshot() ([]string, error) {
+	taskRecordIDCopy := *s.TaskRecordID
+	taskIDCopy := *s.TaskID
 	n := GetMonitorCount()
 	fmt.Println("📸 Taking screenshot...")
 	// File path where screenshots are saved
@@ -181,12 +184,29 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		return nil, err
 	}
 
-	if err := db.DB.Create(&models.Screenshot{
-		TaskRecordID: *s.TaskRecordID,
-		TaskID:       *s.TaskID,
+	taskScreenshot := &models.Screenshot{
+		TaskRecordID: taskRecordIDCopy,
+		TaskID:       taskIDCopy,
 		FilePath:     string(jsonPaths),
 		TakenAt:      time.Now().Local(),
-	}).Error; err != nil {
+	}
+
+	log.Printf("Upload called — isConnected=%v", s.SyncService.Backblaze.isConnected)
+	if s.SyncService.Backblaze.isConnected {
+		remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)
+		if err != nil {
+			log.Print(err)
+		}
+		if remotePaths != nil {
+			jsonRemotePaths, _ := json.Marshal(remotePaths)
+			if jsonRemotePaths != nil {
+				stringifiedJsonPath := string(jsonRemotePaths)
+				taskScreenshot.CloudURL = &stringifiedJsonPath
+			}
+		}
+	}
+
+	if err := db.DB.Create(taskScreenshot).Error; err != nil {
 		return nil, err
 	}
 

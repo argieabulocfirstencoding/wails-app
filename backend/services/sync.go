@@ -32,22 +32,24 @@ type SyncService struct {
 	ctx         context.Context
 	isConnected bool
 	AuthUser    *models.FirebaseLoginResponse
-	idToken     *string
+	IdToken     *string
+	Backblaze   *BackblazeSync
 }
 
 func NewSyncService() *SyncService {
-	return &SyncService{}
+	backblaze := NewBackblazeSync()
+	return &SyncService{
+		Backblaze: backblaze,
+	}
 }
 
-func (s *SyncService) Connect(ctx context.Context, authUser *models.FirebaseLoginResponse) error {
+func (s *SyncService) Connect(ctx context.Context,) error {
 	s.ctx = ctx
-	s.AuthUser = authUser
-	// s.isConnected = CheckFirebaseConnection()
 	s.isConnected = true
+	// s.isConnected = CheckFirebaseConnection()
 	if !s.isConnected {
 		return fmt.Errorf("no connection established")
 	}
-	s.idToken = &authUser.IDToken
 	return nil
 }
 
@@ -66,7 +68,7 @@ func (s *SyncService) RefreshAccessToken() {
 			log.Printf("failed to refresh token: %v", err)
 			return
 		}
-		s.idToken = idToken
+		s.IdToken = idToken
 		s.AuthUser.IDToken = *idToken
 		s.AuthUser.ExpiresIn = *expiresIn
 	}
@@ -89,7 +91,7 @@ func (s *SyncService) TestSync() {
 	}
 
 	if s.isConnected {
-		resp, err := FirebaseDocumentRequest(s.ctx, *s.idToken, path, "PATCH", body)
+		resp, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, "PATCH", body)
 		if err != nil {
 			log.Printf("firestore write failed: %v", err)
 		}
@@ -104,12 +106,11 @@ func (s *SyncService) SyncTasks() {
 
 	s.RefreshAccessToken()
 	if s.isConnected {
-		resp, err := FirebaseDocumentRequest(s.ctx, *s.idToken, path, method, nil)
+		resp, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, method, nil)
 		if err != nil {
 			log.Printf("firestore write failed: %v", err)
 		}
-
-		log.Println("Firestore sync response:", string(resp))
+		// log.Println("Firestore sync response:", string(resp))
 
 		var firestoreResponse FirestoreListResponse
 		if err := json.Unmarshal(resp, &firestoreResponse); err != nil {
@@ -194,7 +195,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 	s.RefreshAccessToken()
 	if s.isConnected {
-		_, err := FirebaseDocumentRequest(s.ctx, *s.idToken, path, method, body)
+		_, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, method, body)
 		if err != nil {
 			return err
 		}
@@ -207,6 +208,11 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	// updates database that record is synced
 	db.DB.Model(&taskRecord).Update("sync_status", "synced")
 	db.DB.Model(&attendance).Update("sync_status", "pending")
+
+	if err = s.SyncAttendance(attendance); err != nil {
+		return err
+	}
+	
 	return nil
 }
 
@@ -237,7 +243,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 		}
 	}
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("documents/users/%s/attendance/%s",
+	path := fmt.Sprintf("documents/users/%s/attendance/%s/",
 		attendance.UserID, attendanceFormattedID,
 	)
 	method := "PATCH"
@@ -246,7 +252,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 	}
 
 	if s.isConnected {
-		_, err := FirebaseDocumentRequest(s.ctx, *s.idToken, path, method, body)
+		_, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, method, body)
 		if err != nil {
 			return err
 		}

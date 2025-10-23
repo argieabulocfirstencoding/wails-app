@@ -9,6 +9,7 @@ require (
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/google/uuid v1.6.0
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
+	github.com/kurin/blazer v0.5.3
 	github.com/wailsapp/wails/v2 v2.10.2
 	github.com/zalando/go-keyring v0.2.6
 	gorm.io/gorm v1.31.0
