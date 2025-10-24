@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -32,11 +31,9 @@ func ExtractUIDFromPath(docName string) string {
 type SyncService struct {
 	ctx         context.Context
 	isConnected bool
-	connecting  bool
 	AuthUser    *models.FirebaseLoginResponse
 	IdToken     *string
 	Backblaze   *BackblazeSync
-	mu          sync.Mutex
 }
 
 func NewSyncService() *SyncService {
@@ -262,7 +259,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 
 		now := time.Now()
 		attendance.SyncedAt = &now
-		attendance.SyncStatus = "pending"
+		attendance.SyncStatus = "synced"
 		db.DB.Save(&attendance)
 	}
 

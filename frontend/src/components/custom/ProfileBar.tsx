@@ -205,7 +205,7 @@ const ProfileBar = () => {
         </>
       )}
 
-      <div className="flex px-6 py-4 border-t slight-shadow w-full justify-between bg-white items-center dark:bg-gray-900">
+      <div className="flex px-6 py-4 border-t slight-shadow w-full justify-between bg-white items-center dark:bg-neutral-900">
         <div className="flex items-center gap-4">
           <img
             src="https://lh3.googleusercontent.com/a/ACg8ocJWYobBkgAVfMMKK1NZZoAlx3Zk9xr1ONbhYI7bJL-W6cpYSNE=s288-c-no"

@@ -230,7 +230,7 @@ const Task = () => {
       <hr className="border-gray-200 dark:border-gray-700" />
 
       <div className="p-5">
-        <div className="rounded border border-gray-300 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+        <div className="rounded border border-gray-300 dark:border-gray-700 p-4 bg-white dark:bg-neutral-900">
           <span className="font-bold text-foreground">
             {isStarted ? "Current" : "Last"} session
           </span>

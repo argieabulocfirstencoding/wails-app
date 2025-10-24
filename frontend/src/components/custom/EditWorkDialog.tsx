@@ -61,7 +61,7 @@ export function EditWorkDialog({
 
       {/* Dialog content */}
       <DialogContent
-        className="sm:max-w-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+        className="sm:max-w-md bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100"
         onInteractOutside={(e) => e.preventDefault()} // prevent accidental close
       >
         <DialogHeader>
@@ -86,7 +86,7 @@ export function EditWorkDialog({
                 }
               }}
               placeholder="What are you working on?"
-              className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+              className="bg-gray-50 dark:bg-neutral-800 border-gray-300 dark:border-gray-700"
             />
           </div>
 
@@ -99,7 +99,7 @@ export function EditWorkDialog({
               onChange={(e) => setTag(e.target.value)}
               placeholder="Add detailed notes here..."
               rows={5}
-              className="resize-none bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700"
+              className="resize-none bg-gray-50 dark:bg-neutral-800 border-gray-300 dark:border-gray-700"
               maxLength={300}
             />
             <span className="text-xs text-gray-500 dark:text-gray-400">

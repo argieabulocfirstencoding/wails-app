@@ -22,7 +22,7 @@ const Drawer: React.FC<DrawerProps> = ({ open, onClose, children }) => {
       {/* Drawer Panel */}
       <div
         className={`fixed bottom-0 left-0 right-0 
-          bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 
+          bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 
           rounded-t-2xl shadow-lg p-6 z-50 transform 
           transition-transform duration-300 
           ${open ? "translate-y-0" : "translate-y-full"}`}

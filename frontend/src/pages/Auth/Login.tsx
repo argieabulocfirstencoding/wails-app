@@ -117,8 +117,8 @@ const Login = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 bg-gray-50 dark:bg-gray-950">
-      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+    <div className="flex min-h-screen items-center justify-center px-6 bg-gray-50 dark:bg-neutral-950">
+      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-neutral-900">
         <CardHeader className="space-y-4 flex flex-col items-center">
           <img src={logo} alt="Company Logo" className="h-14 w-auto" />
           <div className="space-y-2 text-center">
@@ -160,7 +160,7 @@ const Login = () => {
                   type="email"
                   placeholder="name.firstencoding@gmail.com"
                   required
-                  className="rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100"
+                  className="rounded-lg bg-white dark:bg-neutral-800 dark:text-gray-100"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -186,7 +186,7 @@ const Login = () => {
                   type="password"
                   placeholder="••••••••"
                   required
-                  className="rounded-lg bg-white dark:bg-gray-800 dark:text-gray-100"
+                  className="rounded-lg bg-white dark:bg-neutral-800 dark:text-gray-100"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />

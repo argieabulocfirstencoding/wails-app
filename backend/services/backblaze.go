@@ -37,18 +37,25 @@ func (b *BackblazeSync) Connect(ctx context.Context) error {
 
 	b.isConnected = false
 	b.connecting = true
-	// TODO github pushed keys are not working and removed because of vulnerability so ive changed it with new one
 	accountID := os.Getenv("APP_ID")
 	applicationKey := os.Getenv("APP_KEY")
+
+	if accountID == "" || applicationKey == "" {
+		b.connecting = false
+		return fmt.Errorf("environment variables not set")
+	}
+
 	bucketName := "fesapp-screenshots" // Replace with your bucket name
 
 	client, err := b2.NewClient(ctx, accountID, applicationKey)
 	if err != nil {
+		b.connecting = false
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	bucket, err := client.Bucket(ctx, bucketName)
 	if err != nil {
+		b.connecting = false
 		return fmt.Errorf("failed to get bucket: %w", err)
 	}
 

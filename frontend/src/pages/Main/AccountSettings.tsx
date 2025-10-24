@@ -1,5 +1,5 @@
+import SettingsLayout from "@/layouts/SettingsLayout";
 import React from "react";
-import AccountSettingsLayout from "@/layouts/AccountSettingsLayout";
 import {
   Card,
   CardContent,
@@ -10,7 +10,7 @@ import {
 
 const AccountSettings = () => {
   return (
-    <AccountSettingsLayout>
+    <SettingsLayout>
       <div className="flex items-center justify-center min-h-screen bg-gray-50 px-6">
         <Card className="w-full max-w-md shadow-lg rounded-2xl border border-gray-200">
           <CardHeader className="text-center">
@@ -63,7 +63,7 @@ const AccountSettings = () => {
           </CardContent>
         </Card>
       </div>
-    </AccountSettingsLayout>
+    </SettingsLayout>
   );
 };
 
