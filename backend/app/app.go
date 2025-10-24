@@ -99,7 +99,7 @@ func (a *App) Startup(ctx context.Context) {
 		})
 	}()
 
-	a.SyncService.Backblaze.Connect(a.ctx)
+	// a.SyncService.Backblaze.Connect(a.ctx)
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -292,7 +292,6 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	a.SyncService.AuthUser = user
 	a.SyncService.IdToken = &user.IDToken
 
-
 	// TODO handle checking connection and only one connection attempt at a time
 	go func() {
 		a.SyncService.Connect(a.ctx)
@@ -367,7 +366,9 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 }
 
 func (a *App) GetTasks() ([]models.ExpTask, error) {
-	a.SyncService.SyncTasks()
+	if config.OnlineMode {
+		a.SyncService.SyncTasks()
+	}
 
 	if a.AuthUser == nil {
 		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")

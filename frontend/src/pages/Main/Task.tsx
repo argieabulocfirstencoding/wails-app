@@ -77,18 +77,19 @@ const Task = () => {
     }
   }
 
-  async function screenshotNow() {
-    const now = Date.now();
-    const pictures = await TakeScreenshot();
-    if (pictures) {
-      const screenshotTaken: ScreenshotProps = { date: now, pictures };
-      localStorage.setItem(
-        "last_screenshot_" + id,
-        JSON.stringify(screenshotTaken)
-      );
-      setScreenshots(screenshotTaken);
-    }
-  }
+  // TODO remove this because testing only
+  // async function screenshotNow() {
+  //   const now = Date.now();
+  //   const pictures = await TakeScreenshot();
+  //   if (pictures) {
+  //     const screenshotTaken: ScreenshotProps = { date: now, pictures };
+  //     localStorage.setItem(
+  //       "last_screenshot_" + id,
+  //       JSON.stringify(screenshotTaken)
+  //     );
+  //     setScreenshots(screenshotTaken);
+  //   }
+  // }
 
   async function countMonitor() {
     const monitorCount = await GetMonitorCount();
@@ -107,13 +108,31 @@ const Task = () => {
   }
 
   function openPreview(base64: string) {
-    const newWindow = window.open("", "_blank", `width=200,height=200`);
+    // Create a temporary image to get dimensions
+    const width = 1280;
+    const height = 800;
+
+    // Center the window
+    const left = Math.max((screen.width - width) / 2, 0);
+    const top = Math.max((screen.height - height) / 2, 0);
+
+    const newWindow = window.open(
+      "",
+      "_blank",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
     if (newWindow) {
+      newWindow.document.title = "Screenshot Preview";
+      newWindow.document.body.style.margin = "0";
+      newWindow.document.body.style.background = "#000";
+
+      // Create a new Image for the new window
       const img = newWindow.document.createElement("img");
       img.src = base64;
-      img.style.width = "1280px";
-      img.style.height = "auto";
-      newWindow.document.body.style.margin = "0";
+      img.style.width = `${width}px`;
+      img.style.height = `${height}px`;
+
       newWindow.document.body.appendChild(img);
     }
   }

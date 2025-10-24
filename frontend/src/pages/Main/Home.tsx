@@ -47,6 +47,7 @@ const Home = () => {
     online,
     tasks,
     setTasks,
+    synced,
   } = useAuthStore();
   const [loading, setLoading] = useState(false);
 

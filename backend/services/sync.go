@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -31,9 +32,11 @@ func ExtractUIDFromPath(docName string) string {
 type SyncService struct {
 	ctx         context.Context
 	isConnected bool
+	connecting  bool
 	AuthUser    *models.FirebaseLoginResponse
 	IdToken     *string
 	Backblaze   *BackblazeSync
+	mu          sync.Mutex
 }
 
 func NewSyncService() *SyncService {
@@ -43,7 +46,7 @@ func NewSyncService() *SyncService {
 	}
 }
 
-func (s *SyncService) Connect(ctx context.Context,) error {
+func (s *SyncService) Connect(ctx context.Context) error {
 	s.ctx = ctx
 	s.isConnected = true
 	// s.isConnected = CheckFirebaseConnection()
@@ -212,7 +215,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	if err = s.SyncAttendance(attendance); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 

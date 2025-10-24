@@ -16,6 +16,7 @@ import (
 type BackblazeSync struct {
 	ctx         context.Context
 	isConnected bool
+	connecting  bool
 	AuthUser    *models.FirebaseLoginResponse
 	Bucket      *b2.Bucket
 
@@ -29,7 +30,13 @@ func NewBackblazeSync() *BackblazeSync {
 
 func (b *BackblazeSync) Connect(ctx context.Context) error {
 	b.ctx = ctx
+
+	if b.connecting {
+		return fmt.Errorf("already connecting wait")
+	}
+
 	b.isConnected = false
+	b.connecting = true
 	// TODO github pushed keys are not working and removed because of vulnerability so ive changed it with new one
 	accountID := "005e8f8e51d56660000000006"
 	applicationKey := "K005leyp0DFwWYr1TliXONlsS8GYKBo"
@@ -47,6 +54,7 @@ func (b *BackblazeSync) Connect(ctx context.Context) error {
 
 	b.Bucket = bucket
 
+	b.connecting = false
 	b.isConnected = true
 	log.Printf("connected to backblaze successfully")
 
@@ -67,6 +75,14 @@ func (b *BackblazeSync) AttemptUpload(paths []string) ([]string, error) {
 	b.mu.Lock()
 	if !b.isConnected {
 		log.Println("⚠️ Not connected — queuing upload")
+		
+		// Attempts to reconnect
+		go func(){
+			if err := b.Connect(context.Background()); err != nil {
+				log.Printf("error connecting reason: %v", err)
+			}
+		}()
+
 		// Queue the job (runs in background later)
 		b.queue = append(b.queue, func() {
 			if _, err := b.upload(paths); err != nil {
