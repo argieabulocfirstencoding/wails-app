@@ -76,23 +76,8 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 			if _, err := s.Screenshot(); err != nil {
 				fmt.Println("screenshot error:", err) // don't kill app
 			}
-
 			// SYNCING PROCESS
-			if config.OnlineMode {
-				// Retrieving TaskRecord from TaskRecordID
-				log.Print("Attempting to sync record")
-				taskRecord, err := GetTaskRecordFormID(taskRecordIDCopy)
-				if err != nil {
-					log.Printf("error retrieving task record: %v\n", err)
-				}
-
-				log.Printf("Syncing record: %v\n", taskRecord)
-				// Syncing TaskRecord to Firebase
-				if err := s.SyncService.SyncTaskRecord(taskRecord); err != nil {
-					log.Printf("error syncing task_record: %v", err)
-				}
-			}
-
+			s.syncScreenshot(taskRecordIDCopy)
 		}()
 
 		for {
@@ -101,6 +86,8 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 				if _, err := s.Screenshot(); err != nil {
 					fmt.Println("screenshot error:", err)
 				}
+				// SYNCING PROCESS
+				s.syncScreenshot(taskRecordIDCopy)
 			case <-s.stopChan:
 				fmt.Println("Stopping screenshot service...")
 				return
@@ -160,7 +147,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Encode to file
 		if err := webpbin.Encode(file, img); err != nil {
 			file.Close()
@@ -259,4 +246,21 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 	trws.Screenshots = pictures
 	trws.Date = screenshot.TakenAt
 	return trws, nil
+}
+
+func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
+	if config.OnlineMode {
+		// Retrieving TaskRecord from TaskRecordID
+		log.Print("Attempting to sync record")
+		taskRecord, err := GetTaskRecordFormID(taskRecordIDCopy)
+		if err != nil {
+			log.Printf("error retrieving task record: %v\n", err)
+		}
+
+		log.Printf("Syncing record: %v\n", taskRecord)
+		// Syncing TaskRecord to Firebase
+		if err := s.SyncService.SyncTaskRecord(taskRecord); err != nil {
+			log.Printf("error syncing task_record: %v", err)
+		}
+	}
 }
