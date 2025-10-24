@@ -38,8 +38,8 @@ func (b *BackblazeSync) Connect(ctx context.Context) error {
 	b.isConnected = false
 	b.connecting = true
 	// TODO github pushed keys are not working and removed because of vulnerability so ive changed it with new one
-	accountID := "005e8f8e51d56660000000006"
-	applicationKey := "K005leyp0DFwWYr1TliXONlsS8GYKBo"
+	accountID := os.Getenv("APP_ID")
+	applicationKey := os.Getenv("APP_KEY")
 	bucketName := "fesapp-screenshots" // Replace with your bucket name
 
 	client, err := b2.NewClient(ctx, accountID, applicationKey)
@@ -75,9 +75,9 @@ func (b *BackblazeSync) AttemptUpload(paths []string) ([]string, error) {
 	b.mu.Lock()
 	if !b.isConnected {
 		log.Println("⚠️ Not connected — queuing upload")
-		
+
 		// Attempts to reconnect
-		go func(){
+		go func() {
 			if err := b.Connect(context.Background()); err != nil {
 				log.Printf("error connecting reason: %v", err)
 			}
