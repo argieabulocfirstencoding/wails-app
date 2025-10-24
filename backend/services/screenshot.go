@@ -10,11 +10,12 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
-	"image/png"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/nickalie/go-webpbin"
 
 	"github.com/gen2brain/beeep"
 	"github.com/kbinani/screenshot"
@@ -154,24 +155,26 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 			return nil, err
 		}
 
-		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.png", pictureName, i))
+		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.webp", pictureName, i))
 		file, err := os.Create(fileName)
 		if err != nil {
 			return nil, err
 		}
-
-		if err := png.Encode(file, img); err != nil {
+		
+		// Encode to file
+		if err := webpbin.Encode(file, img); err != nil {
 			file.Close()
 			return nil, err
 		}
 		file.Close()
 
-		// Convert to base64 for preview
+		// Encode again to buffer for Base64
 		var buf bytes.Buffer
-		if err := png.Encode(&buf, img); err != nil {
+		if err := webpbin.Encode(&buf, img); err != nil {
 			return nil, err
 		}
-		base64Img := "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+
+		base64Img := "data:image/webp;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 
 		fmt.Printf("Saved %s\n", fileName)
 		pictures = append(pictures, base64Img)
@@ -192,7 +195,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	}
 
 	log.Printf("Upload called — isConnected=%v", s.SyncService.Backblaze.isConnected)
-	if s.SyncService.Backblaze.isConnected {
+	if config.OnlineMode {
 		remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)
 		if err != nil {
 			log.Print(err)
