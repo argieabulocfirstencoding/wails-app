@@ -13,6 +13,7 @@ import {
 import { EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
 import { useAuthStore } from "@/store/AuthContext";
+import { models } from "wailsjs/go/models";
 
 interface ScreenshotProps {
   date: number;
@@ -31,8 +32,15 @@ const Task = () => {
   const [screenshotDate, setScreenshotDate] = useState<string>("");
   const [memo, setMemo] = useState("");
   const [tag, setTag] = useState("");
+  const [taskDetails, setTaskDetails] = useState<models.ExpTask>();
 
-  const { setTaskID } = useAuthStore();
+  const { setTaskID, tasks } = useAuthStore();
+
+  function fetchTaskDetails() {
+    tasks.forEach(value => {
+      if(value.taskId === id) setTaskDetails(value);
+    });
+  }
 
   async function startTime() {
     resetTimer();
@@ -171,6 +179,7 @@ const Task = () => {
       }
     }
 
+    fetchTaskDetails();
     fetchLastRecord();
     const memoRecord = localStorage.getItem("memo");
     const tagRecord = localStorage.getItem("tag");
@@ -215,11 +224,11 @@ const Task = () => {
           Back
         </button>
         <h1 className="text-2xl font-bold mt-2 line-clamp-2 text-foreground">
-          WordPress Website Maker Needed for Custom Site Developer
+          {taskDetails?.title}
         </h1>
         <div className="flex flex-col mt-1">
           <span className="font-extrabold text-gray-600 dark:text-gray-300">
-            Omar Taha
+            {taskDetails?.client}
           </span>
           <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-[-6px]">
             Client

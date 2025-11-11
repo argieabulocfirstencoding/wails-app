@@ -18,8 +18,6 @@ const Logout = () => {
         localStorage.removeItem("user");
         reset();
 
-        console.log("Synced: ", synced)
-
         // Redirect to login page
         navigate("/login");
       } catch (error) {

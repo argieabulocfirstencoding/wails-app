@@ -122,11 +122,7 @@ const ProfileBar = () => {
       }
     }
   }
-
-  useEffect(() => {
-    console.log("Synced: ", synced);
-  }, []);
-
+  
   return (
     <div className="sticky bottom-0">
       {!synced && online && (

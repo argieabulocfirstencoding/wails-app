@@ -15,8 +15,17 @@ func LoginAttendance(userId string) (*uint, error) {
 	// TODO add firebase check for the last synced attendance
 
 	// NOTE this is a local check for previous attendance
-	var lastAttendance models.Attendance
-	if err := db.DB.Where("user_id = ? AND time_out IS NULL", userId).Last(&lastAttendance).Error; err != nil {
+	cutoff := time.Now().Add(-20 * time.Hour)
+
+	var lastAttendance models.Attendance 
+	// Find the LAST (most recent) attendance record for the user
+	// that is NOT timed out (time_out IS NULL)
+	// AND started WITHIN the last 20 hours (time_in >= cutoff)
+	if err := db.DB.Where("user_id = ? AND time_out IS NULL AND time_in >= ?", userId, cutoff).Last(&lastAttendance).Error; err != nil {
+		// If the record is NOT found (ErrRecordNotFound):
+		// 1. There is no currently open session.
+		// 2. OR, the last open session started more than 20 hours ago (and was therefore skipped by the query).
+		// In either case, we create a new attendance record.
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			lastAttendance = models.Attendance{
 				UserID: userId,
