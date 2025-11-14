@@ -6,13 +6,12 @@ import (
 )
 
 type Task struct {
-	ID           uint       `gorm:"primaryKey"`
-	TaskID       string     `gorm:"type:char(36);"`
-	Title        string     `validate:"required"`
-	Client       string     `validate:"required"`
-	UserID       string
-	User         User 		`gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TaskRecord   []TaskRecord
+	ID         uint   `gorm:"primaryKey"`
+	TaskID     string `gorm:"type:char(36);"`
+	Title      string `validate:"required"`
+	ClientID   string
+	Client     Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TaskRecord []TaskRecord
 }
 
 type ExpTask struct {
@@ -31,8 +30,8 @@ func (t *Task) BeforeCreate(tx *gorm.DB) (err error) {
 func (t Task) ToExpTask() ExpTask {
 	return ExpTask{
 		TaskID: t.TaskID,
-		Title:  t.Title,
-		Client: t.Client,
+		Title:  t.Client.Fullname + " - " + t.Title,
+		Client: t.Client.Fullname,
 	}
 }
 
@@ -40,7 +39,10 @@ func ToExpTasks(tasks []Task) []ExpTask {
 	exp := make([]ExpTask, len(tasks))
 	for i, t := range tasks {
 		exp[i] = ExpTask{
-			TaskID: t.TaskID, Title: t.Title, Client: t.Client}
+			TaskID: t.TaskID,
+			Title:  t.Client.Fullname + " - " + t.Title,
+			Client: t.Client.Fullname,
+		}
 	}
 	return exp
 }

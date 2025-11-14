@@ -7,14 +7,16 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TODO on firebase task integration, use firebase task id
-func CreateTask(userId, title, client string, taskID *string) (*db.Task, error) {
+func CreateTask(userId, title, ClientID string, taskID *string) (*db.Task, error) {
+	// NOTE deprecated, desktop users cannot create new tasks, backend function only
 	task := db.Task{
-		Title:  title,
-		Client: client,
-		UserID: userId,
+		Title:    title,
+		ClientID: ClientID,
+		// UserID:   userId,
 	}
 
 	if taskID != nil {
@@ -31,14 +33,24 @@ func CreateTask(userId, title, client string, taskID *string) (*db.Task, error) 
 	return &task, nil
 }
 
-func GetTasks(userId string) ([]db.Task, error) {
+func BulkCreateTasks(tasks []models.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	return db.DB.Clauses(clause.OnConflict{
+		UpdateAll: true, // updates all fields except primary keys
+	}).Create(&tasks).Error
+}
+
+func GetTasks() ([]db.Task, error) {
 	if db.DB == nil {
 		return nil, fmt.Errorf("database not initialized")
 	}
 
 	var tasks []db.Task
 
-	result := db.DB.Where("user_id = ?", userId).Find(&tasks)
+	result := db.DB.Preload("Client").Find(&tasks)
 	if result.Error != nil {
 		return nil, result.Error
 	}

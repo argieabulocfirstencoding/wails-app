@@ -260,7 +260,7 @@ func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error
 	a.AuthUser = authUser
 
 	a.SyncService.Connect(a.ctx)
-	a.SyncService.SyncTasks()
+	// a.SyncService.SyncTasks()
 	return authUser, nil
 }
 
@@ -295,7 +295,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	// TODO handle checking connection and only one connection attempt at a time
 	go func() {
 		a.SyncService.Connect(a.ctx)
-		a.SyncService.SyncTasks()
+		// a.SyncService.SyncTasks()
 	}()
 
 	config.OnlineMode = true
@@ -367,15 +367,20 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
 func (a *App) GetTasks() ([]models.ExpTask, error) {
 	if config.OnlineMode {
-		a.SyncService.SyncTasks()
-		// services.FetchTasksFromFES() // TODO work on this
+		// a.SyncService.SyncTasks()
+		fetchedTasks, err := services.FetchTasksFromFES() // TODO work on this
+		if err != nil {
+			fmt.Printf("error fetching tasks from fes: %v", err)
+		}
+
+		fmt.Printf("tasks: %v", fetchedTasks)
 	}
 
 	if a.AuthUser == nil {
 		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
 	}
 
-	tasks, err := services.GetTasks(a.AuthUser.LocalID)
+	tasks, err := services.GetTasks()
 	if err != nil {
 		return nil, err
 	}

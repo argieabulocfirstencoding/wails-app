@@ -124,13 +124,12 @@ func (s *SyncService) SyncTasks() {
 
 			var task models.Task
 			if err := db.DB.Where(
-				"task_id = ? AND user_id = ?",
+				"task_id = ?",
 				uid, s.AuthUser.LocalID,
 			).Attrs(models.Task{
-				TaskID: uid,
-				Client: client,
-				Title:  title,
-				UserID: s.AuthUser.LocalID,
+				TaskID:   uid,
+				ClientID: client,
+				Title:    title,
 			}).FirstOrCreate(&task).Error; err != nil {
 				log.Printf("error syncing task: %v", err)
 			}

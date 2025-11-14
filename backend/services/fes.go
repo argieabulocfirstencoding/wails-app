@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 )
+
 // TODO WORK ON THIS, GET TASKS IN BUBBLE
 
 func FetchTasksFromFES() ([]models.ExpTask, error) {
@@ -16,7 +17,7 @@ func FetchTasksFromFES() ([]models.ExpTask, error) {
 		return nil, fmt.Errorf("FES_API environment variable not set")
 	}
 
-	url := "https://firstencoding.app/version-test/api/1.1/obj/clients"
+	url := "https://firstencoding.app/version-test/api/1.1/wf/working-projects"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -40,12 +41,40 @@ func FetchTasksFromFES() ([]models.ExpTask, error) {
 		return nil, fmt.Errorf("invalid response format")
 	}
 
-	results, ok := response["results"].([]interface{})
+	clientsResults, ok := response["Client"].([]interface{})
+
+	if !ok || len(clientsResults) == 0 {
+		return nil, fmt.Errorf("no results found")
+	}
+
+	clients := make([]models.Client, 0, len(clientsResults))
+	for _, item := range clientsResults {
+		record, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		id, _ := record["_id"].(string)
+		fullName, _ := record["Full name"].(string)
+		companyName, _ := record["Company Name"].(string)
+
+		clients = append(clients, models.Client{
+			ID:          id,
+			CompanyName: companyName,
+			Fullname:    fullName,
+		})
+	}
+
+	if err := BulkCreateClients(clients); err != nil {
+		return nil, err
+	}
+
+	results, ok := response["Projects"].([]interface{})
 	if !ok || len(results) == 0 {
 		return nil, fmt.Errorf("no results found")
 	}
 
-	tasks := make([]models.ExpTask, 0, len(results))
+	tasks := make([]models.Task, 0, len(results))
 
 	for _, item := range results {
 		record, ok := item.(map[string]interface{})
@@ -54,20 +83,24 @@ func FetchTasksFromFES() ([]models.ExpTask, error) {
 		}
 
 		id, _ := record["_id"].(string)
-		fullName, _ := record["Full name"].(string)
-		companyName, _ := record["Company name"].(string)
+		clientId, _ := record["Client"].(string)
+		account, _ := record["Account"].(string)
 
-		tasks = append(tasks, models.ExpTask{
-			TaskID: id,
-			Title:  companyName,
-			Client: fullName,
+		tasks = append(tasks, models.Task{
+			TaskID:   id,
+			Title:    account,
+			ClientID: clientId,
 		})
 	}
 
-	fmt.Printf("Fetched %v tasks:\n", tasks)
-	return tasks, nil
-}
+	if err := BulkCreateTasks(tasks); err != nil {
+		return nil, err
+	}
 
+	expTasks := models.ToExpTasks(tasks)
+
+	return expTasks, nil
+}
 
 func FetchBubbleData(targetData, reqType string) error {
 	apiToken := os.Getenv("FES_API")
@@ -106,7 +139,7 @@ func FetchBubbleData(targetData, reqType string) error {
 		// Extract fields
 		id := firstItem["_id"].(string)
 		fullName := firstItem["Full name"].(string)
-		companyName := firstItem["Company name"].(string)
+		companyName := firstItem["Company Name"].(string)
 
 		tasks = append(tasks, models.ExpTask{
 			TaskID: id,
