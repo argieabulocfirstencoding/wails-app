@@ -389,6 +389,12 @@ func (a *App) GetTasks() ([]models.ExpTask, error) {
 	return expTasks, nil
 }
 
+func (a *App) OpenUpwork() error {
+	services.FetchUpworkCreds(a.ctx)
+
+	return nil
+}
+
 func (a *App) GetAccounts() ([]models.User, error) {
 	var users []models.User
 

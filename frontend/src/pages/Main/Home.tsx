@@ -118,113 +118,115 @@ const Home = () => {
 
   return (
     <MainLayout>
-      {/* Header */}
-      <div className="p-6 border-b-2 flex justify-between items-center dark:border-gray-700">
-        <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">
-          All Tasks
-        </h1>
+      <div className="sticky top-0 bg-white dark:bg-neutral-900">
+        {/* Header */}
+        <div className="p-6 border-b-2 flex justify-between items-center dark:border-gray-700">
+          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">
+            All Tasks
+          </h1>
 
-        {/* Add Task Dialog */}
-        <Dialog open={open} onOpenChange={setOpen}>
-          <form>
-            <DialogTrigger asChild>
-              <Plus className="cursor-pointer text-gray-700 dark:text-gray-300" />
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle className="text-gray-900 dark:text-white">
-                  Add Task
-                </DialogTitle>
-                <DialogDescription className="text-gray-600 dark:text-gray-400">
-                  Make sure tasks are approved by your direct superior.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4">
-                <div className="grid gap-3">
-                  <Label
-                    htmlFor="task-title"
-                    className="text-gray-700 dark:text-gray-300"
-                  >
-                    Title
-                  </Label>
-                  <Input
-                    id="task-title"
-                    placeholder="Ex. Training"
-                    value={newTask.title}
-                    onChange={(e) =>
-                      setNewTask((prev) => ({
-                        ...prev,
-                        title: e.target.value,
-                      }))
-                    }
-                  />
+          {/* Add Task Dialog */}
+          <Dialog open={open} onOpenChange={setOpen}>
+            <form>
+              <DialogTrigger asChild>
+                <Plus className="cursor-pointer text-gray-700 dark:text-gray-300" />
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle className="text-gray-900 dark:text-white">
+                    Add Task
+                  </DialogTitle>
+                  <DialogDescription className="text-gray-600 dark:text-gray-400">
+                    Make sure tasks are approved by your direct superior.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4">
+                  <div className="grid gap-3">
+                    <Label
+                      htmlFor="task-title"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Title
+                    </Label>
+                    <Input
+                      id="task-title"
+                      placeholder="Ex. Training"
+                      value={newTask.title}
+                      onChange={(e) =>
+                        setNewTask((prev) => ({
+                          ...prev,
+                          title: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="grid gap-3">
+                    <Label
+                      htmlFor="task-client"
+                      className="text-gray-700 dark:text-gray-300"
+                    >
+                      Client Name
+                    </Label>
+                    <Input
+                      id="task-client"
+                      placeholder="Ex. Edward Collins"
+                      value={newTask.client}
+                      onChange={(e) =>
+                        setNewTask((prev) => ({
+                          ...prev,
+                          client: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="grid gap-3">
-                  <Label
-                    htmlFor="task-client"
-                    className="text-gray-700 dark:text-gray-300"
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button
+                    type="submit"
+                    onClick={createTask}
+                    className="bg-green-600 hover:bg-green-700 cursor-pointer text-white"
                   >
-                    Client Name
-                  </Label>
-                  <Input
-                    id="task-client"
-                    placeholder="Ex. Edward Collins"
-                    value={newTask.client}
-                    onChange={(e) =>
-                      setNewTask((prev) => ({
-                        ...prev,
-                        client: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button
-                  type="submit"
-                  onClick={createTask}
-                  className="bg-green-600 hover:bg-green-700 cursor-pointer text-white"
-                >
-                  Add
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </form>
-        </Dialog>
-      </div>
-
-      {/* Search + Refresh */}
-      <div className="flex items-center p-5 gap-5">
-        <div className="p-2 border flex gap-4 rounded-md flex-grow dark:border-gray-700">
-          <Search className="text-gray-600 dark:text-gray-300" />
-          <input
-            type="text"
-            placeholder="Search tasks..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="outline-none border-none w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-          />
+                    Add
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </form>
+          </Dialog>
         </div>
-        <div
-          className="border-2 border-green-500 rounded-full p-2 cursor-pointer"
-          onClick={fetchTasks}
-        >
-          <RefreshCcw
-            color="green"
-            className={isRefreshing ? "animate-spin" : ""}
-          />
-        </div>
-      </div>
 
-      {/* Task list header */}
-      <div className="flex justify-between items-center px-6 font-bold pb-2 border-b dark:border-gray-700">
-        <span className="text-gray-800 dark:text-gray-200">Contract</span>
-        <span className="text-gray-800 dark:text-gray-200">
-          This week's hours
-        </span>
+        {/* Search + Refresh */}
+        <div className="flex items-center p-5 gap-5">
+          <div className="p-2 border flex gap-4 rounded-md flex-grow dark:border-gray-700">
+            <Search className="text-gray-600 dark:text-gray-300" />
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="outline-none border-none w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+            />
+          </div>
+          <div
+            className="border-2 border-green-500 rounded-full p-2 cursor-pointer"
+            onClick={fetchTasks}
+          >
+            <RefreshCcw
+              color="green"
+              className={isRefreshing ? "animate-spin" : ""}
+            />
+          </div>
+        </div>
+
+        {/* Task list header */}
+        <div className="flex justify-between items-center px-6 font-bold pb-2 border-b dark:border-gray-700">
+          <span className="text-gray-800 dark:text-gray-200">Contract</span>
+          <span className="text-gray-800 dark:text-gray-200">
+            This week's hours
+          </span>
+        </div>
       </div>
 
       {/* Task List */}
@@ -235,15 +237,21 @@ const Home = () => {
             <span className="mt-5">Fetching Tasks</span>
           </div>
         ) : filteredTasks && filteredTasks.length > 0 ? (
-          filteredTasks.map((task, index) => (
-            <TaskItem
-              key={index}
-              taskId={task.taskId}
-              title={task.title}
-              client={task.client}
-              active={task.taskId === taskID}
-            />
-          ))
+          // Sort so active task comes first
+          filteredTasks
+            .slice() // copy to avoid mutating original array
+            .sort((a, b) =>
+              b.taskId === taskID ? 1 : a.taskId === taskID ? -1 : 0
+            )
+            .map((task, index) => (
+              <TaskItem
+                key={task.taskId} // better to use unique ID instead of index
+                taskId={task.taskId}
+                title={task.title}
+                client={task.client}
+                active={task.taskId === taskID}
+              />
+            ))
         ) : (
           <div className="mt-5 text-center text-gray-500 dark:text-gray-400">
             No tasks found.
@@ -267,7 +275,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
   return (
     <>
       <div
-        className={`grid grid-cols-2 px-6 py-4 cursor-pointer transition-all duration-300 
+        className={`grid grid-cols-[1fr_100px] px-6 py-4 cursor-pointer transition-all duration-300 
           ${
             active
               ? "bg-green-100 dark:bg-green-900 border-l-4 border-green-600 shadow-sm"

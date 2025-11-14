@@ -3,12 +3,14 @@ import { ChevronLeft, CirclePlay, StopCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
+import upworkLogo from "@/assets/images/upwork_logo.png";
 import {
   TakeScreenshot,
   GetMonitorCount,
   StartTracking,
   StopTracking,
   GetLastTaskRecord,
+  OpenUpwork,
 } from "@/../wailsjs/go/app/App";
 import { EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
@@ -37,8 +39,8 @@ const Task = () => {
   const { setTaskID, tasks } = useAuthStore();
 
   function fetchTaskDetails() {
-    tasks.forEach(value => {
-      if(value.taskId === id) setTaskDetails(value);
+    tasks.forEach((value) => {
+      if (value.taskId === id) setTaskDetails(value);
     });
   }
 
@@ -216,13 +218,21 @@ const Task = () => {
   return (
     <MainLayout>
       <div className="p-4">
-        <button
-          onClick={() => navigate("/home")}
-          className="flex gap-2 font-bold cursor-pointer text-foreground"
-        >
-          <ChevronLeft />
-          Back
-        </button>
+        <div className="flex justify-between w-full items-center">
+          <button
+            onClick={() => navigate("/home")}
+            className="flex gap-2 font-bold cursor-pointer text-foreground"
+          >
+            <ChevronLeft />
+            Back
+          </button>
+          <img
+            onClick={OpenUpwork}
+            src={upworkLogo}
+            alt=""
+            className="h-10 cursor-pointer rounded-full hover:shadow-[0_0_10px_1px] shadow-green-500 transition-shadow"
+          />
+        </div>
         <h1 className="text-2xl font-bold mt-2 line-clamp-2 text-foreground">
           {taskDetails?.title}
         </h1>

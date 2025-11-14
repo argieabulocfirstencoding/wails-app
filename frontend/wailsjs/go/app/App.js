@@ -50,6 +50,10 @@ export function LogoutUser() {
   return window['go']['app']['App']['LogoutUser']();
 }
 
+export function OpenUpwork() {
+  return window['go']['app']['App']['OpenUpwork']();
+}
+
 export function RegisterUser(arg1) {
   return window['go']['app']['App']['RegisterUser'](arg1);
 }

@@ -7,7 +7,7 @@ import (
 
 type Task struct {
 	ID         uint   `gorm:"primaryKey"`
-	TaskID     string `gorm:"type:char(36);"`
+	TaskID     string `gorm:"type:char(36);unique"`
 	Title      string `validate:"required"`
 	ClientID   string
 	Client     Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
