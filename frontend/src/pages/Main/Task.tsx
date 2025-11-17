@@ -1,5 +1,11 @@
 import MainLayout from "@/layouts/MainLayout";
-import { ChevronLeft, CirclePlay, StopCircle } from "lucide-react";
+import {
+  ChevronLeft,
+  CircleAlert,
+  CircleCheckBig,
+  CirclePlay,
+  StopCircle,
+} from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
@@ -35,6 +41,8 @@ const Task = () => {
   const [memo, setMemo] = useState("");
   const [tag, setTag] = useState("");
   const [taskDetails, setTaskDetails] = useState<models.ExpTask>();
+  const [isSynced, setSynced] = useState(false);
+  const [lastTaskRecord, setLastTaskRecord] = useState<models.ExpTaskRecord>();
 
   const { setTaskID, tasks } = useAuthStore();
 
@@ -86,6 +94,11 @@ const Task = () => {
       return `--:--:--`;
     }
   }
+
+  useEffect(() => {
+    console.log(lastTaskRecord);
+    setSynced(lastTaskRecord?.sync_status === "synced");
+  }, [lastTaskRecord]);
 
   // TODO remove this because testing only
   // async function screenshotNow() {
@@ -147,40 +160,42 @@ const Task = () => {
     }
   }
 
+  async function fetchLastRecord() {
+    if (!id) return;
+    try {
+      const response = await GetLastTaskRecord(id);
+      if (response) {
+        const record = response.record;
+        const screenshots = response.screenshots;
+        const date = response.takenAt;
+
+        if (record) {
+          setLastTaskRecord(record);
+          const started = new Date(record.started_at);
+          const ended = record.ended_at ? new Date(record.ended_at) : null;
+          setStartTime(started.getTime());
+          setEndTime(ended?.getTime());
+        }
+
+        if (screenshots && date) {
+          const screenshotTaken: ScreenshotProps = {
+            date,
+            pictures: screenshots,
+          };
+          setScreenshots(screenshotTaken);
+        }
+      }
+    } catch (error) {
+      console.log("Error fetching last record: " + error);
+    }
+  }
+
   useEffect(() => {
     getLastScreenshotTime();
+    fetchLastRecord();
   }, [screenshots]);
 
   useEffect(() => {
-    async function fetchLastRecord() {
-      if (!id) return;
-      try {
-        const response = await GetLastTaskRecord(id);
-        if (response) {
-          const record = response.record;
-          const screenshots = response.screenshots;
-          const date = response.takenAt;
-
-          if (record) {
-            const started = new Date(record.started_at);
-            const ended = record.ended_at ? new Date(record.ended_at) : null;
-            setStartTime(started.getTime());
-            setEndTime(ended?.getTime());
-          }
-
-          if (screenshots && date) {
-            const screenshotTaken: ScreenshotProps = {
-              date,
-              pictures: screenshots,
-            };
-            setScreenshots(screenshotTaken);
-          }
-        }
-      } catch (error) {
-        console.log("Error fetching last record: " + error);
-      }
-    }
-
     fetchTaskDetails();
     fetchLastRecord();
     const memoRecord = localStorage.getItem("memo");
@@ -204,6 +219,8 @@ const Task = () => {
       setTaskID(id);
       setStart(true);
     }
+
+    fetchLastRecord();
   }, [timeStarted, timeEnded]);
 
   useEffect(() => {
@@ -263,11 +280,22 @@ const Task = () => {
                 Time tracking {isStarted ? "on" : "off"}
               </span>
             </div>
-            {isStarted ? (
-              <StopButton onClick={() => stopTime()} />
-            ) : (
-              <StartButton onClick={() => startTime()} />
-            )}
+            <div className="flex flex-col gap-2">
+              {isSynced ? (
+                <div className="flex gap-1 items-center text-xs text-green-500">
+                  Synced <CircleCheckBig size={12} />
+                </div>
+              ) : (
+                <div className="flex gap-1 items-center text-xs text-amber-500">
+                  Not Synced <CircleAlert size={12} />
+                </div>
+              )}
+              {isStarted ? (
+                <StopButton onClick={() => stopTime()} />
+              ) : (
+                <StartButton onClick={() => startTime()} />
+              )}
+            </div>
           </div>
 
           <hr className="my-2 border-gray-200 dark:border-gray-700" />

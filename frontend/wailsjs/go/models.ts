@@ -38,6 +38,7 @@ export namespace models {
 	    // Go type: time
 	    ended_at?: any;
 	    duration?: number;
+	    sync_status: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ExpTaskRecord(source);
@@ -50,6 +51,7 @@ export namespace models {
 	        this.started_at = this.convertValues(source["started_at"], null);
 	        this.ended_at = this.convertValues(source["ended_at"], null);
 	        this.duration = source["duration"];
+	        this.sync_status = source["sync_status"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

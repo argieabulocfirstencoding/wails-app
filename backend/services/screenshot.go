@@ -259,7 +259,7 @@ func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
 
 		log.Printf("Syncing record: %v\n", taskRecord)
 		// Syncing TaskRecord to Firebase
-		if err := s.SyncService.SyncTaskRecord(taskRecord); err != nil {
+		if err := s.SyncService.AttemptSyncTaskRecord(taskRecord); err != nil {
 			log.Printf("error syncing task_record: %v", err)
 		}
 	}

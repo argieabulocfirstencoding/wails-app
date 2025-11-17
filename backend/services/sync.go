@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
@@ -34,6 +35,10 @@ type SyncService struct {
 	AuthUser    *models.FirebaseLoginResponse
 	IdToken     *string
 	Backblaze   *BackblazeSync
+
+	connecting bool
+	queue      []func()
+	mu         sync.Mutex
 }
 
 func NewSyncService() *SyncService {
@@ -45,11 +50,23 @@ func NewSyncService() *SyncService {
 
 func (s *SyncService) Connect(ctx context.Context) error {
 	s.ctx = ctx
-	s.isConnected = true
-	// s.isConnected = CheckFirebaseConnection()
+	s.isConnected = false
+	s.connecting = true
+
+	s.isConnected = CheckFirebaseConnection()
 	if !s.isConnected {
 		return fmt.Errorf("no connection established")
 	}
+
+	s.mu.Lock()
+	queued := s.queue
+	s.queue = nil
+	s.mu.Unlock()
+
+	for _, job := range queued {
+		job()
+	}
+
 	return nil
 }
 
@@ -72,8 +89,11 @@ func (s *SyncService) RefreshAccessToken() {
 		s.AuthUser.IDToken = *idToken
 		s.AuthUser.ExpiresIn = *expiresIn
 	}
+
+	s.isConnected = true
 }
 
+// NOTE this is is made only for testing purposes not needed in production
 func (s *SyncService) TestSync() {
 	path := "documents/testcol/asdasdasd"
 	body := map[string]interface{}{
@@ -100,6 +120,7 @@ func (s *SyncService) TestSync() {
 	}
 }
 
+// NOTE this is deprecated tasks are from bubble api now
 func (s *SyncService) SyncTasks() {
 	path := "documents/tasks"
 	method := "GET"
@@ -137,6 +158,64 @@ func (s *SyncService) SyncTasks() {
 	}
 }
 
+// ================== QUEUE SYNC HELPER ========================
+func (s *SyncService) AttemptSyncTaskRecord(taskRecord *models.TaskRecord) error {
+	s.mu.Lock()
+	if !s.isConnected {
+		log.Println("⚠️ Not connected — queuing syncing task record")
+
+		// Attempts to reconnect
+		go func() {
+			if err := s.Connect(context.Background()); err != nil {
+				log.Printf("error connecting reason: %v", err)
+			}
+		}()
+
+		// Queue the job (runs in background later)
+		s.queue = append(s.queue, func() {
+			log.Printf("Queueing syncing task record waiting for connection")
+			if err := s.SyncTaskRecord(taskRecord); err != nil {
+				log.Printf("Syncin task record failed for queued job: %v", err)
+			}
+		})
+
+		s.mu.Unlock()
+		// Return nil because syncing did not happen yet
+		return nil
+	}
+	s.mu.Unlock()
+
+	err := s.SyncTaskRecord(taskRecord)
+	return err
+}
+
+func (s *SyncService) AttemptSyncAttendance(attendance *models.Attendance) error {
+	s.mu.Lock()
+	if !s.isConnected {
+		log.Println("⚠️ Not connected — queuing syncing attendance")
+		go func() {
+			if err := s.Connect(context.Background()); err != nil {
+				log.Printf("error connecting reason: %v", err)
+			}
+		}()
+
+		s.queue = append(s.queue, func() {
+			log.Printf("Queueing syncing attendance waiting for connection")
+			if err := s.SyncAttendance(attendance); err != nil {
+				log.Printf("Syncin attendance failed for queued job: %v", err)
+			}
+		})
+		s.mu.Unlock()
+		return nil
+	}
+
+	s.mu.Unlock()
+	err := s.SyncAttendance(attendance)
+	return err
+}
+
+// ================== ACTUAL FUNCTIONS ========================
+
 func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	// ============== PRE DEFINITION =============
 	now := time.Now()
@@ -160,7 +239,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 			"stringValue": taskRecord.TaskID,
 		},
 		"task_name": map[string]string{
-			"stringValue": task.Title,
+			"stringValue": task.Client.Fullname + " - " + task.Title,
 		},
 		"started_at": map[string]string{
 			"timestampValue": taskRecord.StartedAt.UTC().Format(time.RFC3339),
@@ -208,7 +287,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	db.DB.Model(&taskRecord).Update("sync_status", "synced")
 	db.DB.Model(&attendance).Update("sync_status", "pending")
 
-	if err = s.SyncAttendance(attendance); err != nil {
+	if err = s.AttemptSyncAttendance(attendance); err != nil {
 		return err
 	}
 

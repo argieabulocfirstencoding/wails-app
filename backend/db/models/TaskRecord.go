@@ -16,16 +16,17 @@ type TaskRecord struct {
 	EndedAt      *time.Time
 	Duration     *int32
 	SyncedAt     *time.Time
-	SyncStatus   string 	`gorm:"not null;default:'pending'"`
+	SyncStatus   string `gorm:"not null;default:'pending'"`
 	Screenshots  []Screenshot
 }
 
 type ExpTaskRecord struct {
-	ID        uint       `json:"id"`
-	TaskID    string     `json:"task_id"`
-	StartedAt time.Time  `json:"started_at"`
-	EndedAt   *time.Time `json:"ended_at"`
-	Duration  *int32     `json:"duration"`
+	ID         uint       `json:"id"`
+	TaskID     string     `json:"task_id"`
+	StartedAt  time.Time  `json:"started_at"`
+	EndedAt    *time.Time `json:"ended_at"`
+	Duration   *int32     `json:"duration"`
+	SyncStatus string     `json:"sync_status"`
 }
 
 type TaskRecordWithScreenshots struct {
@@ -36,10 +37,11 @@ type TaskRecordWithScreenshots struct {
 
 func (tr TaskRecord) ToExp() ExpTaskRecord {
 	return ExpTaskRecord{
-		ID:        tr.ID,
-		TaskID:    tr.TaskID,
-		StartedAt: tr.StartedAt,
-		EndedAt:   tr.EndedAt,
-		Duration:  tr.Duration,
+		ID:         tr.ID,
+		TaskID:     tr.TaskID,
+		StartedAt:  tr.StartedAt,
+		EndedAt:    tr.EndedAt,
+		Duration:   tr.Duration,
+		SyncStatus: tr.SyncStatus,
 	}
 }

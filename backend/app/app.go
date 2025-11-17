@@ -175,7 +175,7 @@ func (a *App) StopTracking(taskId string) {
 		}
 		log.Printf("Syncing record: %v\n", taskRecord)
 
-		if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
+		if err := a.SyncService.AttemptSyncTaskRecord(taskRecord); err != nil {
 			log.Printf("error syncing task_record: %v", err)
 		}
 	}
