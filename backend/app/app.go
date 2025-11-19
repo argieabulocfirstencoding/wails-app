@@ -367,13 +367,9 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
 func (a *App) GetTasks() ([]models.ExpTask, error) {
 	if config.OnlineMode {
-		// a.SyncService.SyncTasks()
-		fetchedTasks, err := services.FetchTasksFromFES() // TODO work on this
-		if err != nil {
+		if err := services.SyncClientsAndProjects(); err != nil {
 			fmt.Printf("error fetching tasks from fes: %v", err)
 		}
-
-		fmt.Printf("tasks: %v", fetchedTasks)
 	}
 
 	if a.AuthUser == nil {

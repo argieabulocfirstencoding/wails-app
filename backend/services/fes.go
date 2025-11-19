@@ -20,7 +20,7 @@ import (
 )
 
 // TODO WORK ON THIS, GET TASKS IN BUBBLE
-
+// FIX this is deprecated
 func FetchTasksFromFES() ([]models.ExpTask, error) {
 	apiToken := os.Getenv("FES_API")
 	if apiToken == "" {
@@ -111,6 +111,197 @@ func FetchTasksFromFES() ([]models.ExpTask, error) {
 	expTasks := models.ToExpTasks(tasks)
 
 	return expTasks, nil
+}
+
+func SyncClientsAndProjects() error {
+	if err := FetchClients(); err != nil {
+		return err
+	}
+
+	if err := FetchProjects(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// FetchClients retrieves clients in bubble and store them directly in the database
+func FetchClients() error {
+	apiToken := os.Getenv("FES_API")
+	fmt.Println("Fetching FES Client Lists")
+	targetUrl := "https://firstencoding.app/api/1.1/obj/clients?cursor="
+	cursor := 0
+
+	var clients []models.Client
+
+	for {
+		url := fmt.Sprintf("%s%d", targetUrl, cursor)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		res, err := client.Do(req)
+		fmt.Println("Sending Get Request to Bubble")
+		if err != nil {
+			return fmt.Errorf("error when on request :%w", err)
+		}
+		defer res.Body.Close()
+
+		fmt.Println("Decoding response")
+		var result map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+			return fmt.Errorf("error on decoding response body: %w", err)
+		}
+
+		fmt.Println("Decoded response")
+		response, ok := result["response"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("error on getting response value")
+		}
+
+		fmt.Println("Parsed response")
+		results, ok := response["results"].([]interface{})
+		if !ok || len(response) == 0 {
+			return fmt.Errorf("error on getting results value")
+		}
+
+		fmt.Println("Parsed results")
+		remaining, ok := response["remaining"].(float64)
+		if !ok {
+			return fmt.Errorf("error no remaining value was found")
+		}
+
+		fmt.Println("Parsed remaining")
+		clients = make([]models.Client, 0)
+
+		fmt.Println("Looping through clients from response body")
+		for _, item := range results {
+
+			record, ok := item.(map[string]interface{})
+
+			if !ok {
+				continue
+			}
+
+			id, _ := record["_id"].(string)
+			fullName, _ := record["Full name"].(string)
+			companyName, _ := record["Company Name"].(string)
+
+			clients = append(clients, models.Client{
+				ID:          id,
+				CompanyName: companyName,
+				Fullname:    fullName,
+			})
+		}
+
+		// Creating the current loop batch of clients
+		if err := BulkCreateClients(clients); err != nil {
+			return fmt.Errorf("error on creating clients: %w", err)
+		}
+
+		fmt.Println("Finished looping set of clients")
+		// Increment search cursor to another 100 since bubble data api limit is 100 only
+		cursor = cursor + 100
+
+		fmt.Printf("Remaining: %.2f", remaining)
+		// If there is no remaining records then stop the loop
+		if remaining == 0 {
+			break
+		}
+	}
+
+	return nil
+}
+
+func FetchProjects() error {
+	apiToken := os.Getenv("FES_API")
+	fmt.Printf("Fetching FES Projects")
+	targetUrl := "https://firstencoding.app/api/1.1/obj/projects-projects?limit=100&cursor="
+	cursor := 0
+	var tasks []models.Task
+
+	for {
+		url := fmt.Sprintf("%s%d", targetUrl, cursor)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		res, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send request: %w", err)
+		}
+		defer res.Body.Close()
+
+		var result map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+			return fmt.Errorf("failed to decode response %w", err)
+		}
+
+		response, ok := result["response"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("invalid response format")
+		}
+
+		results, ok := response["results"].([]interface{})
+		if !ok || len(results) == 0 {
+			return fmt.Errorf("no results found")
+		}
+
+		remaining, ok := response["remaining"].(float64)
+		if !ok {
+			return fmt.Errorf("no remaining value indicated")
+		}
+
+		tasks = make([]models.Task, 0, len(results))
+
+		for _, item := range results {
+			record, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			status, _ := record["Status"].(string)
+
+			// Checks if the project is not available then skip it
+			if status == "End of contract" {
+				continue
+			}
+
+			id, _ := record["_id"].(string)
+			clientId, _ := record["Client"].(string)
+			account, _ := record["Account"].(string)
+			projectName, _ := record["Project name"].(string)
+
+			tasks = append(tasks, models.Task{
+				TaskID:      id,
+				Title:       account,
+				ClientID:    clientId,
+				ProjectName: projectName,
+			})
+		}
+
+		// Creating the current loop batch of tasks
+		if err := BulkCreateTasks(tasks); err != nil {
+			return err
+		}
+
+		// Increment search cursor to another 100 since bubble data api limit is 100 only
+		cursor = cursor + 100
+
+		// If there is no remaining records then stop the loop
+		if remaining == 0 {
+			break
+		}
+	}
+
+	return nil
 }
 
 func FetchUpworkCreds(ctx context.Context) {

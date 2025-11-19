@@ -6,12 +6,13 @@ import (
 )
 
 type Task struct {
-	ID         uint   `gorm:"primaryKey"`
-	TaskID     string `gorm:"type:char(36);unique"`
-	Title      string `validate:"required"`
-	ClientID   string
-	Client     Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TaskRecord []TaskRecord
+	ID          uint   `gorm:"primaryKey"`
+	TaskID      string `gorm:"type:char(36);unique"`
+	Title       string `validate:"required"`
+	ProjectName string `validate:"required"`
+	ClientID    string
+	Client      Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TaskRecord  []TaskRecord
 }
 
 type ExpTask struct {
@@ -40,7 +41,7 @@ func ToExpTasks(tasks []Task) []ExpTask {
 	for i, t := range tasks {
 		exp[i] = ExpTask{
 			TaskID: t.TaskID,
-			Title:  t.Client.Fullname + " - " + t.Title,
+			Title:  t.Client.Fullname + " - " + t.Title + " - " + t.ProjectName,
 			Client: t.Client.Fullname,
 		}
 	}

@@ -275,7 +275,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
   return (
     <>
       <div
-        className={`grid grid-cols-[1fr_100px] px-6 py-4 cursor-pointer transition-all duration-300 
+        className={`grid grid-cols-[1fr_50px] px-6 py-4 cursor-pointer transition-all duration-300 
           ${
             active
               ? "bg-green-100 dark:bg-green-900 border-l-4 border-green-600 shadow-sm"
@@ -309,7 +309,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
                 : "text-gray-500 dark:text-gray-400"
             }`}
           >
-            Time last tracked Sep 12, 2025
+            Time last tracked: --
           </span>
         </div>
       </div>

@@ -61,7 +61,10 @@ func GetTasks() ([]db.Task, error) {
 func getTaskFromID(taskID string) (*models.Task, error) {
 	var task models.Task
 
-	if err := db.DB.Where("tasks.task_id = ?", taskID).First(&task).Error; err != nil {
+	if err := db.DB.Where("task_id = ?", taskID).
+		Preload("Client").
+		First(&task).
+		Error; err != nil {
 		return nil, err
 	}
 
