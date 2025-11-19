@@ -385,8 +385,8 @@ func (a *App) GetTasks() ([]models.ExpTask, error) {
 	return expTasks, nil
 }
 
-func (a *App) OpenUpwork() error {
-	services.FetchUpworkCreds(a.ctx)
+func (a *App) OpenUpwork(taskID string) error {
+	services.FetchUpworkCreds(a.ctx, taskID)
 
 	return nil
 }

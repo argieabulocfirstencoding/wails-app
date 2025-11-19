@@ -27,7 +27,7 @@ export function LoginUser(arg1:string):Promise<models.AuthUser>;
 
 export function LogoutUser():Promise<void>;
 
-export function OpenUpwork():Promise<void>;
+export function OpenUpwork(arg1:string):Promise<void>;
 
 export function RegisterUser(arg1:string):Promise<models.User>;
 

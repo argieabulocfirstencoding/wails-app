@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-vgo/robotgo/clipboard"
 	"github.com/micmonay/keybd_event"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // TODO WORK ON THIS, GET TASKS IN BUBBLE
@@ -304,11 +305,17 @@ func FetchProjects() error {
 	return nil
 }
 
-func FetchUpworkCreds(ctx context.Context) {
+func FetchUpworkCreds(ctx context.Context, taskID string) {
 	fmt.Print("Fetching Upwork Credentials Pleas wait")
-	url := "https://firstencoding.app/version-test/api/1.1/wf/fetch-credentials/"
+
+	task, err := getTaskFromID(taskID)
+	if err != nil {
+		log.Printf("error on getting task: %v", err)
+	}
+
+	url := "https://firstencoding.app/api/1.1/wf/fetch-credentials/"
 	body := map[string]interface{}{
-		"account": "Upwork (Frederick)",
+		"account": task.Title,
 	}
 	response, _ := FetchBubble(url, "POST", body)
 
@@ -319,9 +326,13 @@ func FetchUpworkCreds(ctx context.Context) {
 			} else {
 				// Handle the case where the value is not a string
 				fmt.Println(key + " is not a string")
+				clipboard.WriteAll("")
+				return
 			}
 		} else {
 			fmt.Println(key + " key not found")
+			clipboard.WriteAll("")
+			return
 		}
 	}
 
@@ -340,10 +351,11 @@ func FetchUpworkCreds(ctx context.Context) {
 
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
-	err := openFESApp()
-	if err != nil {
+
+	if err := openFESApp(); err != nil {
 		fmt.Print(err)
 	}
+	runtime.EventsEmit(ctx, "upwork-button", true)
 }
 
 func openFESApp() error {
@@ -351,8 +363,7 @@ func openFESApp() error {
 
 	switch stdruntime.GOOS {
 	case "windows":
-		// start the URL using the default registered protocol
-		cmd := exec.Command("cmd", "/C", "start", url)
+		cmd := exec.Command("cmd", "/C", "start", "", url)
 		return cmd.Run()
 	case "darwin":
 		cmd := exec.Command("open", url)
@@ -401,9 +412,6 @@ func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[stri
 		log.Fatalf("Invalid response format")
 		return nil, err
 	}
-
-	// Do something with 'response' if needed
-	fmt.Println(response)
 
 	return response, nil
 }

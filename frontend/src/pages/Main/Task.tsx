@@ -43,6 +43,7 @@ const Task = () => {
   const [taskDetails, setTaskDetails] = useState<models.ExpTask>();
   const [isSynced, setSynced] = useState(false);
   const [lastTaskRecord, setLastTaskRecord] = useState<models.ExpTaskRecord>();
+  const [isLaunching, setLaunching] = useState(false);
 
   const { setTaskID, tasks } = useAuthStore();
 
@@ -130,6 +131,17 @@ const Task = () => {
     setScreenshotDate(screenshotTimeAgo);
   }
 
+  async function LaunchUpwork() {
+    // Open upwork on that account
+
+    if (isLaunching) return;
+
+    if (taskDetails?.taskId) {
+      setLaunching(true);
+      await OpenUpwork(taskDetails.taskId);
+    }
+  }
+
   function openPreview(base64: string) {
     // Create a temporary image to get dimensions
     const width = 1280;
@@ -197,6 +209,7 @@ const Task = () => {
 
   useEffect(() => {
     fetchTaskDetails();
+    console.log("Task details: ", taskDetails);
     fetchLastRecord();
     const memoRecord = localStorage.getItem("memo");
     const tagRecord = localStorage.getItem("tag");
@@ -224,6 +237,15 @@ const Task = () => {
   }, [timeStarted, timeEnded]);
 
   useEffect(() => {
+    const off = EventsOn("upwork-button", () => {
+      console.log("upwork button alright");
+      setLaunching(false);
+    });
+
+    return () => off();
+  }, []);
+
+  useEffect(() => {
     const off = EventsOn("screenshot", (pictures: string[]) => {
       const now = Date.now();
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
@@ -243,12 +265,16 @@ const Task = () => {
             <ChevronLeft />
             Back
           </button>
-          <img
-            onClick={OpenUpwork}
-            src={upworkLogo}
-            alt=""
-            className="h-10 cursor-pointer rounded-full hover:shadow-[0_0_10px_1px] shadow-green-500 transition-shadow"
-          />
+          {taskDetails?.title?.toLowerCase().includes("upwork") && (
+            <img
+              onClick={LaunchUpwork}
+              src={upworkLogo}
+              alt=""
+              className={`h-10 cursor-pointer rounded-full hover:shadow-[0_0_10px_1px] shadow-green-500 transition-shadow ${
+                isLaunching && "opacity-50 pointer-none cursor-not-allowed"
+              }`}
+            />
+          )}
         </div>
         <h1 className="text-2xl font-bold mt-2 line-clamp-2 text-foreground">
           {taskDetails?.title}
