@@ -321,6 +321,13 @@ func FetchProjects() error {
 
 func FetchUpworkCreds(ctx context.Context, taskID string) {
 	fmt.Print("Fetching Upwork Credentials Pleas wait")
+	time.Sleep(1000 * time.Millisecond)
+	fmt.Print("Opening upwork..")
+
+	if err := openFESApp(); err != nil {
+		fmt.Print(err)
+	}
+	runtime.EventsEmit(ctx, "upwork-button", true)
 
 	task, err := getTaskFromID(taskID)
 	if err != nil {

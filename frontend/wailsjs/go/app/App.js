@@ -50,6 +50,10 @@ export function LogoutUser() {
   return window['go']['app']['App']['LogoutUser']();
 }
 
+export function OnSecondInstanceLaunch(arg1) {
+  return window['go']['app']['App']['OnSecondInstanceLaunch'](arg1);
+}
+
 export function OpenUpwork(arg1) {
   return window['go']['app']['App']['OpenUpwork'](arg1);
 }

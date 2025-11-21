@@ -14,11 +14,6 @@ import (
 var assets embed.FS
 
 func main() {
-	// loads .env in project root
-	// if err := godotenv.Load(); err != nil {
-	// 	fmt.Println("No .env file found")
-	// }
-
 	// Create an instance of the app structure
 	app := app.NewApp()
 
@@ -30,8 +25,12 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour:  &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:         app.Startup,
+		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:        app.Startup,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               "com.firstencodingservicess.myapp.DEVPAUL",
+			OnSecondInstanceLaunch: app.OnSecondInstanceLaunch,
+		},
 		OnShutdown:        app.Shutdown,
 		HideWindowOnClose: true,
 		Bind: []interface{}{

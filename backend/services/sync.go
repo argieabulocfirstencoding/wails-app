@@ -274,7 +274,7 @@ func (s *SyncService) AttemptSyncAttendance(attendance *models.Attendance) error
 func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	// ============== PRE DEFINITION =============
 	now := time.Now()
-	recordID := taskRecord.StartedAt.UTC().Format("20060102T150405")
+	recordID := fmt.Sprintf("%d", now.UTC().UnixMilli())
 	attendance, err := getAttendanceFromID(taskRecord.AttendanceID)
 	if err != nil {
 		return err

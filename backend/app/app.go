@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/getlantern/systray"
+	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 	"gorm.io/gorm"
@@ -420,4 +421,29 @@ func (a *App) SyncUnsyncedRecords() error {
 	}
 
 	return nil
+}
+
+// ----------------------------------------------------
+// SINGLE INSTANCE LOGIC
+// ----------------------------------------------------
+
+// onSecondInstanceLaunch is the callback that runs in the FIRST instance
+// when a user tries to launch a second instance of the application.
+func (a *App) OnSecondInstanceLaunch(data options.SecondInstanceData) {
+	// 4. Implement the logic to bring the main window to the front
+
+	// Log the event and any arguments passed
+	log.Printf("Second instance launch attempt detected. Arguments: %v", data.Args)
+
+	// Bring the first instance's window to the foreground
+
+	// 1. Unminimise the window if it was minimized
+	runtime.WindowUnminimise(a.ctx)
+
+	// 2. Bring the window to the front and give it focus
+	runtime.WindowShow(a.ctx)
+
+	// You could optionally send the arguments to the frontend
+	// to open a specific file/view, e.g.:
+	// runtime.EventsEmit(a.ctx, "secondInstanceArgs", data.Args)
 }

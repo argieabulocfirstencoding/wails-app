@@ -266,16 +266,17 @@ const Task = () => {
             <ChevronLeft />
             Back
           </button>
-          {taskDetails?.title?.toLowerCase().includes("upwork") && (
-            <img
-              onClick={LaunchUpwork}
-              src={upworkLogo}
-              alt=""
-              className={`h-10 cursor-pointer rounded-full hover:shadow-[0_0_10px_1px] shadow-green-500 transition-shadow ${
-                isLaunching && "opacity-50 pointer-none cursor-not-allowed"
-              }`}
-            />
-          )}
+          {taskDetails?.title?.toLowerCase().includes("upwork") &&
+            !taskDetails?.title?.toLowerCase().includes("training") && (
+              <img
+                onClick={LaunchUpwork}
+                src={upworkLogo}
+                alt=""
+                className={`h-10 cursor-pointer rounded-full hover:shadow-[0_0_10px_1px] shadow-green-500 transition-shadow ${
+                  isLaunching && "opacity-50 pointer-none cursor-not-allowed"
+                }`}
+              />
+            )}
         </div>
         <h1 className="text-2xl font-bold mt-2 line-clamp-2 text-foreground">
           {taskDetails?.title}

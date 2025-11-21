@@ -17,19 +17,22 @@ import (
 
 	"github.com/nickalie/go-webpbin"
 
-	"github.com/gen2brain/beeep"
 	"github.com/kbinani/screenshot"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
 )
 
 func screenshotNotify(message string) {
-	exePath, _ := os.Executable()
-	root := filepath.Dir(exePath)
-	iconPath := filepath.Join(root, "icon.ico")
+	// NOTE this was preferred to be silent and only for dev purposes
 
-	//NOTE Icon is duplicated and placed in build/bin/ and build/windows/
-	beeep.Notify("Screenshot", message, iconPath)
+	// notification := toast.Notification{
+	// 	AppID: "FESAPP.Tracker",
+	// 	Title: "Screenshot",
+	// 	Body:  message,
+	// 	Icon:  "icon.ico",
+	// }
+
+	// notification.Push()
 }
 
 func GetMonitorCount() int {
