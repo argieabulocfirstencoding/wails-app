@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nickalie/go-webpbin"
+	"github.com/chai2010/webp"
 
 	"github.com/kbinani/screenshot"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -75,13 +75,11 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 		defer ticker.Stop()
 		defer func() { s.Running = false }()
 
-		go func() {
-			if _, err := s.Screenshot(); err != nil {
-				fmt.Println("screenshot error:", err) // don't kill app
-			}
-			// SYNCING PROCESS
-			s.syncScreenshot(taskRecordIDCopy)
-		}()
+		if _, err := s.Screenshot(); err != nil {
+			fmt.Println("screenshot error:", err) // don't kill app
+		}
+		// SYNCING PROCESS
+		s.syncScreenshot(taskRecordIDCopy)
 
 		for {
 			select {
@@ -139,31 +137,33 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	for i := 0; i < n; i++ {
 
 		bounds := screenshot.GetDisplayBounds(i)
-
-		img, err := screenshot.CaptureRect(bounds)
+		img, err := screenshot.CaptureRect(bounds) // img is *image.RGBA
 		if err != nil {
 			return nil, err
 		}
 
-		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.webp", pictureName, i))
-		file, err := os.Create(fileName)
-		if err != nil {
-			return nil, err
-		}
-
-		// Encode to file
-		if err := webpbin.Encode(file, img); err != nil {
-			file.Close()
-			return nil, err
-		}
-		file.Close()
-
-		// Encode again to buffer for Base64
+		// --- ENCODING TO WEBP ---
 		var buf bytes.Buffer
-		if err := webpbin.Encode(&buf, img); err != nil {
+
+		// Use EncodeRGBA since img is a *image.RGBA, which satisfies image.Image
+		// We use 90 as a high-quality lossy compression factor (0-100).
+		// Use 100 for true lossless.
+		const WEBP_QUALITY_FACTOR = 90
+
+		// EncodeRGBA returns []byte, so we write it directly to the buffer
+		encodedData, err := webp.EncodeRGBA(img, WEBP_QUALITY_FACTOR)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(encodedData)
+
+		// 1. Write the buffer content to the file
+		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.webp", pictureName, i))
+		if err := os.WriteFile(fileName, buf.Bytes(), 0644); err != nil {
 			return nil, err
 		}
 
+		// 2. Create Base64 from the buffer content
 		base64Img := "data:image/webp;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
 
 		fmt.Printf("Saved %s\n", fileName)
