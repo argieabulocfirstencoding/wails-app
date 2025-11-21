@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fesapp/backend/db/models"
+	"fesapp/backend/utils"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
 	"time"
 
@@ -18,12 +18,16 @@ import (
 	"github.com/go-vgo/robotgo/clipboard"
 	"github.com/micmonay/keybd_event"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/zalando/go-keyring"
 )
 
 // TODO WORK ON THIS, GET TASKS IN BUBBLE
 // FIX this is deprecated
 func FetchTasksFromFES() ([]models.ExpTask, error) {
-	apiToken := os.Getenv("FES_API")
+	apiToken, err := keyring.Get("credentials", "FES_API")
+	if err != nil {
+		return nil, err
+	}
 	if apiToken == "" {
 		return nil, fmt.Errorf("FES_API environment variable not set")
 	}
@@ -128,7 +132,10 @@ func SyncClientsAndProjects() error {
 
 // FetchClients retrieves clients in bubble and store them directly in the database
 func FetchClients() error {
-	apiToken := os.Getenv("FES_API")
+	apiToken, err := keyring.Get("credentials", "FES_API")
+	if err != nil {
+		return err
+	}
 	fmt.Println("Fetching FES Client Lists")
 	targetUrl := "https://firstencoding.app/api/1.1/obj/clients?cursor="
 	cursor := 0
@@ -163,6 +170,7 @@ func FetchClients() error {
 		if !ok {
 			return fmt.Errorf("error on getting response value")
 		}
+		utils.Logger.Printf("Fetch clients response: %v", response)
 
 		fmt.Println("Parsed response")
 		results, ok := response["results"].([]interface{})
@@ -219,7 +227,11 @@ func FetchClients() error {
 }
 
 func FetchProjects() error {
-	apiToken := os.Getenv("FES_API")
+	apiToken, err := keyring.Get("credentials", "FES_API")
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Fetching FES Projects")
 	targetUrl := "https://firstencoding.app/api/1.1/obj/projects-projects?limit=100&cursor="
 	cursor := 0
@@ -250,6 +262,7 @@ func FetchProjects() error {
 		if !ok {
 			return fmt.Errorf("invalid response format")
 		}
+		utils.Logger.Printf("Fetch project response: %v", response)
 
 		results, ok := response["results"].([]interface{})
 		if !ok || len(results) == 0 {
@@ -290,6 +303,7 @@ func FetchProjects() error {
 
 		// Creating the current loop batch of tasks
 		if err := BulkCreateTasks(tasks); err != nil {
+			utils.Logger.Printf("error on bulk task create %v", err)
 			return err
 		}
 
@@ -377,7 +391,10 @@ func openFESApp() error {
 }
 
 func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[string]interface{}, error) {
-	apiToken := os.Getenv("FES_API")
+	apiToken, err := keyring.Get("credentials", "FES_API")
+	if err != nil {
+		return nil, err
+	}
 
 	// Convert bodyData to JSON
 	jsonBody, err := json.Marshal(bodyData)

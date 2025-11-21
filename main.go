@@ -2,11 +2,9 @@ package main
 
 import (
 	"embed"
-	"fmt"
 
 	"fesapp/backend/app"
 
-	"github.com/joho/godotenv"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -17,9 +15,9 @@ var assets embed.FS
 
 func main() {
 	// loads .env in project root
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found")
-	}
+	// if err := godotenv.Load(); err != nil {
+	// 	fmt.Println("No .env file found")
+	// }
 
 	// Create an instance of the app structure
 	app := app.NewApp()
@@ -46,4 +44,3 @@ func main() {
 		println("Error:", err.Error())
 	}
 }
-

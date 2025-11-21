@@ -7,6 +7,7 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
+	"fesapp/backend/utils"
 	"fmt"
 	"log"
 	"os"
@@ -56,7 +57,7 @@ func (a *App) Startup(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Println("Recovered from panic in systray:", r)
+				utils.Logger.Printf("Recovered from panic in systray: %v", r)
 			}
 		}()
 
@@ -136,7 +137,7 @@ func (a *App) StartTracking(taskId, localStorageValue string) {
 	a.WorkingTaskID = &taskId
 	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID)
 	if err != nil {
-		fmt.Print(err)
+		utils.Logger.Printf("error starting task record: %v", err)
 	}
 	a.ScreenshotService.TaskID = a.WorkingTaskID
 	a.ScreenshotService.TaskRecordID = &record.ID
@@ -145,7 +146,7 @@ func (a *App) StartTracking(taskId, localStorageValue string) {
 
 func (a *App) StopTracking(taskId string) {
 	if a.AuthUser == nil {
-		fmt.Println("StopTracking error: AuthUser is nil")
+		utils.Logger.Println("StopTracking error: AuthUser is nil")
 		return
 	}
 
@@ -155,7 +156,7 @@ func (a *App) StopTracking(taskId string) {
 		taskId,
 	)
 	if err != nil {
-		fmt.Println("StopTaskRecord error:", err)
+		utils.Logger.Println("StopTaskRecord error:", err)
 		return
 	}
 
@@ -295,6 +296,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	// TODO handle checking connection and only one connection attempt at a time
 	go func() {
 		a.SyncService.Connect(a.ctx)
+		a.SyncService.SyncCredentials()
 		// a.SyncService.SyncTasks()
 	}()
 
@@ -326,9 +328,9 @@ func (a *App) GetActiveTaskRecord() *string {
 	taskRecord, err := services.GetActiveTaskRecord(a.AuthUser.LocalID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			fmt.Print("No active record")
+			utils.Logger.Print("No active record")
 		} else {
-			fmt.Printf("Error getting active record %v", err)
+			utils.Logger.Printf("Error getting active record %v", err)
 		}
 
 		return nil
@@ -368,7 +370,7 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 func (a *App) GetTasks() ([]models.ExpTask, error) {
 	if config.OnlineMode {
 		if err := services.SyncClientsAndProjects(); err != nil {
-			fmt.Printf("error fetching tasks from fes: %v", err)
+			utils.Logger.Printf("error fetching tasks from fes: %v", err)
 		}
 	}
 

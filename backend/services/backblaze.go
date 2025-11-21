@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/kurin/blazer/b2"
+	"github.com/zalando/go-keyring"
 )
 
 type BackblazeSync struct {
@@ -37,8 +38,15 @@ func (b *BackblazeSync) Connect(ctx context.Context) error {
 
 	b.isConnected = false
 	b.connecting = true
-	accountID := os.Getenv("APP_ID")
-	applicationKey := os.Getenv("APP_KEY")
+
+	accountID, err := keyring.Get("credentials", "APP_ID")
+	if err != nil {
+		return err
+	}
+	applicationKey, err := keyring.Get("credentials", "APP_KEY")
+	if err != nil {
+		return err
+	}
 
 	if accountID == "" || applicationKey == "" {
 		b.connecting = false

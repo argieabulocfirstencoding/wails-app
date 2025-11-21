@@ -70,11 +70,12 @@ const Task = () => {
   }
 
   async function stopTime() {
+    if (id) await StopTracking(id);
+
     setTaskID(null);
     const timeStop = Date.now();
     setStart(false);
     setEndTime(timeStop);
-    if (id) await StopTracking(id);
   }
 
   function getFormattedTime() {

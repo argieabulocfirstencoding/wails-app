@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
+	"fesapp/backend/utils"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/zalando/go-keyring"
 	"gorm.io/gorm"
 )
 
@@ -117,6 +119,59 @@ func (s *SyncService) TestSync() {
 		}
 
 		log.Println("Firestore sync response:", string(resp))
+	}
+}
+
+func (s *SyncService) SyncCredentials() {
+	path := "documents/creds?pageSize=1"
+	method := "GET"
+
+	s.RefreshAccessToken()
+	if s.isConnected {
+		resp, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, method, nil)
+		if err != nil {
+			utils.Logger.Printf("failed fetching important keys: %v", err)
+
+			time.Sleep(3000 * time.Millisecond)
+			s.SyncCredentials()
+		}
+
+		var firestoreResponse map[string]interface{}
+		if err := json.Unmarshal(resp, &firestoreResponse); err != nil {
+			utils.Logger.Printf("failed to decode firestore response on creds: %v", err)
+		}
+
+		docs, ok := firestoreResponse["documents"].([]interface{})
+		if !ok || len(docs) == 0 {
+			utils.Logger.Printf("cannot find documents on firestore")
+			return
+		}
+
+		// Get the first document
+		firstDoc, ok := docs[0].(map[string]interface{})
+		if !ok {
+			utils.Logger.Printf("failed casting first document")
+			return
+		}
+
+		// Access fields
+		fields, ok := firstDoc["fields"].(map[string]interface{})
+		if !ok {
+			utils.Logger.Printf("cannot find fields in the first document")
+			return
+		}
+
+		APP_KEY := getStringValue(fields["APP_KEY"])
+		APP_ID := getStringValue(fields["APP_ID"])
+		FES_API := getStringValue(fields["FES_API"])
+
+		fmt.Printf("APP_KEY: %s", APP_KEY)
+		fmt.Printf("APP_ID: %s", APP_ID)
+		fmt.Printf("FES_API: %s", FES_API)
+		// Store in keyring
+		keyring.Set("credentials", "APP_KEY", APP_KEY)
+		keyring.Set("credentials", "APP_ID", APP_ID)
+		keyring.Set("credentials", "FES_API", FES_API)
 	}
 }
 

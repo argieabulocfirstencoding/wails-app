@@ -26,6 +26,8 @@ func CheckFirebaseConnection() bool {
 	// Instead of POSTing, we just do a GET to verify DNS + HTTPS reachability.
 	resp, err := client.Get(testURL)
 	if err != nil {
+
+		
 		return false
 	}
 	defer resp.Body.Close()
@@ -162,6 +164,7 @@ func FirebaseRequest(ctx context.Context, url, method string, body interface{}, 
 	}
 	return data, nil
 }
+
 
 func FirebaseDocumentRequest(ctx context.Context, idToken, path, method string, body interface{}) ([]byte, error) {
 	url := fmt.Sprintf("https://firestore.googleapis.com/v1/projects/%s/databases/(default)/%s",
