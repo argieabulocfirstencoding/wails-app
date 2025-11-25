@@ -1,14 +1,22 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "fesapp",
-  "outputfilename": "fesapp",
+  "outputfilename": "FesApp Tracker",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "FESTrainee01",
-    "email": "trainee.webdev.01.firstenconding@gmail.com"
+    "name": "Paul",
+    "email": "johnpaultunacao.firstencoding@gmail.com"
+  },
+  "info": {
+    "productName": "FESApp Tracker",
+    "productVersion": "1.0.0",
+    "description": "An application with installer and updater enabled.",
+    "companyName": "First Encoding Services",
+    "copyright": "Copyright 2025 First Encoding Services",
+    "signingIdentity": "My Developer Certificate"
   },
   "windows": {
     "arch": "amd64",
@@ -18,5 +26,35 @@
       "FileDescription": "Tracking App used by First Encoding Services",
       "ProductName": "FESApp"
     }
+  },
+  "options": {
+    "windows": {
+      "installer": {
+        "name": "FESApp Tracker Setup",
+        "publisher": "First Encoding Services",
+        "icon": "build/windows/icon.ico",
+        "setupIcon": "build/windows/icon.ico",
+        "compression": "lzma",
+        "unicode": true,
+        "disableDirPage": false
+      },
+      "build": {
+        "arch": "amd64"
+      }
+    },
+    "appresults": {
+      "arch": "amd64"
+    },
+    "upx": {
+      "enabled": true
+    }
+  },
+  "assets": {
+    "files": [
+      {
+        "dir": "./",
+        "pattern": "build/windows/icon.ico"
+      }
+    ]
   }
 }

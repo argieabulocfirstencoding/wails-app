@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"embed"
 	"errors"
 	config "fesapp/backend"
 	"fesapp/backend/db"
@@ -10,8 +11,6 @@ import (
 	"fesapp/backend/utils"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -43,8 +42,13 @@ func NewApp() *App {
 	}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
+var trayIconData embed.FS
+
+// Embed the tray icon
+//
+//go:embed assets/icon.ico
+var trayIcon []byte
+
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	db.Init(ctx)
@@ -54,7 +58,6 @@ func (a *App) Startup(ctx context.Context) {
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
 
-	// System Tray startup
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -63,15 +66,10 @@ func (a *App) Startup(ctx context.Context) {
 		}()
 
 		systray.Run(func() {
-
-			exePath, _ := os.Executable()
-			root := filepath.Dir(exePath)
-			iconPath := filepath.Join(root, "icon.ico")
-			icon, _ := os.ReadFile(iconPath)
+			// icon is now guaranteed to be valid
+			systray.SetIcon(trayIcon)
 
 			env := runtime.Environment(ctx)
-
-			systray.SetIcon(icon)
 			if env.BuildType == "dev" {
 				systray.SetTitle("FESApp Dev")
 				systray.SetTooltip("FESApp Dev")
@@ -90,15 +88,12 @@ func (a *App) Startup(ctx context.Context) {
 						runtime.WindowShow(ctx)
 						runtime.WindowUnminimise(ctx)
 					case <-mQuit.ClickedCh:
-						systray.Quit()
 						runtime.Quit(ctx)
 						return
 					}
 				}
 			}()
-		}, func() {
-			// cleanup on exit
-		})
+		}, func() {})
 	}()
 
 	// a.SyncService.Backblaze.Connect(a.ctx)
