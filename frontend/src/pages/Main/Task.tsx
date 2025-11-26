@@ -5,11 +5,17 @@ import {
   CircleCheckBig,
   CirclePlay,
   StopCircle,
+  RefreshCcw,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
 import upworkLogo from "@/assets/images/upwork_logo.png";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   TakeScreenshot,
   GetMonitorCount,
@@ -17,6 +23,7 @@ import {
   StopTracking,
   GetLastTaskRecord,
   OpenUpwork,
+  SyncUnsyncedTaskRecord,
 } from "@/../wailsjs/go/app/App";
 import { EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
@@ -314,9 +321,26 @@ const Task = () => {
                   Synced <CircleCheckBig size={12} />
                 </div>
               ) : (
-                <div className="flex gap-1 items-center text-xs text-amber-500">
-                  Not Synced <CircleAlert size={12} />
-                </div>
+                lastTaskRecord && (
+                  <div className="flex gap-1 items-center text-xs text-amber-500">
+                    Not Synced
+                    <CircleAlert size={12} />
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <RefreshCcw
+                          className="text-gray-200 cursor-pointer hover:text-white"
+                          onClick={async () => {
+                            await SyncUnsyncedTaskRecord(lastTaskRecord.id);
+                          }}
+                          size={14}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Press to manually sync</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                )
               )}
               {isStarted ? (
                 <StopButton onClick={() => stopTime()} />

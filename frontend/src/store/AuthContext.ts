@@ -11,12 +11,14 @@ type AuthUser = {
 
 type AuthState = {
   user: AuthUser | null;
+  attendanceSynced: boolean;
   loading: boolean;
   online: boolean;
   taskID: string | null;
   fetchedActiveRecord: boolean;
   synced: boolean;
   tasks: models.ExpTask[];
+  setAttendanceSynced: (synced: boolean) => void;
   setTaskID: (taskID: string | null) => void;
   setTasks: (tasks: models.ExpTask[]) => void;
   setUser: (user: AuthState["user"]) => void;
@@ -34,7 +36,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   taskID: null,
   fetchedActiveRecord: false,
   synced: false,
+  attendanceSynced: false,
   tasks: [],
+  setAttendanceSynced: (synced) => set({ attendanceSynced: synced }),
   setTasks: (tasks) => set({ tasks }),
   setTaskID: (taskID) => set({ taskID }),
   setUser: (user) => set({ user }),
@@ -50,5 +54,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       taskID: null,
       fetchedActiveRecord: false,
       synced: false,
+      attendanceSynced: false,
     }),
 }));

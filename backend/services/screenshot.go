@@ -255,10 +255,13 @@ func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
 	if config.OnlineMode {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
-		taskRecord, err := GetTaskRecordFormID(taskRecordIDCopy)
+		taskRecord, err := GetTaskRecordFromID(taskRecordIDCopy)
 		if err != nil {
 			log.Printf("error retrieving task record: %v\n", err)
 		}
+
+		attendance, _ := getUserAttendance(s.SyncService.AuthUser.LocalID)
+		db.DB.Model(&attendance).Update("sync_status", "pending")
 
 		log.Printf("Syncing record: %v\n", taskRecord)
 		// Syncing TaskRecord to Firebase

@@ -14,6 +14,20 @@ export namespace models {
 	        this.email = source["email"];
 	    }
 	}
+	export class ExpAttendance {
+	    id: number;
+	    sync_status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExpAttendance(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.sync_status = source["sync_status"];
+	    }
+	}
 	export class ExpTask {
 	    taskId: string;
 	    title: string;

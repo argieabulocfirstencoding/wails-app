@@ -18,6 +18,8 @@ export function GetAccounts():Promise<Array<models.User>>;
 
 export function GetActiveTaskRecord():Promise<any>;
 
+export function GetCurrentAttendance():Promise<models.ExpAttendance>;
+
 export function GetLastTaskRecord(arg1:string):Promise<models.TaskRecordWithScreenshots>;
 
 export function GetMonitorCount():Promise<number>;
@@ -40,6 +42,10 @@ export function StopTracking(arg1:string):Promise<void>;
 
 export function SyncAttendance():Promise<void>;
 
+export function SyncUnsyncedAttendance():Promise<void>;
+
 export function SyncUnsyncedRecords():Promise<void>;
+
+export function SyncUnsyncedTaskRecord(arg1:number):Promise<void>;
 
 export function TakeScreenshot():Promise<Array<string>>;

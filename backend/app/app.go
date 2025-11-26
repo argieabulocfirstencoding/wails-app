@@ -164,7 +164,7 @@ func (a *App) StopTracking(taskId string) {
 	if config.OnlineMode {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
-		taskRecord, err := services.GetTaskRecordFormID(*a.ScreenshotService.TaskRecordID)
+		taskRecord, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
 		if err != nil {
 			log.Printf("error retrieving task record: %v\n", err)
 		}
@@ -400,6 +400,7 @@ func (a *App) GetAccounts() ([]models.User, error) {
 	return users, nil
 }
 
+// Not used yet
 func (a *App) SyncAttendance() error {
 	if err := a.SyncService.SyncAllAttendance(); err != nil {
 		return err
@@ -408,8 +409,47 @@ func (a *App) SyncAttendance() error {
 	return nil
 }
 
+// Not used yet
 func (a *App) SyncUnsyncedRecords() error {
 	if err := a.SyncService.SyncUnsyncedRecords(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
+	taskRecord, err := services.GetTaskRecordFromID(taskrecordId)
+	if err != nil {
+		return err
+	}
+
+	if err := a.SyncService.AttemptSyncTaskRecord(taskRecord); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
+
+	attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	expAttendance := attendance.ToExp()
+	return &expAttendance, nil
+}
+
+func (a *App) SyncUnsyncedAttendance() error {
+	// For now syncs current attendance
+	attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
+	if err != nil {
+		return err
+	}
+
+	if err := a.SyncService.AttemptSyncAttendance(attendance); err != nil {
 		return err
 	}
 

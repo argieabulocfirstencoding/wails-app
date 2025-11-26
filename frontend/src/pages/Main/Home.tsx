@@ -1,11 +1,19 @@
 import { useNavigate } from "react-router-dom";
 import MainLayout from "../../layouts/MainLayout";
-import { Plus, Search, RefreshCcw } from "lucide-react";
+import {
+  Plus,
+  Search,
+  RefreshCcw,
+  CheckCircle,
+  TriangleAlert,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   CreateTask,
   GetActiveTaskRecord,
   GetTasks,
+  GetCurrentAttendance,
+  SyncUnsyncedAttendance,
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -48,6 +56,8 @@ const Home = () => {
     tasks,
     setTasks,
     synced,
+    attendanceSynced,
+    setAttendanceSynced,
   } = useAuthStore();
   const [loading, setLoading] = useState(false);
 
@@ -73,6 +83,19 @@ const Home = () => {
     }
   }
 
+  async function fetchCurrentAttendance() {
+    const attendance = await GetCurrentAttendance();
+
+    if (attendance) {
+      setAttendanceSynced(attendance.sync_status === "synced");
+    }
+  }
+
+  useEffect(() => {
+    fetchCurrentAttendance();
+  }, []);
+
+  // Not used for now
   async function createTask() {
     if (!newTask?.title || !newTask?.client) return;
 
@@ -124,77 +147,29 @@ const Home = () => {
           <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">
             All Tasks
           </h1>
+          {synced &&
+            (attendanceSynced ? (
+              <div className="flex gap-1 text-green-500 select-none">
+                <span>Synced</span>
+                <CheckCircle />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 text-amber-500">
+                <span className="flex items-center gap-1 text-xs select-none">
+                  Not Synced <TriangleAlert size={12} />
+                </span>
+                <Button
+                  className="bg-green-500 hover:bg-green-700 cursor-pointer text-white"
+                  onClick={async () => {
+                    await SyncUnsyncedAttendance();
 
-          {/* Add Task Dialog */}
-          <Dialog open={open} onOpenChange={setOpen}>
-            <form>
-              <DialogTrigger asChild>
-                <Plus className="cursor-pointer text-gray-700 dark:text-gray-300" />
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle className="text-gray-900 dark:text-white">
-                    Add Task
-                  </DialogTitle>
-                  <DialogDescription className="text-gray-600 dark:text-gray-400">
-                    Make sure tasks are approved by your direct superior.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4">
-                  <div className="grid gap-3">
-                    <Label
-                      htmlFor="task-title"
-                      className="text-gray-700 dark:text-gray-300"
-                    >
-                      Title
-                    </Label>
-                    <Input
-                      id="task-title"
-                      placeholder="Ex. Training"
-                      value={newTask.title}
-                      onChange={(e) =>
-                        setNewTask((prev) => ({
-                          ...prev,
-                          title: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="grid gap-3">
-                    <Label
-                      htmlFor="task-client"
-                      className="text-gray-700 dark:text-gray-300"
-                    >
-                      Client Name
-                    </Label>
-                    <Input
-                      id="task-client"
-                      placeholder="Ex. Edward Collins"
-                      value={newTask.client}
-                      onChange={(e) =>
-                        setNewTask((prev) => ({
-                          ...prev,
-                          client: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button
-                    type="submit"
-                    onClick={createTask}
-                    className="bg-green-600 hover:bg-green-700 cursor-pointer text-white"
-                  >
-                    Add
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </form>
-          </Dialog>
+                    fetchCurrentAttendance();
+                  }}
+                >
+                  Sync Now
+                </Button>
+              </div>
+            ))}
         </div>
 
         {/* Search + Refresh */}

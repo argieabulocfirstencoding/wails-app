@@ -13,7 +13,14 @@ import (
 func GetActiveTaskRecord(userId string) (*models.ExpTaskRecord, error) {
 	// TODO firebase fetch
 	var taskRecord models.TaskRecord
-	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
+
+	attendance, err := getUserAttendance(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only get the active task record from the current attendance
+	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", userId, attendance.ID).First(&taskRecord).Error; err != nil {
 		return nil, err
 	}
 
@@ -33,7 +40,7 @@ func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
 	return &taskRecordExp, nil
 }
 
-func GetTaskRecordFormID(taskRecordId uint) (*models.TaskRecord, error) {
+func GetTaskRecordFromID(taskRecordId uint) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("task_records.id = ?", taskRecordId).First(&taskRecord).Error; err != nil {
 		fmt.Println("DB error:", err)

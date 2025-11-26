@@ -17,7 +17,7 @@ func LoginAttendance(userId string) (*uint, error) {
 	// NOTE this is a local check for previous attendance
 	cutoff := time.Now().Add(-20 * time.Hour)
 
-	var lastAttendance models.Attendance 
+	var lastAttendance models.Attendance
 	// Find the LAST (most recent) attendance record for the user
 	// that is NOT timed out (time_out IS NULL)
 	// AND started WITHIN the last 20 hours (time_in >= cutoff)
@@ -57,10 +57,20 @@ func LogoutAttendance(attendanceId uint) error {
 	return nil
 }
 
-func getAttendanceFromID(attendanceID uint) (*models.Attendance, error) {
+func GetAttendanceFromID(attendanceID uint) (*models.Attendance, error) {
 	var attendance models.Attendance
 
 	if err := db.DB.Where("attendances.id = ?", attendanceID).First(&attendance).Error; err != nil {
+		return nil, err
+	}
+
+	return &attendance, nil
+}
+
+func getUserAttendance(userId string) (*models.Attendance, error) {
+	var attendance models.Attendance
+
+	if err := db.DB.Where("attendances.user_id = ?", userId).Last(&attendance).Error; err != nil {
 		return nil, err
 	}
 

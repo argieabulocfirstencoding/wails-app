@@ -153,41 +153,32 @@ func FetchClients() error {
 
 		client := &http.Client{}
 		res, err := client.Do(req)
-		fmt.Println("Sending Get Request to Bubble")
 		if err != nil {
 			return fmt.Errorf("error when on request :%w", err)
 		}
 		defer res.Body.Close()
 
-		fmt.Println("Decoding response")
 		var result map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 			return fmt.Errorf("error on decoding response body: %w", err)
 		}
 
-		fmt.Println("Decoded response")
 		response, ok := result["response"].(map[string]interface{})
 		if !ok {
 			return fmt.Errorf("error on getting response value")
 		}
-		utils.Logger.Printf("Fetch clients response: %v", response)
 
-		fmt.Println("Parsed response")
 		results, ok := response["results"].([]interface{})
 		if !ok || len(response) == 0 {
 			return fmt.Errorf("error on getting results value")
 		}
 
-		fmt.Println("Parsed results")
 		remaining, ok := response["remaining"].(float64)
 		if !ok {
 			return fmt.Errorf("error no remaining value was found")
 		}
 
-		fmt.Println("Parsed remaining")
 		clients = make([]models.Client, 0)
-
-		fmt.Println("Looping through clients from response body")
 		for _, item := range results {
 
 			record, ok := item.(map[string]interface{})
@@ -212,11 +203,9 @@ func FetchClients() error {
 			return fmt.Errorf("error on creating clients: %w", err)
 		}
 
-		fmt.Println("Finished looping set of clients")
 		// Increment search cursor to another 100 since bubble data api limit is 100 only
 		cursor = cursor + 100
-
-		fmt.Printf("Remaining: %.2f", remaining)
+		
 		// If there is no remaining records then stop the loop
 		if remaining == 0 {
 			break
@@ -262,7 +251,6 @@ func FetchProjects() error {
 		if !ok {
 			return fmt.Errorf("invalid response format")
 		}
-		utils.Logger.Printf("Fetch project response: %v", response)
 
 		results, ok := response["results"].([]interface{})
 		if !ok || len(results) == 0 {

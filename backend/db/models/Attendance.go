@@ -8,10 +8,22 @@ import (
 
 type Attendance struct {
 	gorm.Model
-	UserID   string `gorm:"not null"`
-	User     User   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TimeIn   time.Time
-	TimeOut  *time.Time
-	SyncedAt *time.Time
+	UserID     string `gorm:"not null"`
+	User       User   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TimeIn     time.Time
+	TimeOut    *time.Time
+	SyncedAt   *time.Time
 	SyncStatus string `gorm:"not null;default:'pending'"`
+}
+
+type ExpAttendance struct {
+	ID         uint   `json:"id"`
+	SyncStatus string `json:"sync_status"`
+}
+
+func (a Attendance) ToExp() ExpAttendance {
+	return ExpAttendance{
+		ID:         a.ID,
+		SyncStatus: a.SyncStatus,
+	}
 }

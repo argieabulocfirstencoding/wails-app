@@ -30,6 +30,10 @@ export function GetActiveTaskRecord() {
   return window['go']['app']['App']['GetActiveTaskRecord']();
 }
 
+export function GetCurrentAttendance() {
+  return window['go']['app']['App']['GetCurrentAttendance']();
+}
+
 export function GetLastTaskRecord(arg1) {
   return window['go']['app']['App']['GetLastTaskRecord'](arg1);
 }
@@ -74,8 +78,16 @@ export function SyncAttendance() {
   return window['go']['app']['App']['SyncAttendance']();
 }
 
+export function SyncUnsyncedAttendance() {
+  return window['go']['app']['App']['SyncUnsyncedAttendance']();
+}
+
 export function SyncUnsyncedRecords() {
   return window['go']['app']['App']['SyncUnsyncedRecords']();
+}
+
+export function SyncUnsyncedTaskRecord(arg1) {
+  return window['go']['app']['App']['SyncUnsyncedTaskRecord'](arg1);
 }
 
 export function TakeScreenshot() {
