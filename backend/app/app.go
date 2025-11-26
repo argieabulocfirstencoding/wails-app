@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	"embed"
+	_ "embed"
 	"errors"
 	config "fesapp/backend"
 	"fesapp/backend/db"
@@ -41,8 +41,6 @@ func NewApp() *App {
 		SyncService:       syncService,
 	}
 }
-
-var trayIconData embed.FS
 
 // Embed the tray icon
 //
