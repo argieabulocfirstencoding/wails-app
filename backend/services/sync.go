@@ -304,7 +304,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 			"timestampValue": now.UTC().Format(time.RFC3339),
 		},
 		"duration": map[string]string{
-			"integerValue": fmt.Sprintf("%d", int(startedTime.Sub(taskRecord.StartedAt).Seconds())),
+			"integerValue": fmt.Sprintf("%d", int(now.Sub(taskRecord.StartedAt).Seconds())),
 		},
 	}
 

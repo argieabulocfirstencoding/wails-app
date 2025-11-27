@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
+	"os/user"
 
 	"fesapp/backend/app"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -17,23 +18,15 @@ var assets embed.FS
 
 func main() {
 
+	// 1. Get the context
 	ctx := context.Background()
 
-	// 2. Check the environment build type
-	env := runtime.Environment(ctx)
-
-	// 3. Define the base ID and an empty suffix
+	// 2. Determine the unique ID based on the environment using build tags
 	baseID := "com.firstencodingservicess.myapp"
-	suffix := ""
-
-	// 4. Conditionally add a suffix for non-production builds (e.g., "dev")
-	if env.BuildType == "dev" {
-		// Use a distinct suffix for development to prevent conflicts
-		// You can use a static string like ".DEV" or include a username/pid for more safety
-		suffix = ".devmode"
-	}
-
+	suffix := getUniqueIDSuffix(ctx)
 	uniqueID := baseID + suffix
+
+	fmt.Printf("uniqueID: %s", uniqueID)
 
 	// Create an instance of the app structure
 	app := app.NewApp()
@@ -63,4 +56,18 @@ func main() {
 	if err != nil {
 		println("Error:", err.Error())
 	}
+}
+
+// getUniqueIDSuffix provides the DEV suffix.
+func getUniqueIDSuffix(ctx context.Context) string {
+	// A simple, static suffix for development is usually enough.
+	suffix := ".devmode"
+
+	// You can make it more unique by including the username for better safety
+	// against conflicts when multiple people run 'wails dev'.
+	if usr, err := user.Current(); err == nil {
+		suffix = fmt.Sprintf(".dev.%s", usr.Username)
+	}
+
+	return suffix
 }
