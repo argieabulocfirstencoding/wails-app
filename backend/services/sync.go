@@ -273,8 +273,8 @@ func (s *SyncService) AttemptSyncAttendance(attendance *models.Attendance) error
 
 func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	// ============== PRE DEFINITION =============
-	now := time.Now()
-	recordID := fmt.Sprintf("%d", now.UTC().UnixMilli())
+	startedTime := taskRecord.StartedAt
+	recordID := fmt.Sprintf("%d", startedTime.UTC().UnixMilli())
 	attendance, err := GetAttendanceFromID(taskRecord.AttendanceID)
 	if err != nil {
 		return err
@@ -288,7 +288,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	// NOTE if failed to end task, use synced_at as ended_at
 	fields := map[string]interface{}{
 		"synced_at": map[string]string{
-			"timestampValue": now.UTC().Format(time.RFC3339),
+			"timestampValue": startedTime.UTC().Format(time.RFC3339),
 		},
 		"task_id": map[string]string{
 			"stringValue": taskRecord.TaskID,
@@ -300,10 +300,10 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 			"timestampValue": taskRecord.StartedAt.UTC().Format(time.RFC3339),
 		},
 		"ended_at": map[string]string{
-			"timestampValue": now.UTC().Format(time.RFC3339),
+			"timestampValue": startedTime.UTC().Format(time.RFC3339),
 		},
 		"duration": map[string]string{
-			"integerValue": fmt.Sprintf("%d", int(now.Sub(taskRecord.StartedAt).Seconds())),
+			"integerValue": fmt.Sprintf("%d", int(startedTime.Sub(taskRecord.StartedAt).Seconds())),
 		},
 	}
 

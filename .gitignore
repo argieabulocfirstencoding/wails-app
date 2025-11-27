@@ -4,3 +4,4 @@ frontend/dist
 backend/screenshots
 .gitattributes
 .env
+log.txt
