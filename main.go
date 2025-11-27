@@ -23,11 +23,11 @@ func main() {
 	env := runtime.Environment(ctx)
 
 	// 3. Define the base ID and an empty suffix
-	baseID := "com.firstencodingservicess.myapp.DEVPAUL"
+	baseID := "com.firstencodingservicess.myapp"
 	suffix := ""
 
 	// 4. Conditionally add a suffix for non-production builds (e.g., "dev")
-	if env.BuildType != "production" {
+	if env.BuildType == "dev" {
 		// Use a distinct suffix for development to prevent conflicts
 		// You can use a static string like ".DEV" or include a username/pid for more safety
 		suffix = ".devmode"
