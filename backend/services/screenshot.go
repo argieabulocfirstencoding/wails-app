@@ -63,7 +63,7 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 	s.ctx = ctx
 	taskRecordIDCopy := *s.TaskRecordID
 
-	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 1
+	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 5
 	if s.Running {
 		return
 	}
