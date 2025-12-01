@@ -29,6 +29,7 @@ import { EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
 import { useAuthStore } from "@/store/AuthContext";
 import { models } from "wailsjs/go/models";
+import SpinnerLoader from "@/components/custom/SpinnerLoader";
 
 interface ScreenshotProps {
   date: number;
@@ -51,6 +52,7 @@ const Task = () => {
   const [isSynced, setSynced] = useState(false);
   const [lastTaskRecord, setLastTaskRecord] = useState<models.ExpTaskRecord>();
   const [isLaunching, setLaunching] = useState(false);
+  const [isSyncing, setSyncing] = useState(false);
 
   const { setTaskID, tasks } = useAuthStore();
 
@@ -61,13 +63,18 @@ const Task = () => {
   }
 
   async function startTime() {
+    setSyncing(true);
     resetTimer();
     if (!id) return;
     const timeStart = Date.now();
     const stringifiedDateTime = JSON.stringify(timeStart);
     setStart(true);
     setStartTime(timeStart);
-    await StartTracking(id, stringifiedDateTime);
+    await StartTracking(id, stringifiedDateTime).then(() => {
+      setTimeout(() => {
+        setSyncing(false);
+      }, 1000);
+    });
   }
 
   function resetTimer() {
@@ -77,12 +84,21 @@ const Task = () => {
   }
 
   async function stopTime() {
+    setSyncing(true);
     if (id) await StopTracking(id);
+    (async () => {
+      await fetchLastRecord();
+    })();
 
+    // await fetchLastRecord();
     setTaskID(null);
     const timeStop = Date.now();
     setStart(false);
     setEndTime(timeStop);
+
+    setTimeout(() => {
+      setSyncing(false);
+    }, 1500);
   }
 
   function getFormattedTime() {
@@ -148,6 +164,19 @@ const Task = () => {
       setLaunching(true);
       await OpenUpwork(taskDetails.taskId);
     }
+  }
+
+  async function handleSyncTaskRecord() {
+    if (!lastTaskRecord) return;
+    setSyncing(true);
+    await SyncUnsyncedTaskRecord(lastTaskRecord.id);
+    (async () => {
+      await fetchLastRecord();
+    })();
+    
+    setTimeout(() => {
+      setSyncing(false);
+    }, 1500);
   }
 
   function openPreview(base64: string) {
@@ -255,9 +284,14 @@ const Task = () => {
 
   useEffect(() => {
     const off = EventsOn("screenshot", (pictures: string[]) => {
+      setSyncing(true);
       const now = Date.now();
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
       setScreenshots(screenshotTaken);
+      fetchLastRecord();
+      setTimeout(() => {
+        setSyncing(false);
+      }, 1500);
     });
     return () => off();
   }, []);
@@ -316,7 +350,11 @@ const Task = () => {
               </span>
             </div>
             <div className="flex flex-col gap-2">
-              {isSynced ? (
+              {isSyncing ? (
+                <div className="text-xs flex items-center select-none">
+                  Syncing <SpinnerLoader className="scale-[0.5]" />
+                </div>
+              ) : isSynced ? (
                 <div className="flex gap-1 items-center text-xs text-green-500">
                   Synced <CircleCheckBig size={12} />
                 </div>
@@ -329,9 +367,7 @@ const Task = () => {
                       <TooltipTrigger>
                         <RefreshCcw
                           className="text-gray-200 cursor-pointer hover:text-white"
-                          onClick={async () => {
-                            await SyncUnsyncedTaskRecord(lastTaskRecord.id);
-                          }}
+                          onClick={() => handleSyncTaskRecord()}
                           size={14}
                         />
                       </TooltipTrigger>

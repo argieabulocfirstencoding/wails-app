@@ -52,30 +52,49 @@ func NewSyncService() *SyncService {
 
 func (s *SyncService) Connect(ctx context.Context) error {
 	s.ctx = ctx
-	s.isConnected = false
-	s.connecting = true
 
-	s.isConnected = CheckFirebaseConnection()
+	// --- CRITICAL SECTION 1: Check and Set Connecting Flag ---
+	s.mu.Lock()
+	if s.connecting {
+		s.mu.Unlock()
+		return nil
+	}
+	s.connecting = true
+	s.mu.Unlock()
+
+	// Defer ensures 'connecting' is always reset.
+	defer func() {
+		s.mu.Lock()
+		s.connecting = false
+		s.mu.Unlock()
+	}()
+
+	// --- NETWORK CALL (Blocking/Retries) ---
+	// This call now handles all 5 retries internally.
+	testResult := s.TestSync()
+
+	// --- CRITICAL SECTION 2: Update State and Process Queue ---
+	s.mu.Lock()
+	s.isConnected = testResult
+
 	if !s.isConnected {
-		return fmt.Errorf("no connection established")
+		// s.TestSync failed after all retries.
+		s.mu.Unlock()
+		return fmt.Errorf("no connection established after 5 attempts")
 	}
 
-	s.mu.Lock()
+	// If connected, process queued jobs.
 	queued := s.queue
 	s.queue = nil
 	s.mu.Unlock()
 
+	// --- Execute Jobs (Non-Critical Section) ---
+	// The previous sync tasks are now executed because the connection is up.
 	for _, job := range queued {
-		job()
+		// Jobs run concurrently to ensure fast processing of the queue
+		go job()
 	}
 
-	return nil
-}
-
-func (s *SyncService) Reconnect() error {
-	// TODO do a reconnect attempt 5 times
-	s.isConnected = CheckFirebaseConnection()
-	s.RefreshAccessToken()
 	return nil
 }
 
@@ -95,35 +114,59 @@ func (s *SyncService) RefreshAccessToken() {
 	s.isConnected = true
 }
 
-// NOTE this is is made only for testing purposes not needed in production
-func (s *SyncService) TestSync() {
-	path := "documents/testcol/asdasdasd"
-	body := map[string]interface{}{
-		"fields": map[string]interface{}{
-			"name": map[string]string{
-				"stringValue": "Hello firestore!",
-			},
-			"count": map[string]string{
-				"integerValue": "42",
-			},
-			"createdAt": map[string]string{
-				"timestampValue": time.Now().UTC().Format(time.RFC3339),
-			},
-		},
-	}
+func (s *SyncService) TestSync() bool {
+	const maxRetries = 3
+	// Start with a short delay and let it grow exponentially
+	baseDelay := 500 * time.Millisecond
+	testPath := fmt.Sprintf("users/%s", s.AuthUser.LocalID)
 
-	if s.isConnected {
-		resp, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, "PATCH", body)
-		if err != nil {
-			log.Printf("firestore write failed: %v", err)
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		fmt.Printf("Attempting to connect to firebase (Attempt %d/%d)...\n", attempt, maxRetries)
+
+		// *** CORE REQUEST ***
+		_, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, testPath, "GET", nil)
+
+		// 1. SUCCESS: If successful, return true immediately.
+		if err == nil {
+			fmt.Println("Successfully connected to Firebase.")
+			return true
 		}
 
-		log.Println("Firestore sync response:", string(resp))
+		// Log the failure and error for debugging (RECOMMENDED)
+		log.Printf("Firebase connection check failed (Attempt %d): %v", attempt, err)
+
+		// 2. FAILURE ON FINAL ATTEMPT: If it failed on the final attempt, return false.
+		if attempt == maxRetries {
+			fmt.Println("Failed to connect to Firebase after all retries.")
+			return false // <--- CORRECTED: Returns FALSE on final failure
+		}
+
+		// 3. CALCULATE EXPONENTIAL BACKOFF DELAY
+		// Calculate the delay: baseDelay * 2^(attempt-1). Cap it at a max.
+		delay := baseDelay << (attempt - 1)
+		maxDelay := 30 * time.Second
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+
+		// 4. WAIT: Use the select statement to wait OR exit early on context cancellation.
+		fmt.Printf("Waiting for %v before next retry...\n", delay)
+		select {
+		case <-time.After(delay):
+			// Wait time finished, proceed to next iteration (loop continues)
+		case <-s.ctx.Done():
+			// Context was canceled (e.g., app shutdown). Exit immediately.
+			log.Println("Connection check interrupted by context cancellation.")
+			return false
+		}
 	}
+
+	// Should theoretically not be reached with the new logic, but kept for completeness
+	return false
 }
 
 func (s *SyncService) SyncCredentials() {
-	path := "documents/creds?pageSize=1"
+	path := "creds?pageSize=1"
 	method := "GET"
 
 	s.RefreshAccessToken()
@@ -165,9 +208,6 @@ func (s *SyncService) SyncCredentials() {
 		APP_ID := getStringValue(fields["APP_ID"])
 		FES_API := getStringValue(fields["FES_API"])
 
-		fmt.Printf("APP_KEY: %s", APP_KEY)
-		fmt.Printf("APP_ID: %s", APP_ID)
-		fmt.Printf("FES_API: %s", FES_API)
 		// Store in keyring
 		keyring.Set("credentials", "APP_KEY", APP_KEY)
 		keyring.Set("credentials", "APP_ID", APP_ID)
@@ -177,7 +217,7 @@ func (s *SyncService) SyncCredentials() {
 
 // NOTE this is deprecated tasks are from bubble api now
 func (s *SyncService) SyncTasks() {
-	path := "documents/tasks"
+	path := "tasks"
 	method := "GET"
 
 	s.RefreshAccessToken()
@@ -215,7 +255,12 @@ func (s *SyncService) SyncTasks() {
 
 // ================== QUEUE SYNC HELPER ========================
 func (s *SyncService) AttemptSyncTaskRecord(taskRecord *models.TaskRecord) error {
+
 	s.mu.Lock()
+	if taskRecord.SyncStatus == "synced" {
+		return nil
+	}
+
 	if !s.isConnected {
 		log.Println("⚠️ Not connected — queuing syncing task record")
 
@@ -241,6 +286,7 @@ func (s *SyncService) AttemptSyncTaskRecord(taskRecord *models.TaskRecord) error
 	s.mu.Unlock()
 
 	err := s.SyncTaskRecord(taskRecord)
+	fmt.Println("Synced Task Record")
 	return err
 }
 
@@ -320,7 +366,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("documents/users/%s/attendance/%s/tasks/%s/task_records/%s",
+	path := fmt.Sprintf("users/%s/attendance/%s/tasks/%s/task_records/%s",
 		taskRecord.UserID, attendanceFormattedID, taskRecord.TaskID, recordID,
 	)
 	method := "PATCH"
@@ -377,7 +423,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 		}
 	}
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("documents/users/%s/attendance/%s/",
+	path := fmt.Sprintf("users/%s/attendance/%s/",
 		attendance.UserID, attendanceFormattedID,
 	)
 	method := "PATCH"
@@ -395,6 +441,11 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 		attendance.SyncedAt = &now
 		attendance.SyncStatus = "synced"
 		db.DB.Save(&attendance)
+
+		// Sync all unsynced records of the current attendance session
+		if err := s.SyncUnsyncedRecords(); err != nil {
+			log.Println("Not able to sync previous task records")
+		}
 	}
 
 	return nil
@@ -427,8 +478,13 @@ func (s *SyncService) SyncAllAttendance() error {
 }
 
 func (s *SyncService) SyncUnsyncedRecords() error {
+	attendance, err := GetUserAttendance(s.AuthUser.LocalID)
+	if err != nil {
+		return err
+	}
+
 	var unsynced []models.TaskRecord
-	if err := db.DB.Where("user_id = ? AND sync_status = 'pending'", s.AuthUser.LocalID).
+	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND sync_status = 'pending'", s.AuthUser.LocalID, attendance.ID).
 		Find(&unsynced).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Print("no unsynced records")
@@ -439,7 +495,7 @@ func (s *SyncService) SyncUnsyncedRecords() error {
 	}
 
 	for _, record := range unsynced {
-		if err := s.SyncTaskRecord(&record); err != nil {
+		if err := s.AttemptSyncTaskRecord(&record); err != nil {
 			log.Printf("error syncing task_record: %v", err)
 			return err
 		}

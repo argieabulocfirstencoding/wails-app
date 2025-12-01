@@ -170,7 +170,11 @@ func (a *App) StopTracking(taskId string) {
 		}
 		log.Printf("Syncing record: %v\n", taskRecord)
 
-		if err := a.SyncService.AttemptSyncTaskRecord(taskRecord); err != nil {
+		attendance, _ := services.GetUserAttendance(a.AuthUser.LocalID)
+		db.DB.Model(&taskRecord).Update("sync_status", "pending")
+		db.DB.Model(&attendance).Update("sync_status", "pending")
+		
+		if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
 			log.Printf("error syncing task_record: %v", err)
 		}
 	}
@@ -361,8 +365,8 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 	return &expTask, nil
 }
 
-func (a *App) GetTasks() ([]models.ExpTask, error) {
-	if config.OnlineMode {
+func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
+	if config.OnlineMode && isOnline {
 		if err := services.SyncClientsAndProjects(); err != nil {
 			utils.Logger.Printf("error fetching tasks from fes: %v", err)
 		}
@@ -419,12 +423,14 @@ func (a *App) SyncUnsyncedRecords() error {
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
+	runtime.EventsEmit(a.ctx, "syncing", true)
 	taskRecord, err := services.GetTaskRecordFromID(taskrecordId)
 	if err != nil {
 		return err
 	}
 
-	if err := a.SyncService.AttemptSyncTaskRecord(taskRecord); err != nil {
+	// FIX change to attempt sync record
+	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
 		return err
 	}
 
@@ -448,8 +454,8 @@ func (a *App) SyncUnsyncedAttendance() error {
 	if err != nil {
 		return err
 	}
-
-	if err := a.SyncService.AttemptSyncAttendance(attendance); err != nil {
+	// FIX change to attempt sync attendance
+	if err := a.SyncService.SyncAttendance(attendance); err != nil {
 		return err
 	}
 

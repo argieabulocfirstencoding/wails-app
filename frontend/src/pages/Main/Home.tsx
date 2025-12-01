@@ -84,11 +84,12 @@ const Home = () => {
   }
 
   async function fetchCurrentAttendance() {
-    const attendance = await GetCurrentAttendance();
-
-    if (attendance) {
-      setAttendanceSynced(attendance.sync_status === "synced");
-    }
+    await GetCurrentAttendance().then((attendance) => {
+      if (attendance) {
+        console.log(attendance);
+        setAttendanceSynced(attendance.sync_status === "synced");
+      }
+    });
   }
 
   useEffect(() => {
@@ -112,13 +113,11 @@ const Home = () => {
   }
 
   async function fetchTasks() {
-    if (!online) return;
-
     setLoading(true);
     setIsRefreshing(true);
 
     try {
-      const fethedTasks = await GetTasks();
+      const fethedTasks = await GetTasks(online);
       if (fethedTasks) {
         console.log(fethedTasks);
         setTasks(fethedTasks);
@@ -131,6 +130,11 @@ const Home = () => {
       setIsRefreshing(false);
       setLoading(false);
     }
+  }
+
+  async function SyncCurrentAttendance() {
+    await SyncUnsyncedAttendance();
+    await fetchCurrentAttendance();
   }
 
   const filteredTasks = tasks.filter(
@@ -160,11 +164,7 @@ const Home = () => {
                 </span>
                 <Button
                   className="bg-green-500 hover:bg-green-700 cursor-pointer text-white"
-                  onClick={async () => {
-                    await SyncUnsyncedAttendance();
-
-                    fetchCurrentAttendance();
-                  }}
+                  onClick={() => SyncCurrentAttendance()}
                 >
                   Sync Now
                 </Button>

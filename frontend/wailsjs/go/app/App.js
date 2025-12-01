@@ -42,8 +42,8 @@ export function GetMonitorCount() {
   return window['go']['app']['App']['GetMonitorCount']();
 }
 
-export function GetTasks() {
-  return window['go']['app']['App']['GetTasks']();
+export function GetTasks(arg1) {
+  return window['go']['app']['App']['GetTasks'](arg1);
 }
 
 export function LoginUser(arg1) {

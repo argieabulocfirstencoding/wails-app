@@ -67,7 +67,7 @@ func GetAttendanceFromID(attendanceID uint) (*models.Attendance, error) {
 	return &attendance, nil
 }
 
-func getUserAttendance(userId string) (*models.Attendance, error) {
+func GetUserAttendance(userId string) (*models.Attendance, error) {
 	var attendance models.Attendance
 
 	if err := db.DB.Where("attendances.user_id = ?", userId).Last(&attendance).Error; err != nil {
