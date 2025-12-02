@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Loader from "@/components/custom/Loader";
+import SpinnerLoader from "@/components/custom/SpinnerLoader";
 
 interface TaskProps {
   taskId: string | null;
@@ -47,6 +48,7 @@ const Home = () => {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncing, setSyncing] = useState(false);
   const {
     taskID,
     setFetchedActiveRecord,
@@ -133,8 +135,13 @@ const Home = () => {
   }
 
   async function SyncCurrentAttendance() {
+    setSyncing(true);
     await SyncUnsyncedAttendance();
     await fetchCurrentAttendance();
+
+    setTimeout(() => {
+      setSyncing(false);
+    }, 2000);
   }
 
   const filteredTasks = tasks.filter(
@@ -152,7 +159,12 @@ const Home = () => {
             All Tasks
           </h1>
           {synced &&
-            (attendanceSynced ? (
+            (isSyncing ? (
+              <div className="flex gap-1 items-center">
+                <span>Syncing</span>
+                <SpinnerLoader />
+              </div>
+            ) : attendanceSynced ? (
               <div className="flex gap-1 text-green-500 select-none">
                 <span>Synced</span>
                 <CheckCircle />
