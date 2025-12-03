@@ -214,7 +214,7 @@ const Login = () => {
               to="/offline-login"
               className="text-green-600 hover:underline font-medium"
             >
-              SignIn Locally
+              Signin Locally.
             </Link>
           </p>
         </CardFooter>

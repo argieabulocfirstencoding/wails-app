@@ -33,9 +33,9 @@ export default function LogoutConfirmDialog({
       <DialogContent
         className="
           sm:max-w-lg
-          rounded-2xl border border-gray-800 
+          rounded-2xl border border-gray-200
           bg-white text-gray-900
-          dark:bg-[#0e1625] dark:text-gray-100
+          dark:bg-neutral-900 dark:border-gray-800 dark:text-gray-100
           shadow-2xl
         "
       >
@@ -53,9 +53,9 @@ export default function LogoutConfirmDialog({
           <Button
             variant="outline"
             className="
-              border-gray-300 text-gray-800 hover:bg-gray-100
-              dark:border-gray-700 dark:text-gray-200 
-              dark:hover:bg-[#1b2537] dark:hover:text-white
+              border-gray-300 text-gray-800 hover:bg-gray-50
+              dark:border-gray-700 dark:text-gray-200 dark:hover:bg-neutral-800
+              focus:ring-2 focus:ring-green-600 focus:ring-offset-0
               transition-colors
             "
             onClick={() => {
@@ -67,14 +67,20 @@ export default function LogoutConfirmDialog({
           </Button>
 
           <Button
+            type="button"
             className="
-              bg-red-600 hover:bg-red-700 text-white
-              dark:bg-[#dc2626] dark:hover:bg-[#b91c1c]
+              bg-green-600 hover:bg-green-700 text-white
+              dark:bg-green-600 dark:hover:bg-green-700
               font-semibold transition-colors
             "
-            onClick={() => {
-              onConfirm();
+            onClick={async () => {
+              // close dialog first so navigation/route modal can't appear on top
               setOpen(false);
+              try {
+                if (onConfirm) await onConfirm();
+              } catch (e) {
+                console.error("onConfirm failed:", e);
+              }
             }}
           >
             Confirm Logout

@@ -3,7 +3,7 @@ import MainLayout from "../../layouts/MainLayout";
 import {
   Plus,
   Search,
-  RefreshCcw,
+  RotateCcw, // Changed from RefreshCcw
   CheckCircle,
   TriangleAlert,
 } from "lucide-react";
@@ -46,6 +46,7 @@ const Home = () => {
   });
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const {
     taskID,
@@ -59,7 +60,6 @@ const Home = () => {
     attendanceSynced,
     setAttendanceSynced,
   } = useAuthStore();
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function fetchUser() {
@@ -69,9 +69,25 @@ const Home = () => {
       }
     }
 
-    if (!fetchedActiveRecord) fetchTasks();
     fetchUser();
+    fetchInitialTasks(); // initial load uses 'loading'
+    // fetchActiveRecord moved into fetchInitialTasks
   }, []);
+
+  // Initial page load (full page loader)
+  async function fetchInitialTasks() {
+    if (!online) return;
+    setLoading(true);
+    try {
+      const fetchedTasks = await GetTasks();
+      if (fetchedTasks) setTasks(fetchedTasks);
+      await fetchActiveRecord();
+    } catch (error) {
+      console.log("Error fetching initial tasks:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function fetchActiveRecord() {
     if (online && !fetchedActiveRecord) {
@@ -111,25 +127,38 @@ const Home = () => {
     }
   }
 
+  // Refresh (button) - only toggles isRefreshing and does not show full screen loader
   async function fetchTasks() {
-    if (!online) return;
+    console.log(
+      "fetchTasks called - online:",
+      online,
+      "isRefreshing:",
+      isRefreshing
+    );
+    if (!online) {
+      console.warn("Cannot refresh: offline");
+      return;
+    }
+    if (isRefreshing) {
+      console.warn("Already refreshing, skipping");
+      return;
+    }
 
-    setLoading(true);
     setIsRefreshing(true);
-
     try {
-      const fethedTasks = await GetTasks();
-      if (fethedTasks) {
-        console.log(fethedTasks);
-        setTasks(fethedTasks);
-      }
-
+      const fetchedTasks = await GetTasks();
+      console.log("GetTasks result:", fetchedTasks && fetchedTasks.length);
+      if (fetchedTasks) setTasks(fetchedTasks);
       await fetchActiveRecord();
     } catch (error) {
-      console.log("Error fetching tasks:", error);
+      console.error("Error fetching tasks:", error);
+      // ensure user sees error (optional)
     } finally {
-      setIsRefreshing(false);
-      setLoading(false);
+      // keep spinner visible briefly for smoother UX
+      setTimeout(() => {
+        setIsRefreshing(false);
+        console.log("refresh finished, isRefreshing set false");
+      }, 600);
     }
   }
 
@@ -162,7 +191,6 @@ const Home = () => {
                   className="bg-green-500 hover:bg-green-700 cursor-pointer text-white"
                   onClick={async () => {
                     await SyncUnsyncedAttendance();
-
                     fetchCurrentAttendance();
                   }}
                 >
@@ -184,16 +212,64 @@ const Home = () => {
               className="outline-none border-none w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
             />
           </div>
-          <div
-            className="border-2 border-green-500 rounded-full p-2 cursor-pointer"
-            onClick={fetchTasks}
+
+          {/* Refresh button with spinner */}
+          <button
+            onClick={() => {
+              console.log("Refresh button clicked");
+              fetchTasks();
+            }}
+            disabled={isRefreshing || loading}
+            className={`flex items-center justify-center w-10 h-10 rounded-full border-2 border-green-500 transition-all duration-200
+              ${
+                isRefreshing
+                  ? "bg-green-100 dark:bg-green-900/50"
+                  : "bg-white dark:bg-neutral-800 hover:bg-green-50 dark:hover:bg-green-900/30"
+              }
+              ${
+                isRefreshing || loading
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
+              }`}
+            type="button"
+            title="Refresh tasks"
+            aria-label="Refresh tasks"
           >
-            <RefreshCcw
-              color="green"
-              className={isRefreshing ? "animate-spin" : ""}
-            />
-          </div>
+            <div className={isRefreshing ? "animate-spin" : ""}>
+              <RotateCcw
+                size={20}
+                fill="none"
+                stroke="currentColor" // ensure SVG stroke follows currentColor
+                strokeWidth={2.2}
+                className="text-green-600" // Tailwind color applied as currentColor
+                style={{ color: "#16a34a" }} // inline fallback to override conflicting CSS
+              />
+            </div>
+          </button>
         </div>
+
+        {/* thin progress bar shown while refreshing */}
+        {isRefreshing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-white/70 dark:bg-black/60 backdrop-blur-sm" />
+            <div className="relative z-60 flex flex-col items-center gap-3 p-4">
+              <div className="w-14 h-14 rounded-full border-2 border-green-500 flex items-center justify-center bg-white dark:bg-neutral-900">
+                <div className="animate-spin">
+                  <RotateCcw
+                    size={28}
+                    className="text-green-600"
+                    stroke="currentColor"
+                    strokeWidth={2.2}
+                    fill="none"
+                  />
+                </div>
+              </div>
+              <span className="text-green-700 dark:text-green-300 font-medium">
+                Refreshing tasks...
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Task list header */}
         <div className="flex justify-between items-center px-6 font-bold pb-2 border-b dark:border-gray-700">

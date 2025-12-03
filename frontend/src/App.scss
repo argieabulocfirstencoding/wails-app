@@ -83,7 +83,8 @@ input:-webkit-autofill:active {
   height: inherit;
   border-radius: 50%;
   transform: rotateX(70deg);
-  animation: 1s spin linear infinite;
+  /* avoid collision with Tailwind's 'spin' keyframes */
+  animation: 1s loader-dot-spin linear infinite;
 }
 .loader:after {
   color: #55e750;
@@ -109,7 +110,7 @@ input:-webkit-autofill:active {
   }
 }
 
-@keyframes spin {
+@keyframes loader-dot-spin {
   0%,
   100% {
     box-shadow: 0.2em 0px 0 0px currentcolor;
