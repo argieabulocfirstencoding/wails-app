@@ -4,13 +4,13 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"os/user"
 
 	"fesapp/backend/app"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -62,11 +62,11 @@ func main() {
 func getUniqueIDSuffix(ctx context.Context) string {
 	// A simple, static suffix for development is usually enough.
 	suffix := ".devmode"
+	
+	environment := runtime.Environment(ctx)
 
-	// You can make it more unique by including the username for better safety
-	// against conflicts when multiple people run 'wails dev'.
-	if usr, err := user.Current(); err == nil {
-		suffix = fmt.Sprintf(".dev.%s", usr.Username)
+	if environment.BuildType == "production" {
+		return ""
 	}
 
 	return suffix

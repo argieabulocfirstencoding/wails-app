@@ -173,7 +173,7 @@ func (a *App) StopTracking(taskId string) {
 		attendance, _ := services.GetUserAttendance(a.AuthUser.LocalID)
 		db.DB.Model(&taskRecord).Update("sync_status", "pending")
 		db.DB.Model(&attendance).Update("sync_status", "pending")
-		
+
 		if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
 			log.Printf("error syncing task_record: %v", err)
 		}
@@ -195,6 +195,7 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	return dialog != "Yes"
 }
 
+// Deprecated testing purpose only
 func (a *App) CheckAuth(name *string) bool {
 	service := "fesapp"
 	if name == nil || *name == "" {
@@ -285,11 +286,14 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		return err
 	}
 
+	now := time.Now()
+
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
 	a.SyncService.Backblaze.AuthUser = user
 	a.SyncService.AuthUser = user
 	a.SyncService.IdToken = &user.IDToken
+	a.SyncService.IssuedAt = &now
 
 	// TODO handle checking connection and only one connection attempt at a time
 	go func() {

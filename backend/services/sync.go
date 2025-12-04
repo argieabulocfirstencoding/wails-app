@@ -9,6 +9,7 @@ import (
 	"fesapp/backend/utils"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +37,7 @@ type SyncService struct {
 	isConnected bool
 	AuthUser    *models.FirebaseLoginResponse
 	IdToken     *string
+	IssuedAt    *time.Time
 	Backblaze   *BackblazeSync
 
 	connecting bool
@@ -100,25 +102,45 @@ func (s *SyncService) Connect(ctx context.Context) error {
 
 func (s *SyncService) RefreshAccessToken() {
 	// Refresh Access Token only if it has expired
-	if FirebaseAccessTokenIsExpired(s.AuthUser.ExpiresIn) {
-		idToken, expiresIn, err := FirebaseUpdateAccessToken(s.ctx, s.AuthUser.Email)
-		if err != nil {
-			log.Printf("failed to refresh token: %v", err)
-			return
-		}
-		s.IdToken = idToken
-		s.AuthUser.IDToken = *idToken
-		s.AuthUser.ExpiresIn = *expiresIn
+	isExpired := FirebaseAccessTokenIsExpired(s.AuthUser.ExpiresIn, *s.IssuedAt)
+	// isExpired := true
+
+	utils.Logger.Printf("access token status: %t", isExpired)
+	if !isExpired {
+		s.isConnected = true
+		return
 	}
 
+	idToken, expiresIn, err := FirebaseUpdateAccessToken(s.ctx, s.AuthUser.Email)
+	if err != nil {
+		utils.Logger.Printf("failed to refresh token: %v", err)
+		s.isConnected = false
+		return
+	}
+
+	utils.Logger.Println("successfully regenerated firebase access token")
+	
+	now := time.Now()
 	s.isConnected = true
+	s.IdToken = idToken
+	s.AuthUser.IDToken = *idToken
+	s.AuthUser.ExpiresIn = *expiresIn
+	s.IssuedAt = &now
+
+	seconds, err := strconv.ParseInt(*expiresIn, 10, 64)
+	if err != nil {
+		utils.Logger.Printf("failed to parse expiresIn: %v", err)
+	} else {
+		expTime := time.Now().Add(time.Duration(seconds) * time.Second)
+		utils.Logger.Printf("current token expires at: %s", expTime.Format(time.RFC3339))
+	}
 }
 
 func (s *SyncService) TestSync() bool {
 	const maxRetries = 3
 	// Start with a short delay and let it grow exponentially
 	baseDelay := 500 * time.Millisecond
-	testPath := fmt.Sprintf("users/%s", s.AuthUser.LocalID)
+	testPath := "users"
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		fmt.Printf("Attempting to connect to firebase (Attempt %d/%d)...\n", attempt, maxRetries)
@@ -207,6 +229,10 @@ func (s *SyncService) SyncCredentials() {
 		APP_KEY := getStringValue(fields["APP_KEY"])
 		APP_ID := getStringValue(fields["APP_ID"])
 		FES_API := getStringValue(fields["FES_API"])
+
+		// utils.Logger.Printf("APP_KEY: %s", APP_KEY)
+		// utils.Logger.Printf("APP_ID: %s", APP_ID)
+		// utils.Logger.Printf("FES_API: %s", FES_API)
 
 		// Store in keyring
 		keyring.Set("credentials", "APP_KEY", APP_KEY)
@@ -389,7 +415,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	db.DB.Model(&taskRecord).Update("sync_status", "synced")
 	db.DB.Model(&attendance).Update("sync_status", "pending")
 
-	if err = s.AttemptSyncAttendance(attendance); err != nil {
+	if err = s.SyncAttendance(attendance); err != nil {
 		return err
 	}
 
@@ -495,7 +521,7 @@ func (s *SyncService) SyncUnsyncedRecords() error {
 	}
 
 	for _, record := range unsynced {
-		if err := s.AttemptSyncTaskRecord(&record); err != nil {
+		if err := s.SyncTaskRecord(&record); err != nil {
 			log.Printf("error syncing task_record: %v", err)
 			return err
 		}

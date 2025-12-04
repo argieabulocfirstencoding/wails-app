@@ -76,16 +76,16 @@ func FirebaseLogin(email, password string) (*models.FirebaseLoginResponse, error
 	return &result, nil
 }
 
-func FirebaseAccessTokenIsExpired(expiresIn string) bool {
+func FirebaseAccessTokenIsExpired(expiresIn string, issuedAt time.Time) bool {
 	seconds, err := strconv.ParseInt(expiresIn, 10, 64)
 	if err != nil {
 		return true
 	}
-	expTime := time.Now().Add(time.Duration(seconds) * time.Second)
 
+	expTime := issuedAt.Add(time.Duration(seconds) * time.Second)
 	const refreshBuffer = 5 * time.Minute
 
-	// If current time is after (expiration - 5min), consider expired
+	// Consider expired if within 5 minutes of expiry
 	return time.Now().After(expTime.Add(-refreshBuffer))
 }
 
