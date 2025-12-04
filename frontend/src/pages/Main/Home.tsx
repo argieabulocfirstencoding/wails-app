@@ -254,8 +254,9 @@ const Home = () => {
               className={
                 isRefreshing
                   ? "animate-spin transform"
-                  : "transform transition-transform duration-500 ease-in-out hover:rotate-180"
+                  : "transform transition-transform duration-500 ease-in-out hover:-rotate-360"
               }
+              style={{ animationDirection: "reverse" }}
             >
               <RotateCcw
                 size={20}
@@ -275,13 +276,17 @@ const Home = () => {
             <div className="absolute inset-0 bg-white/70 dark:bg-black/60 backdrop-blur-sm" />
             <div className="relative z-10 flex flex-col items-center gap-3 p-4">
               <div className="w-14 h-14 rounded-full border-2 border-green-500 flex items-center justify-center bg-white dark:bg-neutral-900">
-                <div className="animate-spin">
+                <div
+                  className="animate-spin"
+                  style={{ animationDirection: "reverse" }}
+                >
                   <RotateCcw
                     size={28}
                     className="text-green-600"
                     stroke="currentColor"
                     strokeWidth={2.2}
                     fill="none"
+                    style={{ animationDirection: "reverse" }}
                   />
                 </div>
               </div>
