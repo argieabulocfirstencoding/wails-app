@@ -27,6 +27,8 @@ type AuthState = {
   reset: () => void;
   setFetchedActiveRecord: (record: boolean) => void;
   setSynced: (synced: boolean) => void;
+  initializedTask: boolean;
+  setInitializedTask: (initialized: boolean) => void;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -37,6 +39,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   fetchedActiveRecord: false,
   synced: false,
   attendanceSynced: false,
+  initializedTask: false,
   tasks: [],
   setAttendanceSynced: (synced) => set({ attendanceSynced: synced }),
   setTasks: (tasks) => set({ tasks }),
@@ -55,5 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       fetchedActiveRecord: false,
       synced: false,
       attendanceSynced: false,
+      initializedTask: false,
     }),
+  setInitializedTask: (initializedTask) => set({ initializedTask }),
 }));

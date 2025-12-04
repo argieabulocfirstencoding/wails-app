@@ -22,7 +22,7 @@ func main() {
 	ctx := context.Background()
 
 	// 2. Determine the unique ID based on the environment using build tags
-	baseID := "com.firstencodingservicess.myapp"
+	baseID := "com.firstencodingservices.myapp"
 	suffix := getUniqueIDSuffix(ctx)
 	uniqueID := baseID + suffix
 

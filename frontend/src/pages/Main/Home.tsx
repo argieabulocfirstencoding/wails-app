@@ -61,6 +61,8 @@ const Home = () => {
     synced,
     attendanceSynced,
     setAttendanceSynced,
+    initializedTask,
+    setInitializedTask,
   } = useAuthStore();
 
   useEffect(() => {
@@ -71,14 +73,17 @@ const Home = () => {
       }
     }
 
-    fetchUser();
     fetchInitialTasks(); // initial load uses 'loading'
+    fetchUser();
     // fetchActiveRecord moved into fetchInitialTasks
   }, []);
 
   // Initial page load (full page loader)
   async function fetchInitialTasks() {
-    if (!online) return;
+    if (!online || initializedTask) return;
+
+    // Initial task boolean helper that is stored in context so that it wont repeat on rerender
+    setInitializedTask(true);
     setLoading(true);
     try {
       if (typeof GetTasks !== "function") {
@@ -117,8 +122,14 @@ const Home = () => {
     });
   }
 
+  // This checks in each render to see if user current attendance session is fully synced
+  // Upgrade: Need to check for an event and database changes especially on screenshot will turn this to unsynced
   useEffect(() => {
-    fetchCurrentAttendance();
+    async function fetchAttendanceSyncStatus() {
+      fetchCurrentAttendance();
+    }
+
+    fetchAttendanceSyncStatus();
   }, []);
 
   // Not used for now
@@ -140,8 +151,6 @@ const Home = () => {
   // Refresh (button)
   async function fetchTasks() {
     if (!online) return;
-
-    setLoading(true);
     setIsRefreshing(true);
     try {
       if (typeof GetTasks !== "function") {
@@ -166,9 +175,6 @@ const Home = () => {
         setIsRefreshing(false);
         console.log("refresh finished, isRefreshing set false");
       }, 600);
-
-      // ensure loading is cleared after refresh
-      setLoading(false);
     }
   }
 
@@ -214,11 +220,7 @@ const Home = () => {
                 </span>
                 <Button
                   className="bg-green-500 hover:bg-green-700 cursor-pointer text-white"
-                  onClick={async () => {
-                    await SyncUnsyncedAttendance();
-
-                    fetchCurrentAttendance();
-                  }}
+                  onClick={SyncCurrentAttendance}
                 >
                   Sync Now
                 </Button>

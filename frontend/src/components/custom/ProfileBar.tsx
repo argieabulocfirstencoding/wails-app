@@ -305,7 +305,7 @@ const ProfileBar = () => {
 
                 <button
                   onClick={() => setLogoutDialog(true)}
-                  className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm"
+                  className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-red-600 dark:text-red-400 text-sm"
                 >
                   Logout
                 </button>
