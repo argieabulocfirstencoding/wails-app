@@ -173,7 +173,7 @@ const Task = () => {
     (async () => {
       await fetchLastRecord();
     })();
-    
+
     setTimeout(() => {
       setSyncing(false);
     }, 1500);
@@ -313,9 +313,14 @@ const Task = () => {
                 onClick={LaunchUpwork}
                 src={upworkLogo}
                 alt=""
-                className={`h-10 cursor-pointer rounded-full hover:shadow-[0_0_10px_1px] shadow-green-500 transition-shadow ${
-                  isLaunching && "opacity-50 pointer-none cursor-not-allowed"
-                }`}
+                className={`h-10 cursor-pointer rounded-full transition-shadow shadow-sm
+                  border-2 border-transparent dark:border-green-500
+                  hover:shadow-[0_0_10px_1px] hover:shadow-green-500
+                  ${
+                    isLaunching
+                      ? "opacity-50 pointer-events-none cursor-not-allowed"
+                      : ""
+                  }`}
               />
             )}
         </div>

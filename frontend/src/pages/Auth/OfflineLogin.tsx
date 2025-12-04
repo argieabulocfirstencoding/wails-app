@@ -102,12 +102,25 @@ const OfflineLogin = () => {
                 Email
               </Label>
               <Select onValueChange={setEmail} value={email}>
-                <SelectTrigger className="w-full bg-white dark:bg-neutral-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-md">
-                  <SelectValue placeholder="Select your account" />
+                <SelectTrigger
+                  title={email || "Select your account"}
+                  className="w-full bg-white dark:bg-neutral-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden"
+                >
+                  {/* truncate long selected email in trigger */}
+                  <SelectValue
+                    placeholder="Select your account"
+                    className="truncate block"
+                  />
                 </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-100">
+
+                <SelectContent className="bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-100 max-w-full">
                   {emails.map((value, index) => (
-                    <SelectItem value={value} key={index}>
+                    /* allow long emails to wrap inside dropdown items */
+                    <SelectItem
+                      value={value}
+                      key={index}
+                      className="break-words"
+                    >
                       {value}
                     </SelectItem>
                   ))}

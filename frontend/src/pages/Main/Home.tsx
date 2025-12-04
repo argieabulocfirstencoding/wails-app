@@ -261,7 +261,13 @@ const Home = () => {
             title="Refresh tasks"
             aria-label="Refresh tasks"
           >
-            <div className={isRefreshing ? "animate-spin" : ""}>
+            <div
+              className={
+                isRefreshing
+                  ? "animate-spin transform"
+                  : "transform transition-transform duration-500 ease-in-out hover:animate-spin"
+              }
+            >
               <RotateCcw
                 size={20}
                 fill="none"
