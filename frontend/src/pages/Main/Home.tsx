@@ -7,7 +7,7 @@ import {
   CheckCircle,
   TriangleAlert,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CreateTask,
   GetActiveTaskRecord,
@@ -81,8 +81,15 @@ const Home = () => {
     if (!online) return;
     setLoading(true);
     try {
-      const fetchedTasks = await GetTasks();
-      if (fetchedTasks) setTasks(fetchedTasks);
+      if (typeof GetTasks !== "function") {
+        console.warn(
+          "GetTasks binding not available (wails dev server not running?)"
+        );
+      } else {
+        // pass required boolean argument (e.g. includeArchived = true)
+        const fetchedTasks: any = await GetTasks(true);
+        if (fetchedTasks) setTasks(fetchedTasks);
+      }
       await fetchActiveRecord();
     } catch (error) {
       console.log("Error fetching initial tasks:", error);
@@ -130,29 +137,38 @@ const Home = () => {
     }
   }
 
-  // Refresh (button) - only toggles isRefreshing and does not show full screen loader
+  // Refresh (button)
   async function fetchTasks() {
     if (!online) return;
 
     setLoading(true);
     setIsRefreshing(true);
     try {
-      const fethedTasks = await GetTasks();
-      if (fethedTasks) {
-        console.log(fethedTasks);
-        setTasks(fethedTasks);
+      if (typeof GetTasks !== "function") {
+        console.warn(
+          "GetTasks binding not available (wails dev server not running?)"
+        );
+      } else {
+        // pass required boolean argument (e.g. includeArchived = true)
+        const fethedTasks: any = await GetTasks(true);
+        if (fethedTasks) {
+          console.log(fethedTasks);
+          setTasks(fethedTasks);
+        }
       }
 
       await fetchActiveRecord();
     } catch (error) {
       console.error("Error fetching tasks:", error);
-      // ensure user sees error (optional)
     } finally {
       // keep spinner visible briefly for smoother UX
       setTimeout(() => {
         setIsRefreshing(false);
         console.log("refresh finished, isRefreshing set false");
       }, 600);
+
+      // ensure loading is cleared after refresh
+      setLoading(false);
     }
   }
 
@@ -166,7 +182,7 @@ const Home = () => {
     }, 2000);
   }
 
-  const filteredTasks = tasks.filter(
+  const filteredTasks = (tasks ?? []).filter(
     (task) =>
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       task.client.toLowerCase().includes(searchQuery.toLowerCase())
@@ -258,11 +274,11 @@ const Home = () => {
           </button>
         </div>
 
-        {/* thin progress bar shown while refreshing */}
+        {/* Full-screen refresh overlay */}
         {isRefreshing && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-white/70 dark:bg-black/60 backdrop-blur-sm" />
-            <div className="relative z-60 flex flex-col items-center gap-3 p-4">
+            <div className="relative z-10 flex flex-col items-center gap-3 p-4">
               <div className="w-14 h-14 rounded-full border-2 border-green-500 flex items-center justify-center bg-white dark:bg-neutral-900">
                 <div className="animate-spin">
                   <RotateCcw
@@ -306,7 +322,7 @@ const Home = () => {
             )
             .map((task, index) => (
               <TaskItem
-                key={task.taskId} // better to use unique ID instead of index
+                key={task.taskId ?? index} // fallback to index if id is null
                 taskId={task.taskId}
                 title={task.title}
                 client={task.client}
