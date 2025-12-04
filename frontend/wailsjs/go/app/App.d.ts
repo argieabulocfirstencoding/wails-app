@@ -24,7 +24,7 @@ export function GetLastTaskRecord(arg1:string):Promise<models.TaskRecordWithScre
 
 export function GetMonitorCount():Promise<number>;
 
-export function GetTasks():Promise<Array<models.ExpTask>>;
+export function GetTasks(arg1:boolean):Promise<Array<models.ExpTask>>;
 
 export function LoginUser(arg1:string):Promise<models.AuthUser>;
 

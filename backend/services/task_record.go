@@ -14,7 +14,7 @@ func GetActiveTaskRecord(userId string) (*models.ExpTaskRecord, error) {
 	// TODO firebase fetch
 	var taskRecord models.TaskRecord
 
-	attendance, err := getUserAttendance(userId)
+	attendance, err := GetUserAttendance(userId)
 	if err != nil {
 		return nil, err
 	}

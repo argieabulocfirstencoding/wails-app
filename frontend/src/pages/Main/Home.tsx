@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Loader from "@/components/custom/Loader";
+import SpinnerLoader from "@/components/custom/SpinnerLoader";
 
 interface TaskProps {
   taskId: string | null;
@@ -48,6 +49,7 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncing, setSyncing] = useState(false);
   const {
     taskID,
     setFetchedActiveRecord,
@@ -100,11 +102,12 @@ const Home = () => {
   }
 
   async function fetchCurrentAttendance() {
-    const attendance = await GetCurrentAttendance();
-
-    if (attendance) {
-      setAttendanceSynced(attendance.sync_status === "synced");
-    }
+    await GetCurrentAttendance().then((attendance) => {
+      if (attendance) {
+        console.log(attendance);
+        setAttendanceSynced(attendance.sync_status === "synced");
+      }
+    });
   }
 
   useEffect(() => {
@@ -129,26 +132,17 @@ const Home = () => {
 
   // Refresh (button) - only toggles isRefreshing and does not show full screen loader
   async function fetchTasks() {
-    console.log(
-      "fetchTasks called - online:",
-      online,
-      "isRefreshing:",
-      isRefreshing
-    );
-    if (!online) {
-      console.warn("Cannot refresh: offline");
-      return;
-    }
-    if (isRefreshing) {
-      console.warn("Already refreshing, skipping");
-      return;
-    }
+    if (!online) return;
 
+    setLoading(true);
     setIsRefreshing(true);
     try {
-      const fetchedTasks = await GetTasks();
-      console.log("GetTasks result:", fetchedTasks && fetchedTasks.length);
-      if (fetchedTasks) setTasks(fetchedTasks);
+      const fethedTasks = await GetTasks();
+      if (fethedTasks) {
+        console.log(fethedTasks);
+        setTasks(fethedTasks);
+      }
+
       await fetchActiveRecord();
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -160,6 +154,16 @@ const Home = () => {
         console.log("refresh finished, isRefreshing set false");
       }, 600);
     }
+  }
+
+  async function SyncCurrentAttendance() {
+    setSyncing(true);
+    await SyncUnsyncedAttendance();
+    await fetchCurrentAttendance();
+
+    setTimeout(() => {
+      setSyncing(false);
+    }, 2000);
   }
 
   const filteredTasks = tasks.filter(
@@ -177,7 +181,12 @@ const Home = () => {
             All Tasks
           </h1>
           {synced &&
-            (attendanceSynced ? (
+            (isSyncing ? (
+              <div className="flex gap-1 items-center">
+                <span>Syncing</span>
+                <SpinnerLoader />
+              </div>
+            ) : attendanceSynced ? (
               <div className="flex gap-1 text-green-500 select-none">
                 <span>Synced</span>
                 <CheckCircle />
@@ -191,6 +200,7 @@ const Home = () => {
                   className="bg-green-500 hover:bg-green-700 cursor-pointer text-white"
                   onClick={async () => {
                     await SyncUnsyncedAttendance();
+
                     fetchCurrentAttendance();
                   }}
                 >

@@ -62,8 +62,15 @@ func NewScreenshotService(sync *SyncService) *ScreenshotService {
 func (s *ScreenshotService) Start(ctx context.Context) {
 	s.ctx = ctx
 	taskRecordIDCopy := *s.TaskRecordID
+	env := runtime.Environment(s.ctx)
 
-	const TIME_TO_SCREENSHOT_IN_MINUTES time.Duration = 5
+	var TIME_TO_SCREENSHOT_IN_MINUTES time.Duration
+	if env.BuildType == "dev" {
+		TIME_TO_SCREENSHOT_IN_MINUTES = 1
+	} else {
+		TIME_TO_SCREENSHOT_IN_MINUTES = 5
+	}
+
 	if s.Running {
 		return
 	}
@@ -184,27 +191,30 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		TakenAt:      time.Now().Local(),
 	}
 
-	log.Printf("Upload called — isConnected=%v", s.SyncService.Backblaze.isConnected)
-	if config.OnlineMode {
-		remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)
-		if err != nil {
-			log.Print(err)
-		}
-		if remotePaths != nil {
-			jsonRemotePaths, _ := json.Marshal(remotePaths)
-			if jsonRemotePaths != nil {
-				stringifiedJsonPath := string(jsonRemotePaths)
-				taskScreenshot.CloudURL = &stringifiedJsonPath
-			}
-		}
-	}
-
 	if err := db.DB.Create(taskScreenshot).Error; err != nil {
 		return nil, err
 	}
 
 	runtime.EventsEmit(s.ctx, "screenshot", pictures)
 	screenshotNotify("Your work progress have been captured")
+
+	go func() {
+		log.Printf("Upload called — isConnected=%v", s.SyncService.Backblaze.isConnected)
+		if config.OnlineMode {
+			taskScreenshotModel := taskScreenshot
+			remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)
+			if err != nil {
+				log.Print(err)
+			}
+			if remotePaths != nil {
+				jsonRemotePaths, _ := json.Marshal(remotePaths)
+				if jsonRemotePaths != nil {
+					stringifiedJsonPath := string(jsonRemotePaths)
+					db.DB.Model(&taskScreenshotModel).Update("cloud_url", stringifiedJsonPath)
+				}
+			}
+		}
+	}()
 
 	return pictures, nil
 }
@@ -260,13 +270,17 @@ func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
 			log.Printf("error retrieving task record: %v\n", err)
 		}
 
-		attendance, _ := getUserAttendance(s.SyncService.AuthUser.LocalID)
+		attendance, _ := GetUserAttendance(s.SyncService.AuthUser.LocalID)
 		db.DB.Model(&attendance).Update("sync_status", "pending")
+		db.DB.Model(&taskRecord).Update("sync_status", "pending")
 
-		log.Printf("Syncing record: %v\n", taskRecord)
-		// Syncing TaskRecord to Firebase
-		if err := s.SyncService.AttemptSyncTaskRecord(taskRecord); err != nil {
-			log.Printf("error syncing task_record: %v", err)
-		}
+		go func() {
+			log.Printf("Syncing record: %v\n", taskRecord)
+			// Syncing TaskRecord to Firebase
+			if err := s.SyncService.SyncTaskRecord(taskRecord); err != nil {
+				return
+			}
+
+		}()
 	}
 }

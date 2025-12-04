@@ -8,6 +8,7 @@ import (
 	"fesapp/backend/db/models"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -27,7 +28,6 @@ func CheckFirebaseConnection() bool {
 	resp, err := client.Get(testURL)
 	if err != nil {
 
-		
 		return false
 	}
 	defer resp.Body.Close()
@@ -165,11 +165,11 @@ func FirebaseRequest(ctx context.Context, url, method string, body interface{}, 
 	return data, nil
 }
 
-
 func FirebaseDocumentRequest(ctx context.Context, idToken, path, method string, body interface{}) ([]byte, error) {
-	url := fmt.Sprintf("https://firestore.googleapis.com/v1/projects/%s/databases/(default)/%s",
+	url := fmt.Sprintf("https://firestore.googleapis.com/v1/projects/%s/databases/(default)/documents/%s",
 		config.FIREBASE_PROJECT_ID, path)
 
+	log.Printf("DEBUG: TestSync path input: %s", url)
 	headers := map[string]string{
 		"Authorization": "Bearer " + idToken,
 		"Content-Type":  "application/json",
