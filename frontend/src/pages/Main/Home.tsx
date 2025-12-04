@@ -362,7 +362,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
           ${
             active
               ? "bg-green-100 dark:bg-green-900 border-l-4 border-green-600 shadow-sm"
-              : "hover:bg-gray-100 dark:hover:bg-gray-800 border-l-4 border-transparent hover:border-green-500"
+              : "hover:bg-green-50 dark:hover:bg-gray-800 border-l-4 border-transparent hover:border-green-500"
           }`}
         onClick={() => navigate("/task/" + taskId)}
       >
@@ -396,7 +396,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
           </span>
         </div>
       </div>
-      <hr className="border-gray-200 dark:border-gray-700" />
+      <hr className="border-gray-300 dark:border-gray-700" />
     </>
   );
 };

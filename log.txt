@@ -34,3 +34,32 @@ FES_LOG: 2025/12/04 09:01:20 app.go:329: No active record
 FES_LOG: 2025/12/04 09:01:20 app.go:329: No active record
 FES_LOG: 2025/12/04 10:07:12 app.go:329: No active record
 FES_LOG: 2025/12/04 10:07:12 app.go:329: No active record
+FES_LOG: 2025/12/04 11:24:40 app.go:153: StopTaskRecord error: record not found
+FES_LOG: 2025/12/04 13:03:13 app.go:329: No active record
+FES_LOG: 2025/12/04 13:03:13 app.go:329: No active record
+FES_LOG: 2025/12/04 13:16:50 app.go:329: No active record
+FES_LOG: 2025/12/04 13:16:50 app.go:329: No active record
+FES_LOG: 2025/12/04 13:57:21 app.go:329: No active record
+FES_LOG: 2025/12/04 13:57:21 app.go:329: No active record
+FES_LOG: 2025/12/04 13:58:52 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:58:52 app.go:371: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:58:52 app.go:329: No active record
+FES_LOG: 2025/12/04 13:58:52 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:58:52 app.go:371: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:58:52 app.go:329: No active record
+FES_LOG: 2025/12/04 13:59:05 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:59:05 app.go:371: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:59:05 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:59:05 app.go:371: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:59:17 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:59:17 app.go:371: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:59:17 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 13:59:17 app.go:371: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/04 14:01:21 app.go:329: No active record
+FES_LOG: 2025/12/04 14:01:21 app.go:329: No active record
+FES_LOG: 2025/12/04 14:09:41 app.go:153: StopTaskRecord error: record not found
+FES_LOG: 2025/12/04 14:11:49 app.go:329: No active record
+FES_LOG: 2025/12/04 14:11:49 app.go:329: No active record
+FES_LOG: 2025/12/04 14:17:30 app.go:153: StopTaskRecord error: record not found
+FES_LOG: 2025/12/04 14:20:06 app.go:329: No active record
+FES_LOG: 2025/12/04 14:20:06 app.go:329: No active record
