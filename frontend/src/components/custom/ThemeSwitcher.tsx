@@ -5,11 +5,11 @@ const ThemeSwitcher = () => {
   const { theme, setTheme } = useTheme();
 
   const baseClasses =
-    "p-2 rounded-lg border transition-colors flex items-center justify-center";
+    "w-10 h-10 rounded-full border transition-colors flex items-center justify-center cursor-pointer";
 
   return (
     <div className="flex gap-2 items-center">
-      {/* Light button */}
+      {/* Light */}
       <button
         onClick={() => setTheme("light")}
         className={`${baseClasses} ${
@@ -21,7 +21,7 @@ const ThemeSwitcher = () => {
         <Sun className="w-5 h-5 text-yellow-500" />
       </button>
 
-      {/* Dark button */}
+      {/* Dark */}
       <button
         onClick={() => setTheme("dark")}
         className={`${baseClasses} ${
@@ -33,7 +33,7 @@ const ThemeSwitcher = () => {
         <Moon className="w-5 h-5 text-blue-500" />
       </button>
 
-      {/* System button */}
+      {/* System */}
       <button
         onClick={() => setTheme("system")}
         className={`${baseClasses} ${
@@ -42,7 +42,7 @@ const ThemeSwitcher = () => {
             : "bg-gray-100 border-gray-300 dark:bg-neutral-800 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700"
         }`}
       >
-        <Monitor className="w-5 h-5 text-gray-600 dark:text-gray-700" />
+        <Monitor className="w-5 h-5 text-gray-600 dark:text-gray-400" />
       </button>
     </div>
   );

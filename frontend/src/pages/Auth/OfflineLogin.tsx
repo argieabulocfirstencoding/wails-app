@@ -77,15 +77,15 @@ const OfflineLogin = () => {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-neutral-950 px-6">
+      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-neutral-900">
         <CardHeader className="space-y-4 flex flex-col items-center">
           <img src={logo} alt="Company Logo" className="h-14 w-auto" />
           <div className="space-y-2 text-center">
-            <CardTitle className="text-2xl font-bold text-gray-800">
+            <CardTitle className="text-2xl font-bold text-gray-800 dark:text-gray-100">
               Local Sign In to First Encoding Account
             </CardTitle>
-            <CardDescription className="text-gray-500">
+            <CardDescription className="text-gray-500 dark:text-gray-400">
               You must still authenticate your account to sync your work to our
               cloud server within your attendance session.
             </CardDescription>
@@ -95,16 +95,32 @@ const OfflineLogin = () => {
         <CardContent>
           <form onSubmit={loginUser} className="space-y-5">
             <div className="grid gap-2">
-              <Label htmlFor="email" className="text-gray-700">
+              <Label
+                htmlFor="email"
+                className="text-gray-700 dark:text-gray-300"
+              >
                 Email
               </Label>
               <Select onValueChange={setEmail} value={email}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select your account" />
+                <SelectTrigger
+                  title={email || "Select your account"}
+                  className="w-full bg-white dark:bg-neutral-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden"
+                >
+                  {/* truncate long selected email in trigger */}
+                  <SelectValue
+                    placeholder="Select your account"
+                    className="truncate block"
+                  />
                 </SelectTrigger>
-                <SelectContent>
+
+                <SelectContent className="bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-100 max-w-full">
                   {emails.map((value, index) => (
-                    <SelectItem value={value} key={index}>
+                    /* allow long emails to wrap inside dropdown items */
+                    <SelectItem
+                      value={value}
+                      key={index}
+                      className="break-words"
+                    >
                       {value}
                     </SelectItem>
                   ))}
@@ -114,24 +130,26 @@ const OfflineLogin = () => {
 
             <Button
               type="submit"
-              className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase cursor-pointer tracking-widest bg-gray-800"
+              className="w-full text-white font-medium rounded-lg py-3 transition-colors duration-150 uppercase tracking-widest bg-green-600 hover:bg-green-700 cursor-pointer"
             >
               Local Login
             </Button>
             {errorMsg && (
-              <p className="text-red-600 text-sm text-center">{errorMsg}</p>
+              <p className="text-red-600 dark:text-red-400 text-sm text-center">
+                {errorMsg}
+              </p>
             )}
           </form>
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3">
-          <p className="text-sm text-gray-600 text-center">
+          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
             Internet is stable?{" "}
             <Link
               to="/login"
-              className="text-green-600 hover:underline font-medium"
+              className="text-green-600 dark:text-green-400 hover:underline font-medium"
             >
-              SignIn Online
+              Signin Online.
             </Link>
           </p>
         </CardFooter>

@@ -5,7 +5,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Home from "./pages/Main/Home";
 import Login from "./pages/Auth/Login";
 import Task from "./pages/Main/Task";
-import AccountSettings from "./pages/Main/AccountSettings";
+import AccountSettings from "@/pages/Account/AccountSettings";
 import Notifications from "./pages/Main/Notifications";
 import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
@@ -54,7 +54,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/offline-login" element={<OfflineLogin />} />
         <Route path="/task/:id" element={<Task />} />
-        <Route path="/account-settings" element={<AccountSettings />} />
+        <Route path="/account" element={<AccountSettings />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/activity-logs" element={<ActivityLogs />} />
         <Route path="/logout" element={<Logout />} />
