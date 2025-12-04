@@ -287,7 +287,8 @@ const ProfileBar = () => {
             {/* Scrollable body */}
             <div className="px-5 pb-5 pt-3 overflow-y-auto flex-1">
               <div className="flex flex-col gap-3 sm:gap-4">
-                <Link to="/account-settings">
+                {/* Disables Account Settings Link for now because it is still not working, it instead routes to home FIX if possible*/}
+                <Link to="#">
                   <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
                     Account Settings
                   </button>
