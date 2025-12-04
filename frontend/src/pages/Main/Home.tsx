@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import MainLayout from "../../layouts/MainLayout";
 import {
-  Plus,
   Search,
   RotateCcw, // Changed from RefreshCcw
   CheckCircle,
@@ -17,18 +16,6 @@ import {
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import Loader from "@/components/custom/Loader";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
 
