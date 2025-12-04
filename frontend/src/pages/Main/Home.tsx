@@ -249,8 +249,8 @@ const Home = () => {
             className={`flex items-center justify-center w-10 h-10 rounded-full border-2 border-green-500 transition-all duration-200
               ${
                 isRefreshing
-                  ? "bg-green-100 dark:bg-green-900/50"
-                  : "bg-white dark:bg-neutral-800 hover:bg-green-50 dark:hover:bg-green-900/30"
+                  ? "bg-transparent"
+                  : "bg-transparent hover:bg-transparent"
               }
               ${
                 isRefreshing || loading
@@ -265,7 +265,7 @@ const Home = () => {
               className={
                 isRefreshing
                   ? "animate-spin transform"
-                  : "transform transition-transform duration-500 ease-in-out hover:animate-spin"
+                  : "transform transition-transform duration-500 ease-in-out hover:rotate-180"
               }
             >
               <RotateCcw
@@ -362,7 +362,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
           ${
             active
               ? "bg-green-100 dark:bg-green-900 border-l-4 border-green-600 shadow-sm"
-              : "hover:bg-gray-50 dark:hover:bg-gray-800"
+              : "hover:bg-gray-100 dark:hover:bg-gray-800 border-l-4 border-transparent hover:border-green-500"
           }`}
         onClick={() => navigate("/task/" + taskId)}
       >
@@ -370,8 +370,8 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
           <span
             className={`line-clamp-2 font-semibold ${
               active
-                ? "text-green-700 dark:text-green-400"
-                : "text-green-500 dark:text-green-300"
+                ? "font-extrabold text-gray-700 dark:text-white"
+                : "font-bold text-green-700 dark:text-green-500"
             }`}
           >
             {title}
@@ -379,7 +379,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
           <span
             className={`truncate ${
               active
-                ? "font-extrabold text-gray-900 dark:text-white"
+                ? "font-extrabold text-gray-900 dark:text-gray-300"
                 : "font-bold text-gray-700 dark:text-gray-300"
             }`}
           >

@@ -122,7 +122,7 @@ const ProfileBar = () => {
       }
     }
   }
-  
+
   return (
     <div className="sticky bottom-0">
       {!synced && online && (
@@ -225,7 +225,7 @@ const ProfileBar = () => {
         <div className="relative flex items-center group">
           <button
             onClick={() => setOpen(true)}
-            className="rounded-full border-2 border-green-500 p-3 hover:bg-green-50 transition cursor-pointer dark:hover:bg-gray-800"
+            className="rounded-full border-2 border-green-500 p-3 hover:bg-green-50 transition cursor-pointer dark:hover:bg-transparent"
           >
             <Settings className="w-6 h-6 text-green-600 transition-transform duration-500 group-hover:rotate-180" />
           </button>
@@ -248,24 +248,24 @@ const ProfileBar = () => {
 
           <div className="flex flex-col gap-4">
             <Link to="/account-settings">
-              <button className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-green-50 dark:hover:bg-gray-700 transition cursor-pointer text-center dark:text-gray-200">
+              <button className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-green-50 dark:hover:bg-gray-700 transition cursor-pointer text-center font-semibold text-green-500">
                 Account Settings
               </button>
             </Link>
             <Link to="/notifications">
-              <button className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-green-50 dark:hover:bg-gray-700 transition cursor-pointer text-center dark:text-gray-200">
+              <button className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-green-50 dark:hover:bg-gray-700 transition cursor-pointer text-center font-semibold text-green-500">
                 Notifications
               </button>
             </Link>
             <Link to="/activity-logs">
-              <button className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-green-50 dark:hover:bg-gray-700 transition cursor-pointer text-center dark:text-gray-200">
+              <button className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-green-50 dark:hover:bg-gray-700 transition cursor-pointer text-center font-semibold text-green-500">
                 Activity Logs
               </button>
             </Link>
 
             <button
               onClick={() => setLogoutDialog(true)}
-              className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-800 transition cursor-pointer text-center text-red-600"
+              className="w-full p-3 rounded-lg border dark:border-gray-700 hover:bg-green-50 dark:hover:bg-gray-700 transition cursor-pointer text-center font-semibold text-green-500"
             >
               Logout
             </button>
