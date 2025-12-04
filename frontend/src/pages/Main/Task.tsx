@@ -123,7 +123,7 @@ const Task = () => {
   useEffect(() => {
     console.log(lastTaskRecord);
     setSynced(lastTaskRecord?.sync_status === "synced");
-  }, [lastTaskRecord]);
+  }, [lastTaskRecord?.sync_status]);
 
   // TODO remove this because testing only
   // async function screenshotNow() {

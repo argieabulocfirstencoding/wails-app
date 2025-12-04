@@ -466,6 +466,25 @@ func (a *App) SyncUnsyncedAttendance() error {
 	return nil
 }
 
+// This is used to get the tasks that have recently used so that it can be quickly seen.
+// Tasks Records displayed will be ordered by how recent they are
+func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
+
+	task_records, err := services.GetAllPreviousTasksRecords(a.AuthUser.LocalID)
+	if err != nil {
+		return nil, err
+	}
+
+	var exp_task_records []models.ExpTaskRecord
+
+	for _, record := range task_records {
+		exp_record := record.ToExp()
+		exp_task_records = append(exp_task_records, exp_record)
+	}
+
+	return exp_task_records, nil
+}
+
 // ----------------------------------------------------
 // SINGLE INSTANCE LOGIC
 // ----------------------------------------------------

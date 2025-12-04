@@ -22,6 +22,8 @@ export function GetCurrentAttendance():Promise<models.ExpAttendance>;
 
 export function GetLastTaskRecord(arg1:string):Promise<models.TaskRecordWithScreenshots>;
 
+export function GetLastTaskRecords():Promise<Array<models.ExpTaskRecord>>;
+
 export function GetMonitorCount():Promise<number>;
 
 export function GetTasks(arg1:boolean):Promise<Array<models.ExpTask>>;

@@ -12,12 +12,14 @@ import {
   GetActiveTaskRecord,
   GetTasks,
   GetCurrentAttendance,
+  GetLastTaskRecords,
   SyncUnsyncedAttendance,
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/custom/Loader";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
+import { models } from "wailsjs/go/models";
 
 interface TaskProps {
   taskId: string | null;
@@ -37,6 +39,8 @@ const Home = () => {
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSyncing, setSyncing] = useState(false);
+  const [taskRecords, setTaskRecords] = useState<models.ExpTaskRecord[]>();
+  const [showingTasks, setShowingTasks] = useState();
   const {
     taskID,
     setFetchedActiveRecord,
@@ -51,6 +55,22 @@ const Home = () => {
     initializedTask,
     setInitializedTask,
   } = useAuthStore();
+
+  useEffect(() => {
+    async function fetchAllTaskRecords() {
+      const task_records = await GetLastTaskRecords();
+
+      console.log("Task Records: ", task_records);
+      setTaskRecords(task_records);
+    }
+
+    fetchAllTaskRecords();
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.length > 0) {
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchUser() {
@@ -175,11 +195,25 @@ const Home = () => {
     }, 2000);
   }
 
-  const filteredTasks = (tasks ?? []).filter(
-    (task) =>
-      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.client.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+
+  // TODO add sort so that previous tasks that have task records will be ordered by their task record
+  const filteredTasks = (tasks ?? []).filter((task) => {
+    if (!searchQuery) {
+      if (taskRecords && taskRecords.length > 0) {
+        // Only show tasks that have a corresponding record
+        return taskRecords.some((record) => record.task_id === task.taskId);
+      }
+      // No taskRecords, show all tasks
+      return true;
+    }
+
+    // If searching, filter by searchQuery
+    const lowerQuery = searchQuery.toLowerCase();
+    return (
+      task.title.toLowerCase().includes(lowerQuery) ||
+      task.client.toLowerCase().includes(lowerQuery)
+    );
+  });
 
   return (
     <MainLayout>
@@ -318,11 +352,11 @@ const Home = () => {
           filteredTasks
             .slice() // copy to avoid mutating original array
             .sort((a, b) =>
-              b.taskId === taskID ? 1 : a.taskId === taskID ? -1 : 0
+              a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0
             )
             .map((task, index) => (
               <TaskItem
-                key={task.taskId ?? index} // fallback to index if id is null
+                key={task.taskId ?? index}
                 taskId={task.taskId}
                 title={task.title}
                 client={task.client}

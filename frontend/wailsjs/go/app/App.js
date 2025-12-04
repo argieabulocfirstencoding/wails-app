@@ -38,6 +38,10 @@ export function GetLastTaskRecord(arg1) {
   return window['go']['app']['App']['GetLastTaskRecord'](arg1);
 }
 
+export function GetLastTaskRecords() {
+  return window['go']['app']['App']['GetLastTaskRecords']();
+}
+
 export function GetMonitorCount() {
   return window['go']['app']['App']['GetMonitorCount']();
 }

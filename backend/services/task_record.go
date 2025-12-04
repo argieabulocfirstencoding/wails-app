@@ -50,6 +50,23 @@ func GetTaskRecordFromID(taskRecordId uint) (*models.TaskRecord, error) {
 	return &taskRecord, nil
 }
 
+func GetAllPreviousTasksRecords(userID string) ([]models.TaskRecord, error) {
+	var taskRecords []models.TaskRecord
+
+	err := db.DB.
+		Where("user_id = ?", userID). // filter by user
+		Order("started_at DESC").     // order by recent tasks
+		Group("task_id").             // make unique based on task_id
+		Find(&taskRecords).Error      // fetch all matching records
+
+	if err != nil {
+		fmt.Println("DB error:", err)
+		return nil, err
+	}
+
+	return taskRecords, nil
+}
+
 func StartTaskRecord(userId, taskId string, attendanceId uint) (*db.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
