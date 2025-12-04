@@ -119,7 +119,7 @@ func (s *SyncService) RefreshAccessToken() {
 	}
 
 	utils.Logger.Println("successfully regenerated firebase access token")
-	
+
 	now := time.Now()
 	s.isConnected = true
 	s.IdToken = idToken
@@ -344,6 +344,7 @@ func (s *SyncService) AttemptSyncAttendance(attendance *models.Attendance) error
 // ================== ACTUAL FUNCTIONS ========================
 
 func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
+	db.DB.Model(&taskRecord).Update("sync_status", "pending")
 	// ============== PRE DEFINITION =============
 	now := time.Now()
 	startedTime := taskRecord.StartedAt
@@ -413,8 +414,6 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 
 	// updates database that record is synced
 	db.DB.Model(&taskRecord).Update("sync_status", "synced")
-	db.DB.Model(&attendance).Update("sync_status", "pending")
-
 	if err = s.SyncAttendance(attendance); err != nil {
 		return err
 	}
@@ -423,6 +422,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
+	db.DB.Model(&attendance).Update("sync_status", "pending")
 	// ============== PRE DEFINITION =============
 	now := time.Now()
 	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")

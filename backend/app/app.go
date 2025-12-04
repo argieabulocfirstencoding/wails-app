@@ -427,7 +427,6 @@ func (a *App) SyncUnsyncedRecords() error {
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
-	runtime.EventsEmit(a.ctx, "syncing", true)
 	taskRecord, err := services.GetTaskRecordFromID(taskrecordId)
 	if err != nil {
 		return err
@@ -435,6 +434,21 @@ func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
 
 	// FIX change to attempt sync record
 	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *App) SyncUnsyncedAttendance() error {
+	// For now syncs current attendance
+	attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
+	if err != nil {
+		return err
+	}
+
+	// FIX change to attempt sync attendance
+	if err := a.SyncService.SyncAttendance(attendance); err != nil {
 		return err
 	}
 
@@ -450,20 +464,6 @@ func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
 
 	expAttendance := attendance.ToExp()
 	return &expAttendance, nil
-}
-
-func (a *App) SyncUnsyncedAttendance() error {
-	// For now syncs current attendance
-	attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
-	if err != nil {
-		return err
-	}
-	// FIX change to attempt sync attendance
-	if err := a.SyncService.SyncAttendance(attendance); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // This is used to get the tasks that have recently used so that it can be quickly seen.

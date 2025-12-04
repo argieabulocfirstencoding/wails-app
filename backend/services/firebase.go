@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	config "fesapp/backend"
 	"fesapp/backend/db/models"
+	"fesapp/backend/utils"
 	"fmt"
 	"io"
 	"log"
@@ -67,7 +68,10 @@ func FirebaseLogin(email, password string) (*models.FirebaseLoginResponse, error
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
-	keyring.Set("refresh", result.Email, result.RefreshToken)
+
+	if err := keyring.Set("refresh", result.Email, result.RefreshToken); err != nil {
+		utils.Logger.Printf("⚠️ failed to save refresh token: %v", err)
+	}
 	CreateUser(result.LocalID, result.Email)
 	// TODO add update as well the time when the user logs in
 
@@ -89,10 +93,17 @@ func FirebaseAccessTokenIsExpired(expiresIn string, issuedAt time.Time) bool {
 	return time.Now().After(expTime.Add(-refreshBuffer))
 }
 
+// FirebaseUpdateAccessToken refreshes the Firebase ID token using the refresh token stored in the keyring.
+// Returns the new ID token, its expiration in seconds, and an error if any.
+// If the refresh token is missing, the user needs to login again.
 func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *string, expiresIn *string, err error) {
+	// Try to get refresh token from keyring
 	refreshToken, err := keyring.Get("refresh", email)
 	if err != nil {
-		return nil, nil, err
+		if strings.Contains(err.Error(), "secret not found") {
+			return nil, nil, fmt.Errorf("refresh token not found for %s; user must login again", email)
+		}
+		return nil, nil, fmt.Errorf("failed to get refresh token: %w", err)
 	}
 
 	endpoint := fmt.Sprintf("https://securetoken.googleapis.com/v1/token?key=%s", config.FIREBASE_API)
@@ -103,13 +114,13 @@ func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *stri
 
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("request error: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -120,11 +131,22 @@ func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *stri
 
 	var out models.FirebaseRefreshResponse
 	if err := json.Unmarshal(bodyBytes, &out); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if out.RefreshToken != "" {
-		_ = keyring.Set("refresh", email, out.RefreshToken)
+	// Update refresh token in keyring if returned
+	if out.RefreshToken != "" && out.RefreshToken != refreshToken {
+		if err := keyring.Set("refresh", email, out.RefreshToken); err != nil {
+			utils.Logger.Printf("warning: failed to save refresh token to keyring: %v", err)
+		} else {
+			utils.Logger.Printf("refresh token updated in keyring for %s", email)
+		}
+	}
+
+	// Log ID token expiration
+	if out.ExpiresIn != "" {
+		expiresSec, _ := strconv.Atoi(out.ExpiresIn)
+		utils.Logger.Printf("ID token for %s expires in %d seconds", email, expiresSec)
 	}
 
 	return &out.IDToken, &out.ExpiresIn, nil
