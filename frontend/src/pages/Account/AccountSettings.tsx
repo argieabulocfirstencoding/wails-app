@@ -1,180 +1,245 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import SettingsLayout from "@/layouts/SettingsLayout";
 import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import AppFooterInfo from "@/components/custom/AppFooterInfo";
+import { User, Mail, Phone, MapPin, Briefcase, Moon, Sun } from "lucide-react";
+
+type AccountUser = {
+  fullName: string;
+  email: string;
+  position: string;
+  birthdate: string;
+  phone: string;
+  address: string;
+  employmentStatus: string;
+  avatar: string;
+};
+
+const DEFAULT_USER: AccountUser = {
+  fullName: "Arjun P. Rosell",
+  email: "arjunrosell.firstencoding@gmail.com",
+  position: "Web Developer",
+  birthdate: "March 10, 2000",
+  phone: "09234567890",
+  address: "Compostela, Cebu",
+  employmentStatus: "Probationary",
+  avatar:
+    "https://lh3.googleusercontent.com/a/ACg8ocJWYobBkgAVfMMKK1NZZoAlx3Zk9xr1ONbhYI7bJL-W6cpYSNE=s288-c-no",
+};
 
 const AccountSettings = () => {
-  const navigate = useNavigate();
   const storeUser = useAuthStore((s) => s.user);
-  const [user, setUser] = useState({
-    fullName: "",
-    email: "",
-    position: "",
-    birthdate: "",
-    phone: "",
-    avatar: "",
-  });
+
+  const [user, setUser] = useState<AccountUser>(DEFAULT_USER);
+
   const [dark, setDark] = useState<boolean>(
     () => localStorage.getItem("theme") === "dark"
   );
 
+  // Hydrate user from store/localStorage
   useEffect(() => {
-    // hydrate from store or localStorage
     if (storeUser) {
-      // storeUser shape may not include fullName/avatar in the AuthUser type.
-      // cast to any and try common property names (fullName, displayName, name, photoURL, avatar)
       const su: any = storeUser;
-      setUser((u) => ({
-        ...u,
-        email: su.email ?? u.email,
-        fullName: (su.fullName ??
-          su.displayName ??
-          su.name ??
-          u.fullName) as string,
-        avatar: (su.avatar ?? su.photoURL ?? su.picture ?? "") as string,
+      setUser((prev) => ({
+        ...prev,
+        email: su.email ?? prev.email,
+        fullName:
+          (su.fullName ?? su.displayName ?? su.name ?? prev.fullName) ||
+          prev.fullName,
+        avatar: (su.avatar ??
+          su.photoURL ??
+          su.picture ??
+          prev.avatar) as string,
+        position: su.position ?? prev.position,
       }));
     } else {
       const saved = localStorage.getItem("user");
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setUser((u) => ({ ...u, email: parsed.email ?? u.email }));
-        } catch {}
+          setUser((prev) => ({
+            ...prev,
+            email: parsed.email ?? prev.email,
+          }));
+        } catch {
+          // ignore parse errors
+        }
       }
     }
   }, [storeUser]);
 
+  // Apply theme on mount
   useEffect(() => {
-    // apply persisted theme on mount
     const isDark = localStorage.getItem("theme") === "dark" || dark;
     document.documentElement.classList.toggle("dark", Boolean(isDark));
     setDark(Boolean(isDark));
   }, []);
 
-  function toggleTheme() {
-    const next = !dark;
+  function handleThemeChange(next: boolean) {
     setDark(next);
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
   }
 
   return (
-    <div className="min-h-screen p-6 bg-gray-50 dark:bg-neutral-950">
-      <div className="max-w-xl mx-auto">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-gray-600 dark:text-gray-300 mb-4"
-        >
-          &lt; Back
-        </button>
+    <SettingsLayout>
+      <div className="max-w-md mx-auto space-y-6">
+        {/* Page title */}
+        <header className="space-y-1">
+          <h2 className="text-xl sm:text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+            Account
+          </h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            View your profile details and appearance settings.
+          </p>
+        </header>
 
-        <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-lg p-6">
-          <div className="flex flex-col items-center">
-            <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 mb-4">
+        {/* Profile card */}
+        <section
+          className="
+            rounded-2xl
+            border border-neutral-200 dark:border-neutral-800
+            bg-white dark:bg-neutral-900
+            overflow-hidden
+          "
+        >
+          {/* Label */}
+          <div className="px-6 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+            <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-neutral-500 dark:text-neutral-500">
+              Profile
+            </span>
+            <User className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+          </div>
+
+          {/* Avatar + name + email */}
+          <div className="px-6 pt-5 pb-4 flex items-center gap-4">
+            <div className="w-16 h-16 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
               <img
                 src={user.avatar || "/assets/images/default-avatar.png"}
-                alt="avatar"
+                alt="Profile avatar"
                 className="w-full h-full object-cover"
               />
             </div>
 
-            <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white mb-1">
-              Account Settings
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-              View your personal details
-            </p>
-
-            <div className="w-full grid gap-4">
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Full Name
-                </p>
-                <p className="font-medium text-gray-900 dark:text-gray-100">
-                  {user.fullName || "—"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Email Address
-                </p>
-                <p className="truncate font-medium text-gray-900 dark:text-gray-100">
-                  {user.email || "—"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Position
-                </p>
-                <p className="font-medium text-gray-900 dark:text-gray-100">
-                  {user.position || "—"}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Birthdate
-                  </p>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">
-                    {user.birthdate || "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Contact Number
-                  </p>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">
-                    {user.phone || "—"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => navigate("/account/edit")}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    Edit Profile
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      // sign out or other action placeholder
-                      localStorage.removeItem("user");
-                      useAuthStore.getState().setUser(null);
-                      navigate("/login");
-                    }}
-                    className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                  >
-                    Sign Out
-                  </Button>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 dark:text-gray-300">
-                    {dark ? "Dark" : "Light"}
-                  </span>
-                  <button
-                    onClick={toggleTheme}
-                    className="w-10 h-6 rounded-full p-0.5 bg-gray-200 dark:bg-gray-700 relative"
-                    aria-label="Toggle theme"
-                  >
-                    <span
-                      className={`block w-4 h-4 rounded-full bg-white shadow transform transition-transform ${
-                        dark ? "translate-x-4" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
+            <div className="space-y-1 min-w-0">
+              <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50 truncate">
+                {user.fullName}
+              </p>
+              <p className="text-xs text-neutral-600 dark:text-neutral-400 flex items-center gap-1 truncate">
+                <Mail className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
+                <span className="truncate">{user.email}</span>
+              </p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1 truncate">
+                <Briefcase className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
+                <span>{user.position}</span>
+              </p>
             </div>
           </div>
-        </div>
+
+          {/* Details */}
+          <div className="px-6 pb-5 space-y-4">
+            {/* Birthdate + contact */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
+                  Birthdate
+                </p>
+                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50">
+                  {user.birthdate}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
+                  Contact
+                </p>
+                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50 flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
+                  <span>{user.phone || "—"}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Address + employment type */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
+                  Address
+                </p>
+                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50 flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
+                  <span>{user.address}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
+                  Employment type
+                </p>
+                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50">
+                  {user.employmentStatus}
+                </p>
+              </div>
+            </div>
+
+            {/* Edit only (no sign out here) */}
+            <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-start">
+              <Button
+                type="button"
+                className="px-4 py-2 text-sm font-semibold bg-emerald-600 rounded-full hover:bg-emerald-700 text-white cursor-pointer"
+              >
+                Edit profile
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Preferences card */}
+        <section
+          className="
+            rounded-2xl
+            border border-neutral-200 dark:border-neutral-800
+            bg-white dark:bg-neutral-900
+            overflow-hidden
+          "
+        >
+          <div className="px-6 py-3 border-b border-neutral-200 dark:border-neutral-800">
+            <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-neutral-500 dark:text-neutral-500">
+              Preferences
+            </span>
+          </div>
+
+          {/* Theme row with Switch */}
+          <div className="px-6 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="mt-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 p-1.5">
+                {dark ? (
+                  <Moon className="w-4 h-4 text-neutral-700 dark:text-neutral-200" />
+                ) : (
+                  <Sun className="w-4 h-4 text-amber-500" />
+                )}
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                  Theme switcher
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  Switch between light and dark mode for the app interface.
+                </p>
+              </div>
+            </div>
+
+            <Switch
+              checked={dark}
+              onCheckedChange={handleThemeChange}
+              className="flex-shrink-0 cursor-pointer"
+            />
+          </div>
+        </section>
+
+        <AppFooterInfo className="mt-4" />
       </div>
-    </div>
+    </SettingsLayout>
   );
 };
 

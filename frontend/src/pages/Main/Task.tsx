@@ -298,103 +298,143 @@ const Task = () => {
 
   return (
     <MainLayout>
-      <div className="p-4">
-        <div className="flex justify-between w-full items-center">
+      {/* Sticky top bar: Back + Upwork */}
+      <div
+        className="
+        sticky top-0 z-30
+        bg-white/90 dark:bg-neutral-950/85
+        backdrop-blur-md
+        border-b border-neutral-200 dark:border-neutral-800
+        shadow-sm
+      "
+      >
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <button
             onClick={() => navigate("/home")}
-            className="flex gap-2 font-bold cursor-pointer text-foreground"
+            className="
+            group inline-flex items-center gap-1.5 text-sm font-semibold
+            text-neutral-800 dark:text-neutral-100
+            hover:text-emerald-500 dark:hover:text-emerald-400
+            transition-colors cursor-pointer
+          "
           >
-            <ChevronLeft />
-            Back
+            <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+            <span>Back</span>
           </button>
+
           {taskDetails?.title?.toLowerCase().includes("upwork") &&
             !taskDetails?.title?.toLowerCase().includes("training") && (
               <img
                 onClick={LaunchUpwork}
                 src={upworkLogo}
-                alt=""
-                className={`h-10 cursor-pointer rounded-full transition-shadow shadow-sm
-                  border-2 border-transparent dark:border-green-500
-                  hover:shadow-[0_0_10px_1px] hover:shadow-green-500
-                  ${
-                    isLaunching
-                      ? "opacity-50 pointer-events-none cursor-not-allowed"
-                      : ""
-                  }`}
+                alt="Open in Upwork"
+                className={`h-9 w-9 rounded-full cursor-pointer flex-shrink-0
+                border-2 border-transparent dark:border-emerald-500
+                shadow-sm transition-all
+                hover:shadow-[0_0_12px_1px_rgba(16,185,129,0.7)]
+                hover:border-emerald-500
+                ${
+                  isLaunching
+                    ? "opacity-50 pointer-events-none cursor-not-allowed"
+                    : ""
+                }`}
               />
             )}
         </div>
-        <h1 className="text-2xl font-bold mt-2 line-clamp-2 text-foreground">
+      </div>
+
+      {/* Title + client (NON-sticky, just under header) */}
+      <div className="max-w-3xl mx-auto px-4 pt-3 pb-1">
+        <h1 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug line-clamp-2 text-neutral-900 dark:text-white">
           {taskDetails?.title}
         </h1>
-        <div className="flex flex-col mt-1">
-          <span className="font-extrabold text-gray-600 dark:text-gray-300">
-            {taskDetails?.client}
-          </span>
-          <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-[-6px]">
-            Client
-          </span>
+
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div>
+            <span className="block text-sm font-semibold text-neutral-800 dark:text-gray-200">
+              {taskDetails?.client}
+            </span>
+            <span
+              className="text-[11px] px-2 py-0.5 rounded-full 
+              bg-neutral-200 dark:bg-slate-800 
+              text-neutral-700 dark:text-gray-200"
+            >
+              Client
+            </span>
+          </div>
         </div>
       </div>
 
-      <hr className="border-gray-200 dark:border-gray-700" />
+      {/* Main content */}
+      <div className="max-w-3xl mx-auto px-4 py-5">
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 sm:px-5 py-4 sm:py-5 shadow-sm">
+          {/* Header: label + sync status */}
+          <header className="flex items-center justify-between gap-3">
+            <span className="text-[11px] sm:text-xs font-semibold tracking-[0.16em] uppercase text-neutral-500 dark:text-neutral-400">
+              {isStarted ? "Current session" : "Last session"}
+            </span>
+          </header>
 
-      <div className="p-5">
-        <div className="rounded border border-gray-300 dark:border-gray-700 p-4 bg-white dark:bg-neutral-900">
-          <span className="font-bold text-foreground">
-            {isStarted ? "Current" : "Last"} session
-          </span>
-
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col">
-              <span className="font-bold text-2xl text-foreground">
+          {/* Time + Start/Stop */}
+          <div className="flex items-end justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
                 {getFormattedTime()}
-              </span>
-              <span className="text-sm text-gray-600 dark:text-gray-400">
+              </p>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
                 Time tracking {isStarted ? "on" : "off"}
-              </span>
+              </p>
             </div>
-            <div className="flex flex-col gap-2">
-              {isSyncing ? (
-                <div className="text-xs flex items-center select-none">
-                  Syncing <SpinnerLoader className="scale-[0.5]" />
-                </div>
-              ) : isSynced ? (
-                <div className="flex gap-1 items-center text-xs text-green-500">
-                  Synced <CircleCheckBig size={12} />
-                </div>
-              ) : (
-                lastTaskRecord && (
-                  <div className="flex gap-1 items-center text-xs text-amber-500">
-                    Not Synced
-                    <CircleAlert size={12} />
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <RefreshCcw
-                          className="text-gray-200 cursor-pointer hover:text-white"
-                          onClick={() => handleSyncTaskRecord()}
-                          size={14}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Press to manually sync</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                )
-              )}
+
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2 text-[11px] sm:text-xs">
+                {isSyncing ? (
+                  <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400">
+                    Syncing
+                    <SpinnerLoader className="scale-[0.45]" />
+                  </span>
+                ) : isSynced ? (
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    Synced
+                    <CircleCheckBig className="w-3 h-3" />
+                  </span>
+                ) : (
+                  lastTaskRecord && (
+                    <span className="inline-flex items-center gap-1 text-amber-500">
+                      Not synced
+                      <CircleAlert className="w-3 h-3" />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={handleSyncTaskRecord}
+                            className="ml-1 rounded-full p-1 text-neutral-400 dark:text-neutral-300 hover:text-neutral-700 dark:hover:text-white transition-colors cursor-pointer"
+                          >
+                            <RefreshCcw className="w-3.5 h-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Click to sync this session</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </span>
+                  )
+                )}
+              </div>
               {isStarted ? (
-                <StopButton onClick={() => stopTime()} />
+                <StopButton onClick={stopTime} />
               ) : (
-                <StartButton onClick={() => startTime()} />
+                <StartButton onClick={startTime} />
               )}
             </div>
           </div>
 
-          <hr className="my-2 border-gray-200 dark:border-gray-700" />
+          {/* Divider */}
+          <div className="mt-4 border-t border-neutral-200 dark:border-neutral-700 pt-4" />
 
-          <div className="flex justify-between items-center">
-            <h3 className="text-base font-semibold text-foreground">
+          {/* What are you working on? */}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-neutral-50">
               What are you working on?
             </h3>
             <EditWorkDialog
@@ -409,37 +449,38 @@ const Task = () => {
             />
           </div>
 
-          <div className="space-y-1 text-sm">
-            <p>
-              <span className="font-medium text-gray-700 dark:text-gray-300">
+          <div className="space-y-1 text-xs sm:text-sm">
+            <p className="flex gap-1.5">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">
                 📌 <strong>Memo:</strong>
-              </span>{" "}
-              <span className="truncate">{memo || "No memo set."}</span>
+              </span>
+              <span className="truncate text-neutral-800 dark:text-neutral-50">
+                {memo || "No memo set."}
+              </span>
             </p>
-            <p className="line-clamp-3">
-              <span className="font-medium text-gray-700 dark:text-gray-300">
+            <p className="flex gap-1.5 line-clamp-3">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">
                 🏷️ <strong>Activity tag:</strong>
-              </span>{" "}
-              {tag || "No tag set."}
+              </span>
+              <span className="text-neutral-800 dark:text-neutral-50">
+                {tag || "No tag set."}
+              </span>
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col mt-3 mb-1">
-          <div className="flex justify-between">
-            <h2 className="font-bold text-foreground">Latest screenshot</h2>
-            {/* <button
-              onClick={screenshotNow}
-              className="px-3 py-1 rounded bg-green-500 text-white hover:bg-green-600 transition"
-            >
-              Screenshot
-            </button> */}
+        {/* Latest screenshot block + images stay the same */}
+        <div className="flex flex-col mt-4 mb-1">
+          <div className="flex justify-between items-baseline">
+            <h2 className="text-sm sm:text-base font-semibold text-foreground">
+              Latest screenshot
+            </h2>
           </div>
-          <div className="flex justify-between items-baseline text-sm">
+          <div className="flex justify-between items-baseline text-xs sm:text-sm mt-1">
             <span className="text-gray-600 dark:text-gray-400">
               Active monitors: {monitor}
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">
               {screenshotDate}
             </span>
           </div>
@@ -452,7 +493,7 @@ const Task = () => {
                 key={index}
                 src={value}
                 alt=""
-                className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700"
+                className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700 cursor-pointer hover:brightness-105 transition"
                 onClick={() => openPreview(value)}
               />
             ))}
@@ -472,9 +513,17 @@ function StartButton({ onClick }: ButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="flex bg-green-500 px-4 py-2 rounded text-white gap-2 cursor-pointer hover:bg-green-600 transition"
+      className="
+        inline-flex items-center gap-1 px-4 py-2 rounded-full
+        bg-emerald-500 text-white text-sm font-semibold
+        shadow-sm
+        hover:bg-emerald-600 active:bg-emerald-700
+        active:scale-[0.98]
+        transition-all duration-150
+        cursor-pointer
+      "
     >
-      <CirclePlay />
+      <CirclePlay className="w-4 h-4" />
       <span>Start</span>
     </button>
   );
@@ -484,9 +533,18 @@ function StopButton({ onClick }: ButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="flex bg-red-500 px-4 py-2 rounded text-white gap-2 cursor-pointer hover:bg-red-600 transition"
+      className="
+        inline-flex items-center gap-1
+        px-4 py-2 rounded-full
+        bg-red-500 text-white text-sm font-semibold
+        shadow-sm
+        hover:bg-red-600 active:bg-red-700
+        active:scale-[0.98]
+        transition-all duration-150
+        cursor-pointer
+      "
     >
-      <StopCircle />
+      <StopCircle className="w-4 h-4" />
       <span>Stop</span>
     </button>
   );

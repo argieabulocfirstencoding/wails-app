@@ -1,6 +1,5 @@
 import React, { FormEvent, useRef, useState } from "react";
-import MainLayout from "../../layouts/MainLayout";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,12 +13,13 @@ import {
 } from "@/components/ui/card";
 
 import logo from "@/assets/images/first-encoding_logo.webp";
-import { Link } from "react-router-dom";
 import { BackendFirebaseSync } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
+import AppFooterInfo from "@/components/custom/AppFooterInfo";
+import { Eye, EyeOff } from "lucide-react";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -31,6 +31,7 @@ const Login = () => {
   const cancelRef = useRef(false);
   const [isCancellable, showCancel] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function loginUser(event: FormEvent) {
     event.preventDefault();
@@ -42,7 +43,7 @@ const Login = () => {
     try {
       if (!online) console.log("no internet connection!");
 
-      let authUser = await signInWithEmailAndPassword(auth, email, password);
+      const authUser = await signInWithEmailAndPassword(auth, email, password);
       const tokenResult = await authUser.user.getIdTokenResult();
 
       if (!authUser.user.email) return;
@@ -56,13 +57,14 @@ const Login = () => {
       };
 
       if (cancelRef.current) {
-        setErrorMsg("Login Cancelled");
+        setErrorMsg("Login cancelled.");
         setLoading(false);
         return;
       }
 
-      setLoadingMsg("Syncing Account...");
+      setLoadingMsg("Syncing account…");
       showCancel(false);
+
       await BackendFirebaseSync(
         payload.userId,
         payload.email,
@@ -80,32 +82,25 @@ const Login = () => {
       const user = useAuthStore.getState().user;
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
-        console.log(user);
-
         setSynced(true);
         navigate("/home");
       }
     } catch (error: any) {
       console.error(error);
-
+      let message = "Unexpected error, please try again.";
       switch (error.code) {
         case "auth/invalid-credential":
-          setErrorMsg("Invalid email or password. Please try again.");
+          message = "Invalid email or password. Please try again.";
           break;
-
         case "auth/invalid-email":
-          setErrorMsg("Please enter a valid email address.");
+          message = "Please enter a valid email address.";
           break;
-
         case "auth/missing-password":
         case "auth/weak-password":
-          setErrorMsg("Please enter a valid password.");
-          break;
-
-        default:
-          setErrorMsg("Unexpected error");
+          message = "Please enter a valid password.";
           break;
       }
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }
@@ -117,41 +112,51 @@ const Login = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 bg-gray-50 dark:bg-neutral-950">
-      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-neutral-900">
-        <CardHeader className="space-y-4 flex flex-col items-center">
-          <img src={logo} alt="Company Logo" className="h-14 w-auto" />
-          <div className="space-y-2 text-center">
-            <CardTitle className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              Sign In to First Encoding Account
+    <div className="flex min-h-screen items-center justify-center px-4 sm:px-6 bg-neutral-100 dark:bg-neutral-950">
+      <Card className="relative w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl">
+        {/* Loading overlay */}
+        {loading && (
+          <div className="absolute inset-0 z-10 rounded-2xl bg-white/75 dark:bg-neutral-950/75 backdrop-blur-sm flex flex-col items-center justify-center">
+            <SpinnerLoader />
+            <span className="mt-3 text-sm text-neutral-800 dark:text-neutral-100 select-none">
+              {loadingMsg}
+            </span>
+            {isCancellable && (
+              <button
+                type="button"
+                onClick={cancelLogin}
+                className="mt-4 text-xs font-medium text-red-500 hover:text-red-600 dark:hover:text-red-400 cursor-pointer"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        )}
+
+        <CardHeader className="space-y-4 flex flex-col items-center pt-6 pb-4">
+          <img
+            src={logo}
+            alt="First Encoding Logo"
+            className="h-12 w-auto sm:h-14"
+          />
+          <div className="space-y-1.5 text-center">
+            <CardTitle className="text-xl sm:text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+              Sign in to your account
             </CardTitle>
-            <CardDescription className="text-gray-500 dark:text-gray-400">
-              Use your email and password to access your account.
+            <CardDescription className="text-sm text-neutral-600 dark:text-neutral-400">
+              Use your First Encoding email and password to continue.
             </CardDescription>
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="pb-3">
           <form onSubmit={loginUser} className="space-y-5">
-            <div className="relative space-y-5 h-full w-full">
-              {loading && (
-                <div className="absolute h-full w-full z-10 backdrop-blur-[1px] rounded flex flex-col items-center justify-center">
-                  <SpinnerLoader />
-                  <span className="mt-2 select-none">{loadingMsg}</span>
-                  {isCancellable && (
-                    <span
-                      className="cursor-pointer mt-5 text-red-500"
-                      onClick={cancelLogin}
-                    >
-                      Cancel
-                    </span>
-                  )}
-                </div>
-              )}
+            <div className="space-y-4">
+              {/* Email */}
               <div className="grid gap-2">
                 <Label
                   htmlFor="email"
-                  className="text-gray-700 dark:text-gray-300"
+                  className="text-sx font-medium text-neutral-800 dark:text-neutral-200"
                 >
                   Email
                 </Label>
@@ -160,63 +165,121 @@ const Login = () => {
                   type="email"
                   placeholder="name.firstencoding@gmail.com"
                   required
-                  className="rounded-lg bg-white dark:bg-neutral-800 dark:text-gray-100"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="
+                    rounded-lg
+                    bg-white dark:bg-neutral-900 text-sm
+                    text-neutral-900 dark:text-neutral-50
+                    placeholder:text-neutral-400 dark:placeholder:text-neutral-500
+                    border border-neutral-300 dark:border-neutral-700
+                    focus-visible:outline-none
+                    focus-visible:ring-2 focus-visible:ring-emerald-500
+                    focus-visible:border-emerald-500
+                  "
                 />
               </div>
 
+              {/* Password */}
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
                   <Label
                     htmlFor="password"
-                    className="text-gray-700 dark:text-gray-300"
+                    className="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                   >
                     Password
                   </Label>
-                  <a
-                    href="#"
-                    className="text-sm text-green-600 hover:underline font-medium"
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                   >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  className="rounded-lg bg-white dark:bg-neutral-800 dark:text-gray-100"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="
+      rounded-lg
+      bg-white dark:bg-neutral-900 text-sm
+      text-neutral-900 dark:text-neutral-50
+      placeholder:text-neutral-400 dark:placeholder:text-neutral-500
+      border border-neutral-300 dark:border-neutral-700
+      focus-visible:outline-none
+      focus-visible:ring-2 focus-visible:ring-emerald-500
+      focus-visible:border-emerald-500
+      pr-10
+      appearance-none
+    "
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="
+      absolute inset-y-0 right-0 flex items-center pr-3
+      text-neutral-500 dark:text-neutral-300
+      hover:text-neutral-700 dark:hover:text-neutral-100
+      cursor-pointer
+    "
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
 
+              {/* Submit */}
               <Button
                 type="submit"
-                className="w-full text-white font-medium rounded-lg py-2 hover:opacity-90 uppercase cursor-pointer tracking-widest bg-green-700 hover:bg-green-800"
+                disabled={loading}
+                className="
+                  w-full mt-1
+                  rounded-lg
+                  bg-emerald-600 hover:bg-emerald-700
+                  text-white text-sm font-semibold
+                  py-2.5
+                  tracking-wide
+                  cursor-pointer
+                  disabled:opacity-70 disabled:cursor-not-allowed
+                "
               >
-                Login
+                {loading ? "Signing in..." : "Sign in"}
               </Button>
             </div>
+
             {errorMsg && (
-              <p className="text-red-600 dark:text-red-400 text-sm text-center">
+              <p className="text-xs sm:text-sm text-red-600 dark:text-red-400 text-center mt-1">
                 {errorMsg}
               </p>
             )}
           </form>
         </CardContent>
 
-        <CardFooter className="flex flex-col gap-3">
-          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+        <CardFooter className="flex flex-col gap-2.5 pb-5 pt-0">
+          <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 text-center">
             Having slow internet?{" "}
             <Link
               to="/offline-login"
-              className="text-green-600 hover:underline font-medium"
+              className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
             >
-              Signin Locally.
+              Sign in locally
             </Link>
+            .
           </p>
+          <AppFooterInfo className="mt-6" />
         </CardFooter>
       </Card>
     </div>

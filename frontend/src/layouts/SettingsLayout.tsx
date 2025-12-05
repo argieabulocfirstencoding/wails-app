@@ -6,23 +6,51 @@ interface SettingsLayoutProps {
   children: React.ReactNode;
 }
 
-const SettingsLayout: React.FC<SettingsLayoutProps> = ({ children, ...props }) => {
+const SettingsLayout: React.FC<SettingsLayoutProps> = ({
+  children,
+  ...props
+}) => {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-neutral-900 flex flex-col" {...props}>
-      <header className="flex items-center justify-between px-6 py-4 bg-white dark:bg-neutral-900 border-b">
-        <div className="flex items-center gap-3">
+    <div
+      className="min-h-screen bg-neutral-100 dark:bg-neutral-950 flex flex-col"
+      {...props}
+    >
+      {/* Sticky Header */}
+      <header
+        className="
+          sticky top-0 z-20
+          border-b border-neutral-200 dark:border-neutral-800
+          bg-white/90 dark:bg-neutral-900/90 
+          backdrop-blur-md
+        "
+      >
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center">
           <Link
             to="/home"
-            className="flex items-center text-gray-600 dark:text-white hover:text-black cursor-pointer"
+            className="
+              group inline-flex items-center gap-1.5
+              text-sm font-semibold
+              text-foreground 
+              hover:text-emerald-400
+              transition-colors cursor-pointer
+            "
           >
-            <ChevronLeft />
-            <h1 className="text-xl font-bold">Back</h1>
+            <ChevronLeft
+              className="
+                w-4 h-4
+                transition-transform
+                group-hover:-translate-x-0.5
+              "
+            />
+            <span>Back</span>
           </Link>
         </div>
       </header>
 
-      <main className="flex-1 flex justify-center">
-        <div className="w-full max-w-lg bg-white dark:bg-neutral-900 rounded-xl">
+      {/* Main Content */}
+      <main className="flex-1">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+          {/* No sticky / bg here – each page (Notifications, etc.) controls its own card */}
           {children}
         </div>
       </main>

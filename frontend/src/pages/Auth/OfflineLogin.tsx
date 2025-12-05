@@ -1,9 +1,8 @@
 import React, { FormEvent, useEffect, useState } from "react";
-import MainLayout from "../../layouts/MainLayout";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import {
   Card,
   CardContent,
@@ -14,7 +13,6 @@ import {
 } from "@/components/ui/card";
 
 import logo from "@/assets/images/first-encoding_logo.webp";
-import { Link } from "react-router-dom";
 import { GetAccounts, LoginUser } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 
@@ -34,6 +32,8 @@ const OfflineLogin = () => {
 
   async function loginUser(event: FormEvent) {
     event.preventDefault();
+    setErrorMsg("");
+
     try {
       const authUser = await LoginUser(email);
 
@@ -46,26 +46,21 @@ const OfflineLogin = () => {
       const user = useAuthStore.getState().user;
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
-        console.log(user);
         navigate("/home");
       }
     } catch (error: any) {
       console.error(error);
-      setErrorMsg(error.message || "Login failed");
+      setErrorMsg(error.message || "Local login failed. Please try again.");
     }
-    // navigate("/");
   }
 
   async function fetchAccounts() {
     try {
       const accounts = await GetAccounts();
-
       if (accounts) {
-        const emails = accounts.map((value, index) => {
-          return value.Email;
-        });
-
-        setEmails(emails);
+        const list = accounts.map((value) => value.Email);
+        setEmails(list);
+        if (list.length === 1) setEmail(list[0]);
       }
     } catch (error) {
       console.log("Error fetching accounts: ", error);
@@ -77,49 +72,68 @@ const OfflineLogin = () => {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-neutral-950 px-6">
-      <Card className="w-full max-w-md shadow-xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-neutral-900">
-        <CardHeader className="space-y-4 flex flex-col items-center">
-          <img src={logo} alt="Company Logo" className="h-14 w-auto" />
-          <div className="space-y-2 text-center">
-            <CardTitle className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              Local Sign In to First Encoding Account
+    <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-100 dark:bg-neutral-950 px-4 sm:px-6">
+      <Card className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl">
+        <CardHeader className="space-y-4 flex flex-col items-center pt-6 pb-4">
+          <img
+            src={logo}
+            alt="First Encoding Logo"
+            className="h-12 w-auto sm:h-14"
+          />
+          <div className="space-y-1.5 text-center">
+            <CardTitle className="text-xl sm:text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
+              Sign in locally
             </CardTitle>
-            <CardDescription className="text-gray-500 dark:text-gray-400">
-              You must still authenticate your account to sync your work to our
-              cloud server within your attendance session.
+            <CardDescription className="text-sm text-neutral-600 dark:text-neutral-400">
+              Use a saved offline account. You&apos;ll still need to sync to the
+              cloud during your attendance session.
             </CardDescription>
           </div>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="px-6 pb-4 pt-2">
           <form onSubmit={loginUser} className="space-y-5">
+            {/* Email Label + Select */}
             <div className="grid gap-2">
               <Label
                 htmlFor="email"
-                className="text-gray-700 dark:text-gray-300"
+                className="text-sm font-medium text-neutral-800 dark:text-neutral-200"
               >
                 Email
               </Label>
+
               <Select onValueChange={setEmail} value={email}>
                 <SelectTrigger
                   title={email || "Select your account"}
-                  className="w-full bg-white dark:bg-neutral-800 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden"
+                  className="
+            w-full h-11 px-3 rounded-lg text-sm
+            bg-white dark:bg-neutral-900
+            border border-neutral-300 dark:border-neutral-700
+            text-neutral-900 dark:text-neutral-50
+            focus-visible:ring-2 focus-visible:ring-emerald-500
+            focus-visible:border-emerald-500
+            transition-all
+            overflow-hidden
+          "
                 >
-                  {/* truncate long selected email in trigger */}
-                  <SelectValue
-                    placeholder="Select your account"
-                    className="truncate block"
-                  />
+                  <span className="truncate text-sm">
+                    <SelectValue placeholder="Select your account" />
+                  </span>
                 </SelectTrigger>
 
-                <SelectContent className="bg-white dark:bg-neutral-800 text-gray-800 dark:text-gray-100 max-w-full">
+                <SelectContent
+                  className="
+            bg-white dark:bg-neutral-900
+            border border-neutral-200 dark:border-neutral-800
+            text-neutral-900 dark:text-neutral-50
+            rounded-md
+          "
+                >
                   {emails.map((value, index) => (
-                    /* allow long emails to wrap inside dropdown items */
                     <SelectItem
-                      value={value}
                       key={index}
-                      className="break-words"
+                      value={value}
+                      className="break-words text-sm py-2"
                     >
                       {value}
                     </SelectItem>
@@ -128,30 +142,42 @@ const OfflineLogin = () => {
               </Select>
             </div>
 
+            {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full text-white font-medium rounded-lg py-3 transition-colors duration-150 uppercase tracking-widest bg-green-600 hover:bg-green-700 cursor-pointer"
+              className="
+                  w-full mt-1
+                  rounded-lg
+                  bg-emerald-600 hover:bg-emerald-700
+                  text-white text-sm font-semibold
+                  py-2.5
+                  tracking-wide
+                  cursor-pointer
+                  disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Local Login
+              Sign in locally
             </Button>
+
+            {/* Error Message */}
             {errorMsg && (
-              <p className="text-red-600 dark:text-red-400 text-sm text-center">
+              <p className="text-xs sm:text-sm text-red-600 dark:text-red-400 text-center">
                 {errorMsg}
               </p>
             )}
           </form>
         </CardContent>
 
-        <CardFooter className="flex flex-col gap-3">
-          <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+        <CardFooter className="flex flex-col gap-2 pb-4 pt-0">
+          <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 text-center">
             Internet is stable?{" "}
             <Link
               to="/login"
-              className="text-green-600 dark:text-green-400 hover:underline font-medium"
+              className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
             >
-              Signin Online.
+              Sign in online.
             </Link>
           </p>
+          <AppFooterInfo className="mt-6" />
         </CardFooter>
       </Card>
     </div>
