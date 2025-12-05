@@ -50,17 +50,8 @@ const SettingsLayout: React.FC<SettingsLayoutProps> = ({
       {/* Main Content */}
       <main className="flex-1">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-          <div
-            className="
-              w-full rounded-xl 
-              border border-neutral-200 dark:border-neutral-800
-              bg-white dark:bg-neutral-900 
-              shadow-sm
-              px-4 sm:px-6 py-6
-            "
-          >
-            {children}
-          </div>
+          {/* No sticky / bg here – each page (Notifications, etc.) controls its own card */}
+          {children}
         </div>
       </main>
     </div>

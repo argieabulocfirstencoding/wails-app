@@ -310,7 +310,7 @@ const Home = () => {
                 ${
                   isRefreshing || loading
                     ? "cursor-not-allowed opacity-60"
-                    : "cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/20"
+                    : "cursor-pointer hover:bg-transparent dark:hover:bg-transparent"
                 }
               `}
               type="button"

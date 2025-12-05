@@ -248,7 +248,7 @@ const ProfileBar = () => {
             <button
               onClick={() => setOpenSyncDialog(true)}
               disabled={syncLoading}
-              className="inline-flex justify-center items-center w-[60px] px-6 py-2 bg-emerald-600 text-white text-xs font-medium rounded-lg shadow hover:bg-emerald-700 disabled:opacity-60 cursor-pointer transition"
+              className="inline-flex justify-center items-center w-[60px] px-8 py-2 bg-emerald-600 text-white text-xs font-medium rounded-full shadow hover:bg-emerald-700 disabled:opacity-60 cursor-pointer transition"
             >
               {syncLoading ? "..." : "Sync"}
             </button>
@@ -258,7 +258,7 @@ const ProfileBar = () => {
           <div className="relative flex items-center group">
             <button
               onClick={() => setOpen(true)}
-              className="rounded-full border border-emerald-500/80 p-2.5 sm:p-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition cursor-pointer"
+              className="rounded-full border-2 border-emerald-500/80 p-2.5 sm:p-3 hover:bg-transparent dark:hover:transparent transition cursor-pointer"
             >
               <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 dark:text-emerald-400 transition-transform duration-500 group-hover:rotate-180" />
             </button>

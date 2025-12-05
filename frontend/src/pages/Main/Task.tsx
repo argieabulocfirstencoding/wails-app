@@ -514,7 +514,7 @@ function StartButton({ onClick }: ButtonProps) {
     <button
       onClick={onClick}
       className="
-        inline-flex items-center gap-2 px-4 py-2 rounded-full
+        inline-flex items-center gap-1 px-4 py-2 rounded-full
         bg-emerald-500 text-white text-sm font-semibold
         shadow-sm
         hover:bg-emerald-600 active:bg-emerald-700
@@ -534,7 +534,7 @@ function StopButton({ onClick }: ButtonProps) {
     <button
       onClick={onClick}
       className="
-        inline-flex items-center gap-2
+        inline-flex items-center gap-1
         px-4 py-2 rounded-full
         bg-red-500 text-white text-sm font-semibold
         shadow-sm
