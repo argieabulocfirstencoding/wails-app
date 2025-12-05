@@ -195,7 +195,6 @@ const Home = () => {
     }, 2000);
   }
 
-
   // TODO add sort so that previous tasks that have task records will be ordered by their task record
   const filteredTasks = (tasks ?? []).filter((task) => {
     if (!searchQuery) {
@@ -217,140 +216,151 @@ const Home = () => {
 
   return (
     <MainLayout>
-      <div className="sticky top-0 bg-white dark:bg-neutral-900">
-        {/* Header */}
-        <div className="p-6 border-b-2 flex justify-between items-center dark:border-gray-700">
-          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">
-            All Tasks
-          </h1>
-          {synced &&
-            (isSyncing ? (
-              <div className="flex gap-1 items-center">
-                <span>Syncing</span>
-                <SpinnerLoader />
+      {/* Full-screen refresh overlay – now covers the whole app */}
+      {isRefreshing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-white/70 dark:bg-black/60 backdrop-blur-sm" />
+          <div className="relative z-10 flex flex-col items-center gap-3 p-4">
+            <div className="w-14 h-14 rounded-full border-2 border-green-500 flex items-center justify-center bg-white dark:bg-neutral-900">
+              <div
+                className="animate-spin"
+                style={{ animationDirection: "reverse" }}
+              >
+                <RotateCcw
+                  size={28}
+                  className="text-green-600"
+                  stroke="currentColor"
+                  strokeWidth={2.2}
+                  fill="none"
+                  style={{ animationDirection: "reverse" }}
+                />
               </div>
-            ) : attendanceSynced ? (
-              <div className="flex gap-1 text-green-500 select-none">
-                <span>Synced</span>
-                <CheckCircle />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 text-amber-500">
-                <span className="flex items-center gap-1 text-xs select-none">
-                  Not Synced <TriangleAlert size={12} />
-                </span>
-                <Button
-                  className="bg-green-500 hover:bg-green-700 cursor-pointer text-white"
-                  onClick={SyncCurrentAttendance}
-                >
-                  Sync Now
-                </Button>
-              </div>
-            ))}
+            </div>
+            <span className="text-sm font-medium text-green-700 dark:text-green-300">
+              Refreshing tasks...
+            </span>
+          </div>
         </div>
+      )}
 
-        {/* Search + Refresh */}
-        <div className="flex items-center p-5 gap-5">
-          <div className="p-2 border flex gap-4 rounded-md flex-grow dark:border-gray-700">
-            <Search className="text-gray-600 dark:text-gray-300" />
-            <input
-              type="text"
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="outline-none border-none w-full bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-            />
+      {/* Top sticky area: title, sync status, search, column headers */}
+      <div className="sticky top-0 z-20 bg-background/70 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-5xl mx-auto">
+          {/* Header */}
+          <div className="px-4 sm:px-6 pt-4 pb-3 flex items-center justify-between">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">
+              All tasks
+            </h1>
+
+            {synced && (
+              <div className="flex items-center gap-3 text-xs sm:text-sm">
+                {isSyncing ? (
+                  <div className="flex items-center gap-1 text-foreground">
+                    <span>Syncing</span>
+                    <SpinnerLoader className="scale-75" />
+                  </div>
+                ) : attendanceSynced ? (
+                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400 select-none">
+                    <span>Synced</span>
+                    <CheckCircle className="w-4 h-4" />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-end gap-1 text-amber-500">
+                    <span className="flex items-center gap-1 text-[11px] sm:text-xs select-none">
+                      Not synced
+                      <TriangleAlert size={12} />
+                    </span>
+                    <Button
+                      className="h-8 px-3 bg-green-500 hover:bg-green-600 cursor-pointer text-xs sm:text-sm text-white"
+                      onClick={SyncCurrentAttendance}
+                    >
+                      {isSyncing ? "Syncing..." : "Sync now"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Refresh button with spinner */}
-          <button
-            onClick={() => {
-              console.log("Refresh button clicked");
-              fetchTasks();
-            }}
-            disabled={isRefreshing || loading}
-            className={`flex items-center justify-center w-10 h-10 rounded-full border-2 border-green-500 transition-all duration-200
-              ${
-                isRefreshing
-                  ? "bg-transparent"
-                  : "bg-transparent hover:bg-transparent"
-              }
-              ${
-                isRefreshing || loading
-                  ? "cursor-not-allowed opacity-60"
-                  : "cursor-pointer"
-              }`}
-            type="button"
-            title="Refresh tasks"
-            aria-label="Refresh tasks"
-          >
-            <div
-              className={
-                isRefreshing
-                  ? "animate-spin transform"
-                  : "transform transition-transform duration-500 ease-in-out hover:-rotate-360"
-              }
-              style={{ animationDirection: "reverse" }}
-            >
-              <RotateCcw
-                size={20}
-                fill="none"
-                stroke="currentColor" // ensure SVG stroke follows currentColor
-                strokeWidth={2.2}
-                className="text-green-600" // Tailwind color applied as currentColor
-                style={{ color: "#16a34a" }} // inline fallback to override conflicting CSS
+          {/* Search + Refresh */}
+          <div className="px-4 sm:px-6 pb-3 flex items-center gap-4">
+            <div className="flex flex-1 items-center gap-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-neutral-900 px-3 py-2">
+              <Search className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none border-none"
               />
             </div>
-          </button>
-        </div>
 
-        {/* Full-screen refresh overlay */}
-        {isRefreshing && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-white/70 dark:bg-black/60 backdrop-blur-sm" />
-            <div className="relative z-10 flex flex-col items-center gap-3 p-4">
-              <div className="w-14 h-14 rounded-full border-2 border-green-500 flex items-center justify-center bg-white dark:bg-neutral-900">
-                <div
-                  className="animate-spin"
-                  style={{ animationDirection: "reverse" }}
-                >
-                  <RotateCcw
-                    size={28}
-                    className="text-green-600"
-                    stroke="currentColor"
-                    strokeWidth={2.2}
-                    fill="none"
-                    style={{ animationDirection: "reverse" }}
-                  />
-                </div>
+            {/* Refresh button with spinner */}
+            <button
+              onClick={() => {
+                console.log("Refresh button clicked");
+                fetchTasks();
+              }}
+              disabled={isRefreshing || loading}
+              className={`
+                flex items-center justify-center
+                w-10 h-10 rounded-full border-2 border-green-500
+                bg-transparent
+                transition-all duration-200
+                ${
+                  isRefreshing || loading
+                    ? "cursor-not-allowed opacity-60"
+                    : "cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/20"
+                }
+              `}
+              type="button"
+              title="Refresh tasks"
+              aria-label="Refresh tasks"
+            >
+              <div
+                className={
+                  isRefreshing
+                    ? "animate-spin transform"
+                    : "transform transition-transform duration-500 ease-in-out hover:-rotate-180"
+                }
+                style={{ animationDirection: "reverse" }}
+              >
+                <RotateCcw
+                  size={20}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.2}
+                  className="text-green-600"
+                  style={{ color: "#16a34a" }}
+                />
               </div>
-              <span className="text-green-700 dark:text-green-300 font-medium">
-                Refreshing tasks...
-              </span>
-            </div>
+            </button>
           </div>
-        )}
 
-        {/* Task list header */}
-        <div className="flex justify-between items-center px-6 font-bold pb-2 border-b dark:border-gray-700">
-          <span className="text-gray-800 dark:text-gray-200">Contract</span>
-          <span className="text-gray-800 dark:text-gray-200">
-            This week's hours
-          </span>
+          {/* Task list column headers */}
+          <div className="px-4 sm:px-6 pb-2 pt-1 flex justify-between items-center border-t border-gray-200 dark:border-gray-700">
+            <span className="text-[11px] sm:text-xs font-semibold tracking-wide uppercase text-gray-600 dark:text-gray-400">
+              Contract
+            </span>
+            <span className="text-[11px] sm:text-xs font-semibold tracking-wide uppercase text-gray-600 dark:text-gray-400">
+              This week&apos;s hours
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Task List */}
-      <div className="">
+      <div className="max-w-5xl mx-auto">
         {loading ? (
-          <div className="w-full min-h-100 flex items-center justify-center flex-col">
+          <div className="w-full min-h-100 flex items-center justify-center flex-col py-10">
             <Loader />
-            <span className="mt-5">Fetching Tasks</span>
+            <span className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+              Fetching tasks...
+            </span>
           </div>
         ) : filteredTasks && filteredTasks.length > 0 ? (
-          // Sort so active task comes first
           filteredTasks
-            .slice() // copy to avoid mutating original array
+            .slice()
             .sort((a, b) =>
               a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0
             )
@@ -364,7 +374,7 @@ const Home = () => {
               />
             ))
         ) : (
-          <div className="mt-5 text-center text-gray-500 dark:text-gray-400">
+          <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
             No tasks found.
           </div>
         )}
@@ -386,35 +396,35 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
   return (
     <>
       <div
-        className={`grid grid-cols-[1fr_50px] px-6 py-4 cursor-pointer transition-all duration-300 
+        className={`grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-6 py-4 cursor-pointer transition-all duration-200
           ${
             active
-              ? "bg-green-100 dark:bg-green-900 border-l-4 border-green-600 shadow-sm"
-              : "hover:bg-green-50 dark:hover:bg-gray-800 border-l-4 border-transparent hover:border-green-500"
+              ? "bg-green-100 dark:bg-green-900/60 border-l-4 border-green-600 shadow-sm"
+              : "hover:bg-green-50 dark:hover:bg-neutral-800 border-l-4 border-transparent hover:border-green-500"
           }`}
         onClick={() => navigate("/task/" + taskId)}
       >
         <div className="flex flex-col">
           <span
-            className={`line-clamp-2 font-semibold ${
+            className={`line-clamp-2 text-sm sm:text-base ${
               active
-                ? "font-extrabold text-gray-700 dark:text-white"
-                : "font-bold text-green-700 dark:text-green-500"
+                ? "font-semibold text-gray-800 dark:text-white"
+                : "font-semibold text-green-700 dark:text-green-400"
             }`}
           >
             {title}
           </span>
           <span
-            className={`truncate ${
+            className={`truncate text-xs sm:text-sm mt-0.5 ${
               active
-                ? "font-extrabold text-gray-900 dark:text-gray-300"
-                : "font-bold text-gray-700 dark:text-gray-300"
+                ? "font-medium text-gray-900 dark:text-gray-200"
+                : "font-medium text-gray-700 dark:text-gray-300"
             }`}
           >
             {client}
           </span>
           <span
-            className={`text-xs font-medium ${
+            className={`mt-1 text-[11px] sm:text-xs font-medium ${
               active
                 ? "text-green-600 dark:text-green-400"
                 : "text-gray-500 dark:text-gray-400"
@@ -423,8 +433,15 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
             Time last tracked: --
           </span>
         </div>
+
+        {/* Right column placeholder for future hours */}
+        <div className="flex items-start justify-end">
+          <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 opacity-70">
+            --
+          </span>
+        </div>
       </div>
-      <hr className="border-gray-300 dark:border-gray-700" />
+      <hr className="border-gray-200 dark:border-gray-700" />
     </>
   );
 };
