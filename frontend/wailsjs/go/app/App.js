@@ -30,6 +30,10 @@ export function GetActiveTaskRecord() {
   return window['go']['app']['App']['GetActiveTaskRecord']();
 }
 
+export function GetActivityLogRecord(arg1) {
+  return window['go']['app']['App']['GetActivityLogRecord'](arg1);
+}
+
 export function GetCurrentAttendance() {
   return window['go']['app']['App']['GetCurrentAttendance']();
 }

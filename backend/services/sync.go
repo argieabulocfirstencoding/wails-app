@@ -416,7 +416,10 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	// updates database that record is synced
-	db.DB.Model(&taskRecord).Update("sync_status", "synced")
+	db.DB.Model(&taskRecord).Updates(map[string]interface{}{
+		"sync_status": "synced",
+		"synced_at":   time.Now(),
+	})
 
 	if err = s.SyncAttendance(attendance); err != nil {
 		return err
@@ -467,10 +470,10 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 			return err
 		}
 
-		now := time.Now()
-		attendance.SyncedAt = &now
-		attendance.SyncStatus = "synced"
-		db.DB.Save(&attendance)
+		db.DB.Model(&attendance).Updates(map[string]interface{}{
+			"sync_status": "synced",
+			"synced_at":   time.Now(),
+		})
 
 		// Sync all unsynced records of the current attendance session
 		if err := s.SyncUnsyncedRecords(); err != nil {

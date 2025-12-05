@@ -1,5 +1,286 @@
 export namespace models {
 	
+	export class Screenshot {
+	    ID: number;
+	    TaskRecordID: number;
+	    TaskRecord: TaskRecord;
+	    TaskID: string;
+	    Task: Task;
+	    FilePath: string;
+	    CloudURL?: string;
+	    // Go type: time
+	    TakenAt: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new Screenshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.TaskRecordID = source["TaskRecordID"];
+	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
+	        this.TaskID = source["TaskID"];
+	        this.Task = this.convertValues(source["Task"], Task);
+	        this.FilePath = source["FilePath"];
+	        this.CloudURL = source["CloudURL"];
+	        this.TakenAt = this.convertValues(source["TakenAt"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Client {
+	    ID: string;
+	    Fullname: string;
+	    CompanyName: string;
+	    Tasks: Task[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Client(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Fullname = source["Fullname"];
+	        this.CompanyName = source["CompanyName"];
+	        this.Tasks = this.convertValues(source["Tasks"], Task);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Task {
+	    ID: number;
+	    TaskID: string;
+	    Title: string;
+	    ProjectName: string;
+	    ClientID: string;
+	    Client: Client;
+	    TaskRecord: TaskRecord[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Task(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.TaskID = source["TaskID"];
+	        this.Title = source["Title"];
+	        this.ProjectName = source["ProjectName"];
+	        this.ClientID = source["ClientID"];
+	        this.Client = this.convertValues(source["Client"], Client);
+	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class TaskRecord {
+	    ID: number;
+	    UserID: string;
+	    User: User;
+	    AttendanceID: number;
+	    Attendance: Attendance;
+	    TaskID: string;
+	    Task: Task;
+	    // Go type: time
+	    StartedAt: any;
+	    // Go type: time
+	    EndedAt?: any;
+	    Duration?: number;
+	    // Go type: time
+	    SyncedAt?: any;
+	    SyncStatus: string;
+	    Screenshots: Screenshot[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TaskRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.UserID = source["UserID"];
+	        this.User = this.convertValues(source["User"], User);
+	        this.AttendanceID = source["AttendanceID"];
+	        this.Attendance = this.convertValues(source["Attendance"], Attendance);
+	        this.TaskID = source["TaskID"];
+	        this.Task = this.convertValues(source["Task"], Task);
+	        this.StartedAt = this.convertValues(source["StartedAt"], null);
+	        this.EndedAt = this.convertValues(source["EndedAt"], null);
+	        this.Duration = source["Duration"];
+	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
+	        this.SyncStatus = source["SyncStatus"];
+	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class User {
+	    ID: string;
+	    Email: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new User(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Email = source["Email"];
+	    }
+	}
+	export class Attendance {
+	    ID: number;
+	    // Go type: time
+	    CreatedAt: any;
+	    // Go type: time
+	    UpdatedAt: any;
+	    // Go type: gorm
+	    DeletedAt: any;
+	    UserID: string;
+	    User: User;
+	    // Go type: time
+	    TimeIn: any;
+	    // Go type: time
+	    TimeOut?: any;
+	    // Go type: time
+	    SyncedAt?: any;
+	    SyncStatus: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Attendance(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
+	        this.UpdatedAt = this.convertValues(source["UpdatedAt"], null);
+	        this.DeletedAt = this.convertValues(source["DeletedAt"], null);
+	        this.UserID = source["UserID"];
+	        this.User = this.convertValues(source["User"], User);
+	        this.TimeIn = this.convertValues(source["TimeIn"], null);
+	        this.TimeOut = this.convertValues(source["TimeOut"], null);
+	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
+	        this.SyncStatus = source["SyncStatus"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ActivityLogRecord {
+	    attendance: Attendance;
+	    records: TaskRecord[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ActivityLogRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.attendance = this.convertValues(source["attendance"], Attendance);
+	        this.records = this.convertValues(source["records"], TaskRecord);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class AuthUser {
 	    localId: string;
 	    email: string;
@@ -14,6 +295,7 @@ export namespace models {
 	        this.email = source["email"];
 	    }
 	}
+	
 	export class ExpAttendance {
 	    id: number;
 	    sync_status: string;
@@ -86,6 +368,9 @@ export namespace models {
 		    return a;
 		}
 	}
+	
+	
+	
 	export class TaskRecordWithScreenshots {
 	    record?: ExpTaskRecord;
 	    // Go type: time
@@ -120,20 +405,6 @@ export namespace models {
 		    }
 		    return a;
 		}
-	}
-	export class User {
-	    ID: string;
-	    Email: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new User(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ID = source["ID"];
-	        this.Email = source["Email"];
-	    }
 	}
 
 }

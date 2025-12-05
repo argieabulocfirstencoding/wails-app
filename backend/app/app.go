@@ -399,6 +399,10 @@ func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 	return expTasks, nil
 }
 
+func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, error) {
+	return services.GetAttendanceAndRecords(dateStr)
+}
+
 func (a *App) OpenUpwork(taskID string) error {
 	services.FetchUpworkCreds(a.ctx, taskID)
 

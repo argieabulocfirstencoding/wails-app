@@ -16,6 +16,11 @@ type Attendance struct {
 	SyncStatus string `gorm:"not null;default:'pending'"`
 }
 
+type ActivityLogRecord struct {
+	Attendance Attendance   `json:"attendance"`
+	Records    []TaskRecord `json:"records"`
+}
+
 type ExpAttendance struct {
 	ID         uint   `json:"id"`
 	SyncStatus string `json:"sync_status"`

@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import SettingsLayout from "@/layouts/SettingsLayout";
 import { History, LogIn, LogOut, AlertTriangle } from "lucide-react";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
+import { models } from "wailsjs/go/models";
+import { GetActivityLogRecord } from "@/../wailsjs/go/app/App";
+import { useAuthStore } from "@/store/AuthContext";
 
 type ActivityLog = {
   event: string;
@@ -64,6 +67,24 @@ const staticLogs: ActivityLog[] = [
 ];
 
 const ActivityLogs = () => {
+  const [activities, setActivities] = useState<models.ActivityLogRecord[]>();
+
+  useEffect(() => {
+    async function fetchActivityLogs() {
+      try {
+        const now = new Date();
+        const logs = await GetActivityLogRecord(
+          now.toISOString().split("T")[0]
+        );
+
+        setActivities(logs);
+        console.log("Logs: ", logs);
+      } catch (error) {}
+    }
+
+    fetchActivityLogs();
+  }, []);
+
   const logs = staticLogs;
 
   const renderIcon = (event: string) => {
@@ -140,47 +161,54 @@ const ActivityLogs = () => {
 
           {/* Body */}
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {logs.length === 0 ? (
+            {activities?.length === 0 ? (
               <div className="px-6 py-6 text-sm text-neutral-500 dark:text-neutral-400">
                 No activity logs yet.
               </div>
             ) : (
-              logs.map((log, idx) => (
-                <div
-                  key={log.event + log.timestamp + idx}
-                  className="px-4 py-4 flex items-start justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3">
-                    {renderIcon(log.event)}
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                        {log.event}
-                      </p>
-                      {log.detail && (
-                        <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                          {log.detail}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                      {(() => {
-                        const t = formatTimestamp(log.timestamp);
-                        return (
-                          <div className="flex flex-col items-end leading-tight">
-                            <span className="text-[11px] text-neutral-700 dark:text-neutral-300">
-                              {t.date}
-                            </span>
-                            <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                              {t.time}
-                            </span>
-                          </div>
-                        );
-                      })()}
-                    </span>
-                  </div>
-                </div>
+              // logs.map((log, idx) => (
+              //   <div
+              //     key={log.event + log.timestamp + idx}
+              //     className="px-4 py-4 flex items-start justify-between gap-4"
+              //   >
+              //     <div className="flex items-start gap-3">
+              //       {renderIcon(log.event)}
+              //       <div className="space-y-0.5">
+              //         <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+              //           {log.event}
+              //         </p>
+              //         {log.detail && (
+              //           <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              //             {log.detail}
+              //           </p>
+              //         )}
+              //       </div>
+              //     </div>
+              //     <div className="flex flex-col items-end gap-1">
+              //       <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              //         {(() => {
+              //           const t = formatTimestamp(log.timestamp);
+              //           return (
+              //             <div className="flex flex-col items-end leading-tight">
+              //               <span className="text-[11px] text-neutral-700 dark:text-neutral-300">
+              //                 {t.date}
+              //               </span>
+              //               <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              //                 {t.time}
+              //               </span>
+              //             </div>
+              //           );
+              //         })()}
+              //       </span>
+              //     </div>
+              //   </div>
+              // ))
+
+              activities?.map((activity, idx) => (
+                <ActivityBannerSet
+                  activity={activity}
+                  key={activity.attendance.ID + idx}
+                />
               ))
             )}
           </div>
@@ -198,6 +226,121 @@ const ActivityLogs = () => {
       <AppFooterInfo className="mt-6" />
     </SettingsLayout>
   );
+
+  function ActivityBannerSet({
+    activity,
+  }: {
+    activity: models.ActivityLogRecord;
+  }) {
+    const { tasks } = useAuthStore();
+
+    function getTasksFromId(id: string) {
+      return tasks.find((task) => task.taskId === id) ?? null;
+    }
+
+    return (
+      <>
+        <ActivityBanner
+          label="Logged In"
+          description="FES App Tracker session started"
+          iso_time={activity.attendance.TimeIn}
+          synced_at={activity.attendance.SyncedAt}
+        />
+
+        {activity.records.map((record, idx) => {
+          const task = getTasksFromId(record.TaskID);
+
+          return (
+            <ActivityBanner
+              label="Task Recorded"
+              description={`${
+                task?.title?.slice(0, 50) +
+                (task?.title && task.title.length > 50 ? "..." : "")
+              } task has been recorded`}
+              iso_time={record.StartedAt}
+              synced_at={record.SyncedAt}
+            />
+          );
+        })}
+
+        {activity.attendance.TimeOut && (
+          <ActivityBanner
+            label="Logged Out"
+            description="FES App Tracker session ended"
+            iso_time={activity.attendance.TimeOut}
+            synced_at={activity.attendance.SyncedAt}
+          />
+        )}
+      </>
+    );
+
+    function ActivityBanner({
+      label,
+      description,
+      iso_time,
+      synced_at,
+    }: {
+      label: string;
+      description: string;
+      iso_time: string;
+      synced_at: string;
+    }) {
+      return (
+        <div
+          key={label + iso_time}
+          className="px-4 py-4 flex items-start justify-between gap-4"
+        >
+          <div className="flex items-start gap-3">
+            {renderIcon(label)}
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                {label}
+              </p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                {description}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              {(() => {
+                const t = formatTimestamp(iso_time);
+                return (
+                  <div className="flex flex-col items-end leading-tight">
+                    <span className="text-[11px] text-neutral-700 dark:text-neutral-300">
+                      {t.date}
+                    </span>
+                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      {t.time}
+                    </span>
+                  </div>
+                );
+              })()}
+            </span>
+
+            <div>
+              <span className="text-[9px] text-emerald-400">Synced at:</span>
+              <span className="text-[9px] text-neutral-500 dark:text-neutral-400">
+                {(() => {
+                  const t = formatTimestamp(synced_at);
+                  return (
+                    <div className="flex flex-col items-end leading-tight">
+                      <span className="text-neutral-700 dark:text-neutral-300">
+                        {t.date}
+                      </span>
+                      <span className="text-neutral-500 dark:text-neutral-400">
+                        {t.time}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
 };
 
 export default ActivityLogs;

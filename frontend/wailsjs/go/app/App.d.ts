@@ -18,6 +18,8 @@ export function GetAccounts():Promise<Array<models.User>>;
 
 export function GetActiveTaskRecord():Promise<any>;
 
+export function GetActivityLogRecord(arg1:string):Promise<Array<models.ActivityLogRecord>>;
+
 export function GetCurrentAttendance():Promise<models.ExpAttendance>;
 
 export function GetLastTaskRecord(arg1:string):Promise<models.TaskRecordWithScreenshots>;
