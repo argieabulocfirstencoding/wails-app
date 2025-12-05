@@ -134,15 +134,6 @@ func FirebaseUpdateAccessToken(ctx context.Context, email string) (idToken *stri
 		return nil, nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Update refresh token in keyring if returned
-	// if out.RefreshToken != "" && out.RefreshToken != refreshToken {
-	// 	if err := keyring.Set("refresh", email, out.RefreshToken); err != nil {
-	// 		utils.Logger.Printf("warning: failed to save refresh token to keyring: %v", err)
-	// 	} else {
-	// 		utils.Logger.Printf("refresh token updated in keyring for %s", email)
-	// 	}
-	// }
-
 	// Log ID token expiration
 	if out.ExpiresIn != "" {
 		expiresSec, _ := strconv.Atoi(out.ExpiresIn)

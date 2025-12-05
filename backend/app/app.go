@@ -286,6 +286,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		return err
 	}
 
+	keyring.Set("refresh", email, refreshToken)
 	now := time.Now()
 
 	a.AttendanceID = attendanceID
