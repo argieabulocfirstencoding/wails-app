@@ -5,6 +5,7 @@ import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import { models } from "wailsjs/go/models";
 import { GetActivityLogRecord } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
+import { Calendar22 } from "@/components/ui/calendar22";
 
 type ActivityLog = {
   event: string;
@@ -68,22 +69,23 @@ const staticLogs: ActivityLog[] = [
 
 const ActivityLogs = () => {
   const [activities, setActivities] = useState<models.ActivityLogRecord[]>();
+  const [date, setDate] = useState<Date>(new Date());
 
   useEffect(() => {
     async function fetchActivityLogs() {
       try {
-        const now = new Date();
-        const logs = await GetActivityLogRecord(
-          now.toISOString().split("T")[0]
-        );
-
+        const dateOnly = date.toLocaleDateString("en-CA", {
+          timeZone: "Asia/Manila",
+        });
+        const logs = await GetActivityLogRecord(dateOnly);
+        console.log("date only: ", dateOnly);
         setActivities(logs);
         console.log("Logs: ", logs);
       } catch (error) {}
     }
 
     fetchActivityLogs();
-  }, []);
+  }, [date]);
 
   const logs = staticLogs;
 
@@ -156,7 +158,9 @@ const ActivityLogs = () => {
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
               Recent Activity
             </span>
-            <History className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+            {/* <History className="w-4 h-4 text-neutral-400 dark:text-neutral-500" /> */}
+
+            <Calendar22 setDate={setDate} date={date} />
           </div>
 
           {/* Body */}
