@@ -19,9 +19,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   BackendFirebaseSync,
+  LogoutUser,
   SyncUnsyncedRecords,
 } from "@/../wailsjs/go/app/App";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth } from "@/firebase";
 import SpinnerLoader from "./SpinnerLoader";
 
@@ -42,7 +43,7 @@ const ProfileBar = () => {
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
   const [syncErrorMsg, setSyncErrorMsg] = useState("");
 
-  const { online, synced, setSynced } = useAuthStore();
+  const { online, synced, setSynced, reset } = useAuthStore();
   const navigate = useNavigate();
 
   // THEME TOGGLE STATE
@@ -64,8 +65,48 @@ const ProfileBar = () => {
   }
 
   const handleLogout = () => {
-    localStorage.clear();
-    navigate("/logout");
+    async function proceedLogout() {
+      try {
+        // best-effort server logout
+        await LogoutUser().catch((e) => {
+          console.warn("LogoutUser failed:", e);
+        });
+      } catch {}
+
+      try {
+        // firebase sign out (best-effort)
+        await signOut(auth).catch((e) => {
+          console.warn("Firebase signOut failed:", e);
+        });
+      } catch {}
+
+      try {
+        // clear local client state BEFORE navigation
+        localStorage.removeItem("user");
+        localStorage.removeItem("authToken");
+
+        // ensure your auth store reset runs synchronously
+        if (reset) reset();
+      } catch (err) {
+        console.warn("Cleanup failed:", err);
+      } finally {
+        // First try client-side navigation
+        try {
+          navigate("/login", { replace: true });
+        } catch (e) {
+          console.warn("navigate('/login') failed:", e);
+        }
+
+        // Hard fallback: force a full-page replace after a short delay so we never end up stuck
+        setTimeout(() => {
+          if (window.location.pathname !== "/login") {
+            window.location.replace("/login");
+          }
+        }, 300);
+      }
+    }
+
+    proceedLogout();
   };
 
   async function syncAccount(e?: React.MouseEvent) {
