@@ -295,84 +295,97 @@ const Task = () => {
     });
     return () => off();
   }, []);
-
   return (
     <MainLayout>
-      <div className="p-4">
-        <div className="flex justify-between w-full items-center">
-          <button
-            onClick={() => navigate("/home")}
-            className="flex gap-2 font-bold cursor-pointer text-foreground"
-          >
-            <ChevronLeft />
-            Back
-          </button>
-          {taskDetails?.title?.toLowerCase().includes("upwork") &&
-            !taskDetails?.title?.toLowerCase().includes("training") && (
-              <img
-                onClick={LaunchUpwork}
-                src={upworkLogo}
-                alt=""
-                className={`h-10 cursor-pointer rounded-full transition-shadow shadow-sm
-                  border-2 border-transparent dark:border-green-500
-                  hover:shadow-[0_0_10px_1px] hover:shadow-green-500
+      {/* Header (non-sticky, improved layout) */}
+      <div className="border-b border-gray-200 dark:border-gray-800 bg-background">
+        <div className="max-w-3xl mx-auto px-4 pt-4 pb-4 space-y-2">
+          {/* Back + Upwork row */}
+          <div className="flex justify-between items-center">
+            <button
+              onClick={() => navigate("/home")}
+              className="group inline-flex items-center gap-1.5 text-sm font-semibold 
+                       text-foreground hover:text-emerald-400 transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+              <span>Back</span>
+            </button>
+
+            {taskDetails?.title?.toLowerCase().includes("upwork") &&
+              !taskDetails?.title?.toLowerCase().includes("training") && (
+                <img
+                  onClick={LaunchUpwork}
+                  src={upworkLogo}
+                  alt="Open in Upwork"
+                  className={`h-9 w-9 rounded-full cursor-pointer flex-shrink-0
+                  border-2 border-transparent dark:border-emerald-500
+                  shadow-sm transition-all
+                  hover:shadow-[0_0_12px_1px_rgba(16,185,129,0.7)]
+                  hover:border-emerald-500
                   ${
                     isLaunching
                       ? "opacity-50 pointer-events-none cursor-not-allowed"
                       : ""
                   }`}
-              />
-            )}
-        </div>
-        <h1 className="text-2xl font-bold mt-2 line-clamp-2 text-foreground">
-          {taskDetails?.title}
-        </h1>
-        <div className="flex flex-col mt-1">
-          <span className="font-extrabold text-gray-600 dark:text-gray-300">
-            {taskDetails?.client}
-          </span>
-          <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-[-6px]">
-            Client
-          </span>
+                />
+              )}
+          </div>
+
+          {/* Title */}
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug line-clamp-2 text-foreground">
+            {taskDetails?.title}
+          </h1>
+
+          {/* Client + meta */}
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <div>
+              <span className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+                {taskDetails?.client}
+              </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-200 dark:bg-neutral-800 text-gray-600 dark:text-gray-300">
+                Client
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <hr className="border-gray-200 dark:border-gray-700" />
-
-      <div className="p-5">
-        <div className="rounded border border-gray-300 dark:border-gray-700 p-4 bg-white dark:bg-neutral-900">
-          <span className="font-bold text-foreground">
-            {isStarted ? "Current" : "Last"} session
+      {/* Main content */}
+      <div className="max-w-3xl mx-auto px-4 py-5">
+        <div className="rounded-lg border border-gray-300 dark:border-gray-700 p-4 sm:p-5 bg-white dark:bg-neutral-900">
+          <span className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 uppercase">
+            {isStarted ? "Current session" : "Last session"}
           </span>
 
-          <div className="flex justify-between items-center">
+          <div className="mt-2 flex justify-between items-center gap-4">
             <div className="flex flex-col">
-              <span className="font-bold text-2xl text-foreground">
+              <span className="font-bold text-2xl sm:text-3xl text-foreground">
                 {getFormattedTime()}
               </span>
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 Time tracking {isStarted ? "on" : "off"}
               </span>
             </div>
-            <div className="flex flex-col gap-2">
+
+            <div className="flex flex-col gap-2 items-end">
               {isSyncing ? (
-                <div className="text-xs flex items-center select-none">
-                  Syncing <SpinnerLoader className="scale-[0.5]" />
+                <div className="text-[11px] flex items-center gap-1 select-none text-gray-500">
+                  Syncing <SpinnerLoader className="scale-[0.45]" />
                 </div>
               ) : isSynced ? (
-                <div className="flex gap-1 items-center text-xs text-green-500">
+                <div className="flex gap-1 items-center text-[11px] text-green-500">
                   Synced <CircleCheckBig size={12} />
                 </div>
               ) : (
                 lastTaskRecord && (
-                  <div className="flex gap-1 items-center text-xs text-amber-500">
+                  <div className="flex gap-1 items-center text-[11px] text-amber-500">
                     Not Synced
                     <CircleAlert size={12} />
                     <Tooltip>
                       <TooltipTrigger>
                         <RefreshCcw
-                          className="text-gray-200 cursor-pointer hover:text-white"
-                          onClick={() => handleSyncTaskRecord()}
+                          className="text-gray-300 cursor-pointer hover:text-white"
+                          onClick={handleSyncTaskRecord}
                           size={14}
                         />
                       </TooltipTrigger>
@@ -383,18 +396,19 @@ const Task = () => {
                   </div>
                 )
               )}
+
               {isStarted ? (
-                <StopButton onClick={() => stopTime()} />
+                <StopButton onClick={stopTime} />
               ) : (
-                <StartButton onClick={() => startTime()} />
+                <StartButton onClick={startTime} />
               )}
             </div>
           </div>
 
-          <hr className="my-2 border-gray-200 dark:border-gray-700" />
+          <hr className="my-3 border-gray-200 dark:border-gray-700" />
 
-          <div className="flex justify-between items-center">
-            <h3 className="text-base font-semibold text-foreground">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm sm:text-base font-semibold text-foreground">
               What are you working on?
             </h3>
             <EditWorkDialog
@@ -409,7 +423,7 @@ const Task = () => {
             />
           </div>
 
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-xs sm:text-sm">
             <p>
               <span className="font-medium text-gray-700 dark:text-gray-300">
                 📌 <strong>Memo:</strong>
@@ -425,21 +439,18 @@ const Task = () => {
           </div>
         </div>
 
-        <div className="flex flex-col mt-3 mb-1">
-          <div className="flex justify-between">
-            <h2 className="font-bold text-foreground">Latest screenshot</h2>
-            {/* <button
-              onClick={screenshotNow}
-              className="px-3 py-1 rounded bg-green-500 text-white hover:bg-green-600 transition"
-            >
-              Screenshot
-            </button> */}
+        {/* Latest screenshot block */}
+        <div className="flex flex-col mt-4 mb-1">
+          <div className="flex justify-between items-baseline">
+            <h2 className="text-sm sm:text-base font-semibold text-foreground">
+              Latest screenshot
+            </h2>
           </div>
-          <div className="flex justify-between items-baseline text-sm">
+          <div className="flex justify-between items-baseline text-xs sm:text-sm mt-1">
             <span className="text-gray-600 dark:text-gray-400">
               Active monitors: {monitor}
             </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">
               {screenshotDate}
             </span>
           </div>
@@ -452,7 +463,7 @@ const Task = () => {
                 key={index}
                 src={value}
                 alt=""
-                className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700"
+                className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700 cursor-pointer hover:brightness-105 transition"
                 onClick={() => openPreview(value)}
               />
             ))}
@@ -460,6 +471,184 @@ const Task = () => {
       </div>
     </MainLayout>
   );
+  //     {/* Normal header (non-sticky) */}
+  //     <div className="border-b border-gray-200 dark:border-gray-800 bg-background">
+  //       <div className="max-w-3xl mx-auto px-4 pt-4 pb-3">
+  //         <div className="flex justify-between items-center mb-2">
+  //           {/* Back */}
+  //           <button
+  //             onClick={() => navigate("/home")}
+  //             className="inline-flex items-center gap-1.5 text-sm font-semibold
+  //                    text-foreground hover:text-emerald-400 transition-colors cursor-pointer"
+  //           >
+  //             <ChevronLeft className="w-4 h-4" />
+  //             <span>Back</span>
+  //           </button>
+
+  //           {/* Upwork badge */}
+  //           {taskDetails?.title?.toLowerCase().includes("upwork") &&
+  //             !taskDetails?.title?.toLowerCase().includes("training") && (
+  //               <img
+  //                 onClick={LaunchUpwork}
+  //                 src={upworkLogo}
+  //                 alt="Open in Upwork"
+  //                 className={`h-9 w-9 rounded-full cursor-pointer flex-shrink-0
+  //               border-2 border-transparent dark:border-emerald-500
+  //               shadow-sm transition-all
+  //               hover:shadow-[0_0_12px_1px_rgba(16,185,129,0.7)]
+  //               hover:border-emerald-500
+  //               ${
+  //                 isLaunching
+  //                   ? "opacity-50 pointer-events-none cursor-not-allowed"
+  //                   : ""
+  //               }`}
+  //               />
+  //             )}
+  //         </div>
+
+  //         {/* Title + client */}
+  //         <h1 className="text-xl sm:text-2xl font-bold leading-snug line-clamp-2 text-foreground">
+  //           {taskDetails?.title}
+  //         </h1>
+
+  //         <div className="mt-1">
+  //           <span className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+  //             {taskDetails?.client}
+  //           </span>
+  //           <span className="block text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+  //             Client
+  //           </span>
+  //         </div>
+  //       </div>
+  //     </div>
+
+  //     {/* Main content */}
+  //     <div className="max-w-3xl mx-auto px-4 py-5">
+  //       {/* Session card */}
+  //       <div className="rounded-lg border border-gray-300 dark:border-gray-700 p-4 sm:p-5 bg-white dark:bg-neutral-900">
+  //         <span className="text-xs font-semibold tracking-wide text-gray-500 dark:text-gray-400 uppercase">
+  //           {isStarted ? "Current session" : "Last session"}
+  //         </span>
+
+  //         <div className="mt-2 flex justify-between items-center gap-4">
+  //           <div className="flex flex-col">
+  //             <span className="font-bold text-2xl sm:text-3xl text-foreground">
+  //               {getFormattedTime()}
+  //             </span>
+  //             <span className="text-sm text-gray-600 dark:text-gray-400">
+  //               Time tracking {isStarted ? "on" : "off"}
+  //             </span>
+  //           </div>
+
+  //           <div className="flex flex-col gap-2 items-end">
+  //             {/* Sync state */}
+  //             {isSyncing ? (
+  //               <div className="text-[11px] flex items-center gap-1 select-none text-gray-500">
+  //                 Syncing
+  //                 <SpinnerLoader className="scale-[0.45]" />
+  //               </div>
+  //             ) : isSynced ? (
+  //               <div className="flex gap-1 items-center text-[11px] text-green-500">
+  //                 Synced <CircleCheckBig size={12} />
+  //               </div>
+  //             ) : (
+  //               lastTaskRecord && (
+  //                 <div className="flex gap-1 items-center text-[11px] text-amber-500">
+  //                   Not Synced
+  //                   <CircleAlert size={12} />
+  //                   <Tooltip>
+  //                     <TooltipTrigger>
+  //                       <RefreshCcw
+  //                         className="text-gray-300 cursor-pointer hover:text-white"
+  //                         onClick={handleSyncTaskRecord}
+  //                         size={14}
+  //                       />
+  //                     </TooltipTrigger>
+  //                     <TooltipContent>
+  //                       <p>Press to manually sync</p>
+  //                     </TooltipContent>
+  //                   </Tooltip>
+  //                 </div>
+  //               )
+  //             )}
+
+  //             {/* Start / Stop button */}
+  //             {isStarted ? (
+  //               <StopButton onClick={stopTime} />
+  //             ) : (
+  //               <StartButton onClick={startTime} />
+  //             )}
+  //           </div>
+  //         </div>
+
+  //         <hr className="my-3 border-gray-200 dark:border-gray-700" />
+
+  //         {/* Memo + tag */}
+  //         <div className="flex justify-between items-center mb-2">
+  //           <h3 className="text-sm sm:text-base font-semibold text-foreground">
+  //             What are you working on?
+  //           </h3>
+  //           <EditWorkDialog
+  //             initialMemo={memo}
+  //             initialTag={tag}
+  //             onSave={(newMemo, newTag) => {
+  //               setMemo(newMemo);
+  //               setTag(newTag);
+  //               localStorage.setItem("memo", newMemo);
+  //               localStorage.setItem("tag", newTag);
+  //             }}
+  //           />
+  //         </div>
+
+  //         <div className="space-y-1 text-xs sm:text-sm">
+  //           <p>
+  //             <span className="font-medium text-gray-700 dark:text-gray-300">
+  //               📌 <strong>Memo:</strong>
+  //             </span>{" "}
+  //             <span className="truncate">{memo || "No memo set."}</span>
+  //           </p>
+  //           <p className="line-clamp-3">
+  //             <span className="font-medium text-gray-700 dark:text-gray-300">
+  //               🏷️ <strong>Activity tag:</strong>
+  //             </span>{" "}
+  //             {tag || "No tag set."}
+  //           </p>
+  //         </div>
+  //       </div>
+
+  //       {/* Latest screenshot block */}
+  //       <div className="flex flex-col mt-4 mb-1">
+  //         <div className="flex justify-between items-baseline">
+  //           <h2 className="text-sm sm:text-base font-semibold text-foreground">
+  //             Latest screenshot
+  //           </h2>
+  //         </div>
+  //         <div className="flex justify-between items-baseline text-xs sm:text-sm mt-1">
+  //           <span className="text-gray-600 dark:text-gray-400">
+  //             Active monitors: {monitor}
+  //           </span>
+  //           <span className="text-[11px] text-gray-500 dark:text-gray-400">
+  //             {screenshotDate}
+  //           </span>
+  //         </div>
+  //       </div>
+
+  //       {/* Screenshot images */}
+  //       <div>
+  //         {screenshots &&
+  //           screenshots.pictures.map((value, index) => (
+  //             <img
+  //               key={index}
+  //               src={value}
+  //               alt=""
+  //               className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700 cursor-pointer hover:brightness-105 transition"
+  //               onClick={() => openPreview(value)}
+  //             />
+  //           ))}
+  //       </div>
+  //     </div>
+  //   </MainLayout>
+  // );
 };
 
 export default Task;
