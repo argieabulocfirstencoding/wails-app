@@ -47,12 +47,11 @@ func LoginAttendance(userId string) (*uint, error) {
 	return &lastAttendance.ID, nil
 }
 
-func LogoutAttendance(attendanceId uint) error {
-	if err := db.DB.Model(&models.Attendance{}).Where("attendances.id = ?", attendanceId).Update("time_out", time.Now()).Error; err != nil {
+func LogoutAttendance(attendance *models.Attendance) error {
+	now := time.Now()
+	if err := db.DB.Model(&attendance).Update("time_out", now).Error; err != nil {
 		return err
 	}
-
-	// TODO sync in firebase
 
 	return nil
 }

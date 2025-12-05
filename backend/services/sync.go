@@ -393,9 +393,12 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("users/%s/attendance/%s/tasks/%s/task_records/%s",
-		taskRecord.UserID, attendanceFormattedID, taskRecord.TaskID, recordID,
+	path := fmt.Sprintf("users/%s/attendance/%s/task_records/%s",
+		taskRecord.UserID, attendanceFormattedID, recordID,
 	)
+	// path := fmt.Sprintf("users/%s/attendance/%s/tasks/%s/task_records/%s",
+	// 	taskRecord.UserID, attendanceFormattedID, taskRecord.TaskID, recordID,
+	// )
 	method := "PATCH"
 	body := map[string]interface{}{
 		"fields": fields,
@@ -414,6 +417,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 
 	// updates database that record is synced
 	db.DB.Model(&taskRecord).Update("sync_status", "synced")
+
 	if err = s.SyncAttendance(attendance); err != nil {
 		return err
 	}
@@ -449,7 +453,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 		}
 	}
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("users/%s/attendance/%s/",
+	path := fmt.Sprintf("users/%s/attendance/%s",
 		attendance.UserID, attendanceFormattedID,
 	)
 	method := "PATCH"

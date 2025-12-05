@@ -316,9 +316,18 @@ func (a *App) LogoutUser() error {
 	}
 
 	if a.AttendanceID != nil {
-		log.Printf("Attendance ID: %d", *a.AttendanceID)
-		if err := services.LogoutAttendance(*a.AttendanceID); err != nil {
+		attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
+		if err != nil {
 			return err
+		}
+
+		log.Printf("Attendance ID: %d", *a.AttendanceID)
+		if err := services.LogoutAttendance(attendance); err != nil {
+			return err
+		}
+
+		if err := a.SyncService.SyncAttendance(attendance); err != nil {
+			utils.Logger.Printf("error syncing attendance on logout")
 		}
 	} else {
 		log.Println("No active AttendanceID")
