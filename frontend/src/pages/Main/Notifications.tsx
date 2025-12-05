@@ -2,6 +2,7 @@ import React from "react";
 import SettingsLayout from "@/layouts/SettingsLayout";
 import { Switch } from "@/components/ui/switch";
 import { Bell, Mail, Monitor, Clock, AlertTriangle } from "lucide-react";
+import AppFooterInfo from "@/components/custom/AppFooterInfo";
 
 const Notifications = () => {
   return (
@@ -130,6 +131,7 @@ const Notifications = () => {
           </p>
         </footer>
       </div>
+      <AppFooterInfo className="mt-6" />
     </SettingsLayout>
   );
 };

@@ -1,6 +1,7 @@
 import React from "react";
 import SettingsLayout from "@/layouts/SettingsLayout";
 import { History, LogIn, LogOut, AlertTriangle } from "lucide-react";
+import AppFooterInfo from "@/components/custom/AppFooterInfo";
 
 type ActivityLog = {
   event: string;
@@ -194,6 +195,7 @@ const ActivityLogs = () => {
           </p>
         </footer>
       </div>
+      <AppFooterInfo className="mt-6" />
     </SettingsLayout>
   );
 };
