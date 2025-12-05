@@ -271,7 +271,7 @@ const Home = () => {
                       <TriangleAlert size={12} />
                     </span>
                     <Button
-                      className="h-8 px-3 bg-green-500 hover:bg-green-600 cursor-pointer text-xs sm:text-sm text-white"
+                      className="h-8 px-3 bg-green-500 hover:bg-green-600 rounded-full cursor-pointer text-xs sm:text-sm text-white"
                       onClick={SyncCurrentAttendance}
                     >
                       {isSyncing ? "Syncing..." : "Sync now"}
