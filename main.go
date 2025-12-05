@@ -2,9 +2,11 @@ package main
 
 import (
 	"embed"
+	"os"
 
 	"fesapp/backend/app"
 
+	"github.com/joho/godotenv"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -15,8 +17,15 @@ var assets embed.FS
 
 func main() {
 
+	godotenv.Load()
+
+	_, exists := os.LookupEnv("DEVELOPMENT")
 	// 2. Determine the unique ID based on the environment using build tags
-	uniqueID := "com.firstencodingservices.myapp.dev"
+	uniqueID := "com.firstencodingservices.myapp"
+
+	if exists {
+		uniqueID = uniqueID + ".development"
+	}
 
 	// Create an instance of the app structure
 	app := app.NewApp()
