@@ -46,25 +46,31 @@ const ProfileBar = () => {
   const navigate = useNavigate();
 
   // THEME TOGGLE STATE
-  const [dark, setDark] = useState<boolean>(
-    () => localStorage.getItem("theme") === "dark"
-  );
+  const [dark, setDark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("theme") === "dark";
+  });
 
-  // Apply theme on mount
+  // Keep theme in sync with <html> and localStorage
   useEffect(() => {
-    const isDark = localStorage.getItem("theme") === "dark" || dark;
-    document.documentElement.classList.toggle("dark", Boolean(isDark));
-    setDark(Boolean(isDark));
-  }, []);
-
-  function handleThemeChange(next: boolean) {
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
-  }
+    if (dark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [dark]);
 
   const handleLogout = () => {
-    localStorage.clear();
+    const currentTheme = localStorage.getItem("theme");
+
+    localStorage.clear(); // clears user, tokens, etc.
+
+    if (currentTheme) {
+      localStorage.setItem("theme", currentTheme);
+    }
+
     navigate("/logout");
   };
 
@@ -383,7 +389,7 @@ const ProfileBar = () => {
                   </div>
                   <Switch
                     checked={dark}
-                    onCheckedChange={handleThemeChange}
+                    onCheckedChange={setDark}
                     className="cursor-pointer"
                   />
                 </div>
