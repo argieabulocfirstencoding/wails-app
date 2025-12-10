@@ -226,9 +226,9 @@ func (s *SyncService) SyncCredentials() {
 			return
 		}
 
-		APP_KEY := getStringValue(fields["APP_KEY"])
-		APP_ID := getStringValue(fields["APP_ID"])
-		FES_API := getStringValue(fields["FES_API"])
+		APP_KEY := utils.GetStringValue(fields["APP_KEY"])
+		APP_ID := utils.GetStringValue(fields["APP_ID"])
+		FES_API := utils.GetStringValue(fields["FES_API"])
 
 		// utils.Logger.Printf("APP_KEY: %s", APP_KEY)
 		// utils.Logger.Printf("APP_ID: %s", APP_ID)
@@ -261,8 +261,8 @@ func (s *SyncService) SyncTasks() {
 
 		for _, doc := range firestoreResponse.Documents {
 			uid := ExtractUIDFromPath(doc.Name)
-			client := getStringValue(doc.Fields["client"])
-			title := getStringValue(doc.Fields["title"])
+			client := utils.GetStringValue(doc.Fields["client"])
+			title := utils.GetStringValue(doc.Fields["title"])
 
 			var task models.Task
 			if err := db.DB.Where(
@@ -537,29 +537,3 @@ func (s *SyncService) SyncUnsyncedRecords() error {
 	return nil
 }
 
-func getStringValue(field interface{}) string {
-	if field == nil {
-		return ""
-	}
-	if m, ok := field.(map[string]interface{}); ok {
-		if v, ok := m["stringValue"].(string); ok {
-			return v
-		}
-	}
-	return ""
-}
-
-// helper to extract integerValue
-func getIntValue(field interface{}) int {
-	if field == nil {
-		return 0
-	}
-	if m, ok := field.(map[string]interface{}); ok {
-		if v, ok := m["integerValue"].(string); ok {
-			var num int
-			fmt.Sscanf(v, "%d", &num)
-			return num
-		}
-	}
-	return 0
-}

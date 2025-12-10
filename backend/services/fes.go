@@ -205,7 +205,7 @@ func FetchClients() error {
 
 		// Increment search cursor to another 100 since bubble data api limit is 100 only
 		cursor = cursor + 100
-		
+
 		// If there is no remaining records then stop the loop
 		if remaining == 0 {
 			break
@@ -306,6 +306,30 @@ func FetchProjects() error {
 
 	return nil
 }
+
+// TODO continue
+// func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
+// 	// https://firstencoding.app/version-test/api/1.1/wf/employee_details
+
+// 	// FIX development mode only
+// 	url := "https://firstencoding.app/version-test/api/1.1/wf/employee_details"
+// 	method := "POST"
+// 	body := map[string]interface{}{
+// 		"email": user.Email,
+// 	}
+
+// 	response, err := FetchBubble(url, method, body)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	employee, ok := response["employee"].(map[string]interface{})
+// 	position := utils.GetStringValue(response["position"])
+// 	photo := utils.GetStringValue(response["photo"])
+// 	fesid := utils.GetStringValue(response["fesid"])
+
+// 	return nil
+// }
 
 func FetchUpworkCreds(ctx context.Context, taskID string) {
 	fmt.Print("Fetching Upwork Credentials Pleas wait")
