@@ -757,6 +757,50 @@ FES_LOG: 2025/12/05 14:32:03 sync.go:108: access token status: false
 FES_LOG: 2025/12/05 14:32:03 sync.go:108: access token status: false
 FES_LOG: 2025/12/05 14:32:03 sync.go:108: access token status: false
 FES_LOG: 2025/12/05 14:32:03 sync.go:108: access token status: false
+FES_LOG: 2025/12/05 14:33:32 app.go:333: No active record
+FES_LOG: 2025/12/05 14:33:32 app.go:333: No active record
+FES_LOG: 2025/12/05 14:47:41 sync.go:108: access token status: false
+FES_LOG: 2025/12/05 14:47:55 sync.go:108: access token status: false
+FES_LOG: 2025/12/05 14:48:29 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/05 14:48:29 app.go:375: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/05 14:51:07 sync.go:108: access token status: false
+FES_LOG: 2025/12/05 14:51:49 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/05 14:51:49 app.go:375: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/05 14:52:05 app.go:153: StopTaskRecord error: record not found
+FES_LOG: 2025/12/08 05:58:13 app.go:334: No active record
+FES_LOG: 2025/12/08 05:58:13 app.go:334: No active record
+FES_LOG: 2025/12/08 06:00:41 app.go:153: StopTaskRecord error: record not found
+FES_LOG: 2025/12/08 13:35:48 app.go:334: No active record
+FES_LOG: 2025/12/08 13:35:48 app.go:334: No active record
+FES_LOG: 2025/12/08 13:35:54 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:37:09 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:37:09 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:38:47 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:38:47 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:39:54 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:39:54 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:40:57 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:40:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:40:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:40:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:40:59 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:40:59 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:41:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:41:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:42:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:42:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:42:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:42:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/08 13:42:18 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:42:18 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:42:21 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:42:21 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:43:19 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:43:19 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:43:28 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:43:28 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:46:16 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/08 13:46:16 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
 FES_LOG: 2025/12/05 21:27:05 sync.go:108: access token status: false
 FES_LOG: 2025/12/05 21:27:06 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
 FES_LOG: 2025/12/05 21:27:06 app.go:376: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
