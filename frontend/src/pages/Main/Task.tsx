@@ -7,7 +7,7 @@ import {
   StopCircle,
   RefreshCcw,
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { forwardRef, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
 import upworkLogo from "@/assets/images/upwork_logo.png";
@@ -30,6 +30,26 @@ import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
 import { useAuthStore } from "@/store/AuthContext";
 import { models } from "wailsjs/go/models";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { DialogClose } from "@radix-ui/react-dialog";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from "@/components/ui/item";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 interface ScreenshotProps {
   date: number;
@@ -53,6 +73,7 @@ const Task = () => {
   const [lastTaskRecord, setLastTaskRecord] = useState<models.ExpTaskRecord>();
   const [isLaunching, setLaunching] = useState(false);
   const [isSyncing, setSyncing] = useState(false);
+  const [isPadagan, setPadagan] = useState(false);
 
   const { setTaskID, tasks } = useAuthStore();
 
@@ -384,6 +405,15 @@ const Task = () => {
               <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
                 Time tracking {isStarted ? "on" : "off"}
               </p>
+              <p
+                className={`text-xs sm:text-sm  ${
+                  isPadagan
+                    ? "text-red-500"
+                    : "text-neutral-600 dark:text-neutral-400"
+                } `}
+              >
+                {isPadagan ? "Padagan" : ""}
+              </p>
             </div>
 
             <div className="flex flex-col items-end gap-2">
@@ -424,7 +454,84 @@ const Task = () => {
               {isStarted ? (
                 <StopButton onClick={stopTime} />
               ) : (
-                <StartButton onClick={startTime} />
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <StartButton />
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Select Tracking Type</DialogTitle>
+                      <DialogDescription>
+                        Choose between if this task is for padagan or a direct
+                        task tracking.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <RadioGroup
+                      defaultValue="Not Padagan"
+                      className="grid gap-3"
+                    >
+                      <Label htmlFor="padagan" className="cursor-pointer">
+                        <Item
+                          variant="outline"
+                          className="transition-all rounded-lg border 
+                  has-[button[data-state=checked]]:border-amber-500
+                  has-[button[data-state=checked]]:ring-2
+                  has-[button[data-state=checked]]:ring-amber-500/40"
+                        >
+                          <ItemContent>
+                            <ItemTitle className="text-amber-500">
+                              Padagan
+                            </ItemTitle>
+                            <ItemDescription>
+                              Indirect task; work now, padagan later.
+                            </ItemDescription>
+                          </ItemContent>
+
+                          <ItemActions>
+                            <RadioGroupItem id="padagan" value="Padagan" />
+                          </ItemActions>
+                        </Item>
+                      </Label>
+
+                      <Label htmlFor="notpadagan" className="cursor-pointer">
+                        <Item
+                          variant="outline"
+                          className="
+                            transition-all
+                            has-[button[data-state=checked]]:border-emerald-500
+                            has-[button[data-state=checked]]:ring-2
+                            has-[button[data-state=checked]]:ring-emerald-500/40
+                          "
+                        >
+                          <ItemContent>
+                            <ItemTitle className="text-emerald-500">
+                              Regular Task
+                            </ItemTitle>
+                            <ItemDescription>
+                              Client tracking is on while working.
+                            </ItemDescription>
+                          </ItemContent>
+
+                          <ItemActions>
+                            <RadioGroupItem
+                              id="notpadagan"
+                              value="Not Padagan"
+                            />
+                          </ItemActions>
+                        </Item>
+                      </Label>
+                    </RadioGroup>
+
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <Button type="submit" onClick={startTime}>
+                        Start
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           </div>
@@ -509,10 +616,14 @@ interface ButtonProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
-function StartButton({ onClick }: ButtonProps) {
+const StartButton = forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<typeof Button>
+>((props, ref) => {
   return (
-    <button
-      onClick={onClick}
+    <Button
+      ref={ref}
+      {...props}
       className="
         inline-flex items-center gap-1 px-4 py-2 rounded-full
         bg-emerald-500 text-white text-sm font-semibold
@@ -525,9 +636,9 @@ function StartButton({ onClick }: ButtonProps) {
     >
       <CirclePlay className="w-4 h-4" />
       <span>Start</span>
-    </button>
+    </Button>
   );
-}
+});
 
 function StopButton({ onClick }: ButtonProps) {
   return (

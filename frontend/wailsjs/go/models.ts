@@ -133,6 +133,7 @@ export namespace models {
 	    Task: Task;
 	    // Go type: time
 	    StartedAt: any;
+	    Padagan: boolean;
 	    // Go type: time
 	    EndedAt?: any;
 	    Duration?: number;
@@ -155,6 +156,7 @@ export namespace models {
 	        this.TaskID = source["TaskID"];
 	        this.Task = this.convertValues(source["Task"], Task);
 	        this.StartedAt = this.convertValues(source["StartedAt"], null);
+	        this.Padagan = source["Padagan"];
 	        this.EndedAt = this.convertValues(source["EndedAt"], null);
 	        this.Duration = source["Duration"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
@@ -334,6 +336,7 @@ export namespace models {
 	    // Go type: time
 	    ended_at?: any;
 	    duration?: number;
+	    padagan: boolean;
 	    sync_status: string;
 	
 	    static createFrom(source: any = {}) {
@@ -347,6 +350,7 @@ export namespace models {
 	        this.started_at = this.convertValues(source["started_at"], null);
 	        this.ended_at = this.convertValues(source["ended_at"], null);
 	        this.duration = source["duration"];
+	        this.padagan = source["padagan"];
 	        this.sync_status = source["sync_status"];
 	    }
 	
