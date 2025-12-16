@@ -91,7 +91,7 @@ const Task = () => {
     const stringifiedDateTime = JSON.stringify(timeStart);
     setStart(true);
     setStartTime(timeStart);
-    await StartTracking(id, stringifiedDateTime).then(() => {
+    await StartTracking(id, stringifiedDateTime, isPadagan).then(() => {
       setTimeout(() => {
         setSyncing(false);
       }, 1000);
@@ -241,6 +241,8 @@ const Task = () => {
 
         if (record) {
           setLastTaskRecord(record);
+
+          console.log("RECORD PADAGAN: ", record.padagan);
           const started = new Date(record.started_at);
           const ended = record.ended_at ? new Date(record.ended_at) : null;
           setStartTime(started.getTime());
@@ -263,12 +265,11 @@ const Task = () => {
   useEffect(() => {
     getLastScreenshotTime();
     fetchLastRecord();
-  }, [screenshots]);
+  }, [isSyncing]);
 
   useEffect(() => {
     fetchTaskDetails();
     console.log("Task details: ", taskDetails);
-    fetchLastRecord();
     const memoRecord = localStorage.getItem("memo");
     const tagRecord = localStorage.getItem("tag");
     if (memoRecord) setMemo(memoRecord);
@@ -309,6 +310,7 @@ const Task = () => {
       const now = Date.now();
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
       setScreenshots(screenshotTaken);
+
       fetchLastRecord();
       setTimeout(() => {
         setSyncing(false);
@@ -407,12 +409,12 @@ const Task = () => {
               </p>
               <p
                 className={`text-xs sm:text-sm  ${
-                  isPadagan
+                  lastTaskRecord?.padagan
                     ? "text-red-500"
                     : "text-neutral-600 dark:text-neutral-400"
                 } `}
               >
-                {isPadagan ? "Padagan" : ""}
+                {lastTaskRecord?.padagan ? "Padagan" : ""}
               </p>
             </div>
 
@@ -467,8 +469,16 @@ const Task = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <RadioGroup
-                      defaultValue="Not Padagan"
+                      defaultValue={isPadagan ? "Padagan" : "Not Padagan"}
                       className="grid gap-3"
+                      onValueChange={(v) => {
+                        console.log("Padagan: ", v === "Padagan");
+                        if (v === "Padagan") {
+                          setPadagan(true);
+                        } else {
+                          setPadagan(false);
+                        }
+                      }}
                     >
                       <Label htmlFor="padagan" className="cursor-pointer">
                         <Item
@@ -508,7 +518,7 @@ const Task = () => {
                               Regular Task
                             </ItemTitle>
                             <ItemDescription>
-                              Client tracking is on while working.
+                              Client tracking is active while working.
                             </ItemDescription>
                           </ItemContent>
 

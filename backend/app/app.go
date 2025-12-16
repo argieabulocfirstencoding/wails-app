@@ -123,13 +123,13 @@ func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
 }
 
-func (a *App) StartTracking(taskId, localStorageValue string) {
+func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	if a.ScreenshotService.Running {
 		a.ScreenshotService.Stop()
 	}
 	a.ScreenshotService.FolderName = localStorageValue
 	a.WorkingTaskID = &taskId
-	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID)
+	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID, padagan)
 	if err != nil {
 		utils.Logger.Printf("error starting task record: %v", err)
 	}

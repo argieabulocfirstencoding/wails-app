@@ -67,7 +67,7 @@ func GetAllPreviousTasksRecords(userID string) ([]models.TaskRecord, error) {
 	return taskRecords, nil
 }
 
-func StartTaskRecord(userId, taskId string, attendanceId uint) (*db.TaskRecord, error) {
+func StartTaskRecord(userId, taskId string, attendanceId uint, padagan bool) (*db.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
 		fmt.Print(err)
@@ -79,7 +79,8 @@ func StartTaskRecord(userId, taskId string, attendanceId uint) (*db.TaskRecord, 
 		// TODO add edge cases where forgot to logout due to power problem
 	}
 
-	record, err := NewTaskRecord(userId, taskId, attendanceId)
+	record, err := NewTaskRecord(userId, taskId, attendanceId, padagan)
+
 	return record, err
 }
 func StopTaskRecord(userId, taskId string) error {
@@ -107,11 +108,12 @@ func StopTaskRecord(userId, taskId string) error {
 	return nil
 }
 
-func NewTaskRecord(userId, taskId string, attendanceId uint) (*models.TaskRecord, error) {
+func NewTaskRecord(userId, taskId string, attendanceId uint, padagan bool) (*models.TaskRecord, error) {
 	record := models.TaskRecord{
 		UserID:       userId,
 		AttendanceID: attendanceId,
 		TaskID:       taskId,
+		Padagan:      padagan,
 	}
 
 	err := db.DB.Create(&record).Error

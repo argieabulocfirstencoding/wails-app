@@ -11,3 +11,226 @@ FES_LOG: 2025/12/16 21:55:35 sync.go:108: access token status: false
 FES_LOG: 2025/12/16 21:55:35 sync.go:108: access token status: false
 FES_LOG: 2025/12/16 21:55:38 sync.go:108: access token status: false
 FES_LOG: 2025/12/16 21:55:38 sync.go:108: access token status: false
+FES_LOG: 2025/12/16 22:05:24 sync.go:108: access token status: false
+FES_LOG: 2025/12/16 22:05:26 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/16 22:05:26 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/16 22:05:26 app.go:343: No active record
+FES_LOG: 2025/12/16 22:05:27 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/16 22:05:27 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/16 22:05:27 app.go:343: No active record
+FES_LOG: 2025/12/17 04:05:30 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:05:31 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:05:31 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:05:31 app.go:343: No active record
+FES_LOG: 2025/12/17 04:05:31 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:05:31 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:05:31 app.go:343: No active record
+FES_LOG: 2025/12/17 04:07:20 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:07:21 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:07:24 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:07:24 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:14:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:14:28 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:14:28 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:14:28 app.go:343: No active record
+FES_LOG: 2025/12/17 04:14:28 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:14:28 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:14:28 app.go:343: No active record
+FES_LOG: 2025/12/17 04:14:31 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:14:32 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:15:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:15:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:15:31 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:15:31 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:15:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:15:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:16:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:16:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:17:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:17:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:17:23 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:17:23 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:33 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:33 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:54 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:19:54 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:20:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:20:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:20:18 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:20:18 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:21:04 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:21:04 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:22:04 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:22:04 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:22:40 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:22:41 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:24:16 app.go:153: StopTaskRecord error: record not found
+FES_LOG: 2025/12/17 04:26:40 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:26:41 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:26:41 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:26:41 app.go:343: No active record
+FES_LOG: 2025/12/17 04:26:41 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:26:41 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:26:41 app.go:343: No active record
+FES_LOG: 2025/12/17 04:27:21 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:27:24 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:27:25 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:27:25 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:27:25 app.go:343: No active record
+FES_LOG: 2025/12/17 04:27:25 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:27:25 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 04:27:25 app.go:343: No active record
+FES_LOG: 2025/12/17 04:28:01 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:28:08 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:28:08 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:28:51 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:28:51 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:28:56 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:28:56 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:06 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:06 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:51 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:51 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:29:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:30:33 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:30:33 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:31:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:31:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:31:36 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:31:36 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:31:50 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:31:50 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:32:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:32:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:32:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:32:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:33:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:33:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:33:39 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:33:39 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:34:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:34:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:34:14 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:34:14 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:35:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:35:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:35:27 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:35:27 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:35:30 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:35:30 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:36:30 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:36:30 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:03 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:03 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:12 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:12 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:19 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:19 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:23 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:23 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:27 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:32 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:33 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:43 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:43 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:48 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:37:48 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:01 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:01 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:03 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:41 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:41 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:43 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:43 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:52 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:52 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:53 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:53 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:57 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:57 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:38:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:31 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:32 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:54 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:54 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:55 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:55 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:59 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:43:59 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:44:59 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:44:59 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:45:49 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:45:49 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:45:53 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:45:53 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:46:04 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:46:05 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:51:01 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:51:02 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:51:09 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:51:09 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:52:50 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:52:50 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:53:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:53:26 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:53:30 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:53:30 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:53:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:53:34 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:21 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:21 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:29 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:43 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:43 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:44 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:44 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:49 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:49 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:57 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:54:57 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:55:07 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:55:07 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:55:12 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 04:55:12 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:00:41 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:00:42 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:00:42 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:00:42 app.go:343: No active record
+FES_LOG: 2025/12/17 05:00:43 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:00:43 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:00:43 app.go:343: No active record
+FES_LOG: 2025/12/17 05:00:46 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:01:03 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:01:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:01:13 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:01:19 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:01:46 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:03:56 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:03:58 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:03:58 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:03:58 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:03:58 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/17 05:03:58 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:03:59 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:04:07 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:04:07 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:04:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:04:11 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:04:17 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:04:17 sync.go:108: access token status: false
+FES_LOG: 2025/12/17 05:04:28 app.go:153: StopTaskRecord error: record not found

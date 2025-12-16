@@ -367,6 +367,9 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		"task_id": map[string]string{
 			"stringValue": taskRecord.TaskID,
 		},
+		"padagan": map[string]bool{
+			"booleanValue": taskRecord.Padagan,
+		},
 		"task_name": map[string]string{
 			"stringValue": task.Client.Fullname + " - " + task.Title,
 		},
