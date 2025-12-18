@@ -326,7 +326,7 @@ const ProfileBar = () => {
         {/* Left side – user info */}
         <div className="flex items-center gap-3 sm:gap-4">
           <img
-            src="https://lh3.googleusercontent.com/a/ACg8ocJWYobBkgAVfMMKK1NZZoAlx3Zk9xr1ONbhYI7bJL-W6cpYSNE=s288-c-no"
+            src="https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"
             className={`rounded-full border-2 ${
               online ? "border-emerald-500" : "border-neutral-500"
             } select-none`}

@@ -1,12 +1,10 @@
 package services
 
 import (
-	"errors"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
 
-	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -23,10 +21,11 @@ func CreateTask(userId, title, ClientID string, taskID *string) (*db.Task, error
 		task.TaskID = *taskID
 	}
 
-	if err := db.DB.Create(&task).Error; err != nil {
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return nil, errors.New("task already exists for this client")
-		}
+	if err := db.DB.
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "task_id"}},
+			DoNothing: true,
+		}).Create(&task).Error; err != nil {
 		return nil, err
 	}
 
@@ -38,9 +37,17 @@ func BulkCreateTasks(tasks []models.Task) error {
 		return nil
 	}
 
-	return db.DB.Clauses(clause.OnConflict{
-		UpdateAll: true, // updates all fields except primary keys
-	}).Create(&tasks).Error
+	return db.DB.
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "task_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"title",
+				"project_name",
+				"client_id",
+			}),
+		}).
+		Create(&tasks).
+		Error
 }
 
 func GetTasks() ([]db.Task, error) {

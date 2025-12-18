@@ -308,28 +308,34 @@ func FetchProjects() error {
 }
 
 // TODO continue
-// func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
-// 	// https://firstencoding.app/version-test/api/1.1/wf/employee_details
+func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
+	// https://firstencoding.app/version-test/api/1.1/wf/employee_details
 
-// 	// FIX development mode only
-// 	url := "https://firstencoding.app/version-test/api/1.1/wf/employee_details"
-// 	method := "POST"
-// 	body := map[string]interface{}{
-// 		"email": user.Email,
-// 	}
+	// FIX development mode only
+	url := "https://firstencoding.app/version-test/api/1.1/wf/employee_details"
+	method := "POST"
+	body := map[string]interface{}{
+		"email": user.Email,
+	}
 
-// 	response, err := FetchBubble(url, method, body)
-// 	if err != nil {
-// 		return err
-// 	}
+	response, err := FetchBubble(url, method, body)
+	if err != nil {
+		return err
+	}
 
-// 	employee, ok := response["employee"].(map[string]interface{})
-// 	position := utils.GetStringValue(response["position"])
-// 	photo := utils.GetStringValue(response["photo"])
-// 	fesid := utils.GetStringValue(response["fesid"])
+	employee, ok := response["employee"].(map[string]interface{})
+	position := utils.GetStringValue(response["position"])
+	photo := utils.GetStringValue(response["photo"])
+	fesid := utils.GetStringValue(response["fesid"])
 
-// 	return nil
-// }
+	fmt.Println("Employee OK:", ok)
+	fmt.Printf("Employee: %+v\n", employee)
+	fmt.Println("Position:", position)
+	fmt.Println("Photo:", photo)
+	fmt.Println("FESID:", fesid)
+
+	return nil
+}
 
 func FetchUpworkCreds(ctx context.Context, taskID string) {
 	fmt.Print("Fetching Upwork Credentials Pleas wait")

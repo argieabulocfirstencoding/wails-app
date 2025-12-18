@@ -94,7 +94,7 @@ func (a *App) Startup(ctx context.Context) {
 		}, func() {})
 	}()
 
-	// a.SyncService.Backblaze.Connect(a.ctx)
+	a.SyncService.Backblaze.Connect(a.ctx)
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -279,7 +279,12 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		Email:   user.Email,
 	}
 	// Creates a local representation of your account
-	services.CreateUser(user.LocalID, user.Email)
+	model_user, _ := services.CreateUser(user.LocalID, user.Email)
+	if model_user != nil {
+		go func() {
+			services.FetchEmployeeDetails(a.ctx, model_user)
+		}()
+	}
 
 	attendanceID, err := services.LoginAttendance(authUser.LocalID)
 	if attendanceID == nil {

@@ -234,3 +234,49 @@ FES_LOG: 2025/12/17 05:04:11 sync.go:108: access token status: false
 FES_LOG: 2025/12/17 05:04:17 sync.go:108: access token status: false
 FES_LOG: 2025/12/17 05:04:17 sync.go:108: access token status: false
 FES_LOG: 2025/12/17 05:04:28 app.go:153: StopTaskRecord error: record not found
+FES_LOG: 2025/12/19 05:10:44 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:10:45 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:10:45 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:10:45 app.go:343: No active record
+FES_LOG: 2025/12/19 05:10:45 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:10:45 app.go:385: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:10:45 app.go:343: No active record
+FES_LOG: 2025/12/19 05:18:04 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:18:06 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:18:06 app.go:390: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:18:06 app.go:348: No active record
+FES_LOG: 2025/12/19 05:18:06 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:18:06 app.go:390: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:18:06 app.go:348: No active record
+FES_LOG: 2025/12/19 05:18:09 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:20:28 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:20:30 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:20:30 app.go:390: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:20:30 app.go:348: No active record
+FES_LOG: 2025/12/19 05:20:31 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:20:31 app.go:390: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:20:31 app.go:348: No active record
+FES_LOG: 2025/12/19 05:22:47 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:22:49 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:22:49 app.go:390: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:22:49 app.go:348: No active record
+FES_LOG: 2025/12/19 05:22:49 fes.go:294: error on bulk task create constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:22:49 app.go:390: error fetching tasks from fes: constraint failed: UNIQUE constraint failed: tasks.task_id (2067)
+FES_LOG: 2025/12/19 05:22:49 app.go:348: No active record
+FES_LOG: 2025/12/19 05:27:17 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:27:18 fes.go:294: error on bulk task create SQL logic error: no such column: excluded.updated_at (1)
+FES_LOG: 2025/12/19 05:27:18 app.go:390: error fetching tasks from fes: SQL logic error: no such column: excluded.updated_at (1)
+FES_LOG: 2025/12/19 05:27:18 app.go:348: No active record
+FES_LOG: 2025/12/19 05:27:18 fes.go:294: error on bulk task create SQL logic error: no such column: excluded.updated_at (1)
+FES_LOG: 2025/12/19 05:27:18 app.go:390: error fetching tasks from fes: SQL logic error: no such column: excluded.updated_at (1)
+FES_LOG: 2025/12/19 05:27:18 app.go:348: No active record
+FES_LOG: 2025/12/19 05:33:18 app.go:348: No active record
+FES_LOG: 2025/12/19 05:33:18 app.go:348: No active record
+FES_LOG: 2025/12/19 05:33:33 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:36:10 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:36:12 app.go:348: No active record
+FES_LOG: 2025/12/19 05:36:13 app.go:348: No active record
+FES_LOG: 2025/12/19 05:36:39 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:36:40 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:36:45 sync.go:108: access token status: false
+FES_LOG: 2025/12/19 05:36:46 sync.go:108: access token status: false
