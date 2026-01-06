@@ -127,6 +127,14 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	if a.ScreenshotService.Running {
 		a.ScreenshotService.Stop()
 	}
+
+	if a.ScreenshotService.TaskRecordID != nil {
+		record, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
+		if err == nil {
+			a.ScreenshotService.SyncRecord(record)
+		}
+	}
+
 	a.ScreenshotService.FolderName = localStorageValue
 	a.WorkingTaskID = &taskId
 	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID, padagan)
