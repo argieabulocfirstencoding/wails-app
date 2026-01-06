@@ -65,7 +65,7 @@ func GetTasks() ([]db.Task, error) {
 	return tasks, nil
 }
 
-func getTaskFromID(taskID string) (*models.Task, error) {
+func GetTaskFromID(taskID string) (*models.Task, error) {
 	var task models.Task
 
 	if err := db.DB.Where("task_id = ?", taskID).

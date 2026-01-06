@@ -353,7 +353,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	if err != nil {
 		return err
 	}
-	task, err := getTaskFromID(taskRecord.TaskID)
+	task, err := GetTaskFromID(taskRecord.TaskID)
 	if err != nil {
 		return err
 	}
@@ -539,4 +539,3 @@ func (s *SyncService) SyncUnsyncedRecords() error {
 
 	return nil
 }
-

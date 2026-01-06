@@ -342,12 +342,12 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
 
-	if err := openFESApp(); err != nil {
-		fmt.Print(err)
-	}
+	// if err := openFESApp(); err != nil {
+	// 	fmt.Print(err)
+	// }
 	runtime.EventsEmit(ctx, "upwork-button", true)
 
-	task, err := getTaskFromID(taskID)
+	task, err := GetTaskFromID(taskID)
 	if err != nil {
 		log.Printf("error on getting task: %v", err)
 	}

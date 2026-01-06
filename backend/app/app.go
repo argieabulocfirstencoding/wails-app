@@ -135,6 +135,17 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	}
 	a.ScreenshotService.TaskID = a.WorkingTaskID
 	a.ScreenshotService.TaskRecordID = &record.ID
+
+	task, err := services.GetTaskFromID(taskId)
+	if err != nil {
+		return
+	}
+
+	if task.ProjectName == "Break" {
+		a.ScreenshotService.SyncRecord(record)
+		return
+	}
+
 	a.ScreenshotService.Start(a.ctx)
 }
 

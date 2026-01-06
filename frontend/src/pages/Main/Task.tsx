@@ -453,7 +453,14 @@ const Task = () => {
                   )
                 )}
               </div>
-              {isStarted ? (
+              {taskDetails?.title.toLowerCase().includes("break") ||
+              taskDetails?.title.toLowerCase().includes("training") ? (
+                isStarted ? (
+                  <StopButton onClick={stopTime} />
+                ) : (
+                  <StartButton onClick={startTime} />
+                )
+              ) : isStarted ? (
                 <StopButton onClick={stopTime} />
               ) : (
                 <Dialog>
@@ -546,75 +553,89 @@ const Task = () => {
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="mt-4 border-t border-neutral-200 dark:border-neutral-700 pt-4" />
+          {!taskDetails?.title.toLowerCase().includes("break") ? (
+            <>
+              {/* Divider */}
+              <div className="mt-4 border-t border-neutral-200 dark:border-neutral-700 pt-4" />
 
-          {/* What are you working on? */}
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-neutral-50">
-              What are you working on?
-            </h3>
-            <EditWorkDialog
-              initialMemo={memo}
-              initialTag={tag}
-              onSave={(newMemo, newTag) => {
-                setMemo(newMemo);
-                setTag(newTag);
-                localStorage.setItem("memo", newMemo);
-                localStorage.setItem("tag", newTag);
-              }}
-            />
-          </div>
+              {/* What are you working on? */}
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h3 className="text-sm sm:text-base font-semibold text-neutral-900 dark:text-neutral-50">
+                  What are you working on?
+                </h3>
+                <EditWorkDialog
+                  initialMemo={memo}
+                  initialTag={tag}
+                  onSave={(newMemo, newTag) => {
+                    setMemo(newMemo);
+                    setTag(newTag);
+                    localStorage.setItem("memo", newMemo);
+                    localStorage.setItem("tag", newTag);
+                  }}
+                />
+              </div>
 
-          <div className="space-y-1 text-xs sm:text-sm">
-            <p className="flex gap-1.5">
-              <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                📌 <strong>Memo:</strong>
-              </span>
-              <span className="truncate text-neutral-800 dark:text-neutral-50">
-                {memo || "No memo set."}
-              </span>
-            </p>
-            <p className="flex gap-1.5 line-clamp-3">
-              <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                🏷️ <strong>Activity tag:</strong>
-              </span>
-              <span className="text-neutral-800 dark:text-neutral-50">
-                {tag || "No tag set."}
-              </span>
-            </p>
-          </div>
+              <div className="space-y-1 text-xs sm:text-sm">
+                <p className="flex gap-1.5">
+                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                    📌 <strong>Memo:</strong>
+                  </span>
+                  <span className="truncate text-neutral-800 dark:text-neutral-50">
+                    {memo || "No memo set."}
+                  </span>
+                </p>
+                <p className="flex gap-1.5 line-clamp-3">
+                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                    🏷️ <strong>Activity tag:</strong>
+                  </span>
+                  <span className="text-neutral-800 dark:text-neutral-50">
+                    {tag || "No tag set."}
+                  </span>
+                </p>
+              </div>
+            </>
+          ): (
+            <div className="rounded-xl overflow-hidden mt-12">
+              <img src="https://storage.gra.cloud.ovh.net/v1/AUTH_728ab22ba0c842468a897907be9a7075/flipanim/anim/uvvk8grs.gif" alt="" />
+            </div>
+          )}
         </div>
 
         {/* Latest screenshot block + images stay the same */}
-        <div className="flex flex-col mt-4 mb-1">
-          <div className="flex justify-between items-baseline">
-            <h2 className="text-sm sm:text-base font-semibold text-foreground">
-              Latest screenshot
-            </h2>
-          </div>
-          <div className="flex justify-between items-baseline text-xs sm:text-sm mt-1">
-            <span className="text-gray-600 dark:text-gray-400">
-              Active monitors: {monitor}
-            </span>
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">
-              {screenshotDate}
-            </span>
-          </div>
-        </div>
+        {!taskDetails?.title.toLowerCase().includes("break") ? (
+          <>
+            <div className="flex flex-col mt-4 mb-1">
+              <div className="flex justify-between items-baseline">
+                <h2 className="text-sm sm:text-base font-semibold text-foreground">
+                  Latest screenshot
+                </h2>
+              </div>
+              <div className="flex justify-between items-baseline text-xs sm:text-sm mt-1">
+                <span className="text-gray-600 dark:text-gray-400">
+                  Active monitors: {monitor}
+                </span>
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                  {screenshotDate}
+                </span>
+              </div>
+            </div>
 
-        <div>
-          {screenshots &&
-            screenshots.pictures.map((value, index) => (
-              <img
-                key={index}
-                src={value}
-                alt=""
-                className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700 cursor-pointer hover:brightness-105 transition"
-                onClick={() => openPreview(value)}
-              />
-            ))}
-        </div>
+            <div>
+              {screenshots &&
+                screenshots.pictures.map((value, index) => (
+                  <img
+                    key={index}
+                    src={value}
+                    alt=""
+                    className="w-full border rounded-2xl mb-2 object-cover border-gray-300 dark:border-gray-700 cursor-pointer hover:brightness-105 transition"
+                    onClick={() => openPreview(value)}
+                  />
+                ))}
+            </div>
+          </>
+        ) : (
+          <></>
+        )}
       </div>
     </MainLayout>
   );

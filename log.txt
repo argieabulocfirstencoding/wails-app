@@ -280,3 +280,12 @@ FES_LOG: 2025/12/19 05:36:39 sync.go:108: access token status: false
 FES_LOG: 2025/12/19 05:36:40 sync.go:108: access token status: false
 FES_LOG: 2025/12/19 05:36:45 sync.go:108: access token status: false
 FES_LOG: 2025/12/19 05:36:46 sync.go:108: access token status: false
+FES_LOG: 2026/01/06 19:33:15 sync.go:108: access token status: false
+FES_LOG: 2026/01/06 19:33:17 fes.go:294: error on bulk task create database is locked (5) (SQLITE_BUSY)
+FES_LOG: 2026/01/06 19:33:17 app.go:400: error fetching tasks from fes: database is locked (5) (SQLITE_BUSY)
+FES_LOG: 2026/01/06 19:33:17 app.go:358: No active record
+FES_LOG: 2026/01/06 19:33:18 app.go:358: No active record
+FES_LOG: 2026/01/06 19:33:26 sync.go:108: access token status: false
+FES_LOG: 2026/01/06 19:33:26 sync.go:108: access token status: false
+FES_LOG: 2026/01/06 19:33:39 sync.go:108: access token status: false
+FES_LOG: 2026/01/06 19:33:39 sync.go:108: access token status: false
