@@ -373,6 +373,12 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		"task_name": map[string]string{
 			"stringValue": task.Client.Fullname + " - " + task.Title,
 		},
+		"memo": map[string]string{
+			"stringValue": taskRecord.Memo,
+		},
+		"notes": map[string]string{
+			"stringValue": taskRecord.Notes,
+		},
 		"started_at": map[string]string{
 			"timestampValue": taskRecord.StartedAt.UTC().Format(time.RFC3339),
 		},
@@ -396,7 +402,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("users/%s/attendance/%s/task_records/%s",
+	path := fmt.Sprintf("employees/%s/attendance/%s/task_records/%s",
 		taskRecord.UserID, attendanceFormattedID, recordID,
 	)
 	// path := fmt.Sprintf("users/%s/attendance/%s/tasks/%s/task_records/%s",
@@ -459,7 +465,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 		}
 	}
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("users/%s/attendance/%s",
+	path := fmt.Sprintf("employees/%s/attendance/%s",
 		attendance.UserID, attendanceFormattedID,
 	)
 	method := "PATCH"
