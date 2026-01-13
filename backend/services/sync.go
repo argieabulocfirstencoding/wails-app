@@ -402,7 +402,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("employees/%s/attendance/%s/task_records/%s",
+	path := fmt.Sprintf("users/%s/attendance/%s/task_records/%s",
 		taskRecord.UserID, attendanceFormattedID, recordID,
 	)
 	// path := fmt.Sprintf("users/%s/attendance/%s/tasks/%s/task_records/%s",
@@ -437,6 +437,35 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	return nil
 }
 
+func (s *SyncService) SyncUser(user models.AuthUser) error {
+	now := time.Now()
+	s.RefreshAccessToken()
+
+	fields := map[string]interface{}{
+		"email": map[string]string{
+			"stringValue": user.Email,
+		},
+		"updated_at": map[string]string{
+			"timestampValue": now.UTC().Format(time.RFC3339),
+		},
+	}
+
+	registerPath := fmt.Sprintf("users/%s", user.LocalID)
+	method := "PATCH"
+	body := map[string]interface{}{
+		"fields": fields,
+	}
+
+	if s.isConnected {
+		_, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, registerPath, method, body)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 	db.DB.Model(&attendance).Update("sync_status", "pending")
 	// ============== PRE DEFINITION =============
@@ -464,8 +493,9 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 			"integerValue": fmt.Sprintf("%d", int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds())),
 		}
 	}
+
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("employees/%s/attendance/%s",
+	path := fmt.Sprintf("users/%s/attendance/%s",
 		attendance.UserID, attendanceFormattedID,
 	)
 	method := "PATCH"
