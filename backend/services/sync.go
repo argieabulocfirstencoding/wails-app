@@ -373,12 +373,12 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		"task_name": map[string]string{
 			"stringValue": task.Client.Fullname + " - " + task.Title,
 		},
-		"memo": map[string]string{
-			"stringValue": taskRecord.Memo,
-		},
-		"notes": map[string]string{
-			"stringValue": taskRecord.Notes,
-		},
+		// "memo": map[string]string{
+		// 	"stringValue": taskRecord.Memo,
+		// },
+		// "notes": map[string]string{
+		// 	"stringValue": taskRecord.Notes,
+		// },
 		"started_at": map[string]string{
 			"timestampValue": taskRecord.StartedAt.UTC().Format(time.RFC3339),
 		},

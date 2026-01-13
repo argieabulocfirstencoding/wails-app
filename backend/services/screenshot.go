@@ -47,6 +47,8 @@ type ScreenshotService struct {
 	FolderName   string
 	stopChan     chan struct{}
 	Running      bool
+	Memo         string
+	Notes        string
 	TaskRecordID *uint
 	TaskID       *string
 	SyncService  *SyncService
@@ -56,7 +58,14 @@ func NewScreenshotService(sync *SyncService) *ScreenshotService {
 	return &ScreenshotService{
 		stopChan:    make(chan struct{}),
 		SyncService: sync,
+		Memo:        "",
+		Notes:       "",
 	}
+}
+
+func (s *ScreenshotService) AddMemo(memo, notes string) {
+	s.Memo = memo
+	s.Notes = notes
 }
 
 func (s *ScreenshotService) Start(ctx context.Context) {
@@ -187,6 +196,8 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	taskScreenshot := &models.Screenshot{
 		TaskRecordID: taskRecordIDCopy,
 		TaskID:       taskIDCopy,
+		Memo:         s.Memo,
+		Notes:        s.Notes,
 		FilePath:     string(jsonPaths),
 		TakenAt:      time.Now().Local(),
 	}

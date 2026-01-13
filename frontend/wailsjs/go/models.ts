@@ -6,6 +6,8 @@ export namespace models {
 	    TaskRecord: TaskRecord;
 	    TaskID: string;
 	    Task: Task;
+	    Memo: string;
+	    Notes: string;
 	    FilePath: string;
 	    CloudURL?: string;
 	    // Go type: time
@@ -22,6 +24,8 @@ export namespace models {
 	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
 	        this.TaskID = source["TaskID"];
 	        this.Task = this.convertValues(source["Task"], Task);
+	        this.Memo = source["Memo"];
+	        this.Notes = source["Notes"];
 	        this.FilePath = source["FilePath"];
 	        this.CloudURL = source["CloudURL"];
 	        this.TakenAt = this.convertValues(source["TakenAt"], null);
@@ -134,8 +138,6 @@ export namespace models {
 	    // Go type: time
 	    StartedAt: any;
 	    Padagan: boolean;
-	    Memo: string;
-	    Notes: string;
 	    // Go type: time
 	    EndedAt?: any;
 	    Duration?: number;
@@ -159,8 +161,6 @@ export namespace models {
 	        this.Task = this.convertValues(source["Task"], Task);
 	        this.StartedAt = this.convertValues(source["StartedAt"], null);
 	        this.Padagan = source["Padagan"];
-	        this.Memo = source["Memo"];
-	        this.Notes = source["Notes"];
 	        this.EndedAt = this.convertValues(source["EndedAt"], null);
 	        this.Duration = source["Duration"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
@@ -340,8 +340,6 @@ export namespace models {
 	    // Go type: time
 	    ended_at?: any;
 	    duration?: number;
-	    memo: string;
-	    notes: string;
 	    padagan: boolean;
 	    sync_status: string;
 	
@@ -356,8 +354,6 @@ export namespace models {
 	        this.started_at = this.convertValues(source["started_at"], null);
 	        this.ended_at = this.convertValues(source["ended_at"], null);
 	        this.duration = source["duration"];
-	        this.memo = source["memo"];
-	        this.notes = source["notes"];
 	        this.padagan = source["padagan"];
 	        this.sync_status = source["sync_status"];
 	    }

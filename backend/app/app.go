@@ -507,7 +507,6 @@ func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
 // This is used to get the tasks that have recently used so that it can be quickly seen.
 // Tasks Records displayed will be ordered by how recent they are
 func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
-
 	task_records, err := services.GetAllPreviousTasksRecords(a.AuthUser.LocalID)
 	if err != nil {
 		return nil, err
@@ -521,6 +520,10 @@ func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 	}
 
 	return exp_task_records, nil
+}
+
+func (a *App) AddMemo(memo, notes string) {
+	a.ScreenshotService.AddMemo(memo, notes)
 }
 
 // ----------------------------------------------------

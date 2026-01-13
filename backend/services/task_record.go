@@ -180,3 +180,5 @@ func weekRange(now time.Time) (monday, sunday time.Time) {
 
 	return monday, sunday
 }
+
+

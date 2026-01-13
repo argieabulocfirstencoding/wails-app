@@ -14,8 +14,6 @@ type TaskRecord struct {
 	Task         Task       `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	StartedAt    time.Time  `gorm:"autoCreateTime"`
 	Padagan      bool       `gorm:"not null;default:false"`
-	Memo         string     `gorm:"not null;default:''"`
-	Notes        string     `gorm:"not null;default:''"`
 	EndedAt      *time.Time
 	Duration     *int32
 	SyncedAt     *time.Time
@@ -29,8 +27,6 @@ type ExpTaskRecord struct {
 	StartedAt  time.Time  `json:"started_at"`
 	EndedAt    *time.Time `json:"ended_at"`
 	Duration   *int32     `json:"duration"`
-	Memo       string     `json:"memo"`
-	Notes      string     `json:"notes"`
 	Padagan    bool       `json:"padagan"`
 	SyncStatus string     `json:"sync_status"`
 }
@@ -49,8 +45,6 @@ func (tr TaskRecord) ToExp() ExpTaskRecord {
 		EndedAt:    tr.EndedAt,
 		Duration:   tr.Duration,
 		Padagan:    tr.Padagan,
-		Memo:       tr.Memo,
-		Notes:      tr.Notes,
 		SyncStatus: tr.SyncStatus,
 	}
 }

@@ -22,6 +22,7 @@ import {
   StartTracking,
   StopTracking,
   GetLastTaskRecord,
+  AddMemo,
   OpenUpwork,
   SyncUnsyncedTaskRecord,
 } from "@/../wailsjs/go/app/App";
@@ -274,6 +275,8 @@ const Task = () => {
     const tagRecord = localStorage.getItem("tag");
     if (memoRecord) setMemo(memoRecord);
     if (tagRecord) setTag(tagRecord);
+
+    AddMemo(memoRecord || "", tagRecord || "");
     countMonitor();
   }, []);
 
@@ -567,10 +570,16 @@ const Task = () => {
                   initialMemo={memo}
                   initialTag={tag}
                   onSave={(newMemo, newTag) => {
-                    setMemo(newMemo);
-                    setTag(newTag);
-                    localStorage.setItem("memo", newMemo);
-                    localStorage.setItem("tag", newTag);
+                    async function updateMemo() {
+                      setMemo(newMemo);
+                      setTag(newTag);
+                      localStorage.setItem("memo", newMemo);
+                      localStorage.setItem("tag", newTag);
+
+                      await AddMemo(newMemo || "", newTag || "");
+                    }
+
+                    updateMemo();
                   }}
                 />
               </div>
@@ -594,9 +603,12 @@ const Task = () => {
                 </p>
               </div>
             </>
-          ): (
+          ) : (
             <div className="rounded-xl overflow-hidden mt-12">
-              <img src="https://storage.gra.cloud.ovh.net/v1/AUTH_728ab22ba0c842468a897907be9a7075/flipanim/anim/uvvk8grs.gif" alt="" />
+              <img
+                src="https://storage.gra.cloud.ovh.net/v1/AUTH_728ab22ba0c842468a897907be9a7075/flipanim/anim/uvvk8grs.gif"
+                alt=""
+              />
             </div>
           )}
         </div>

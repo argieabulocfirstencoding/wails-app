@@ -4,6 +4,8 @@ import {context} from '../models';
 import {models} from '../models';
 import {options} from '../models';
 
+export function AddMemo(arg1:string,arg2:string):Promise<void>;
+
 export function BackendFirebaseSync(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
 
 export function BeforeClose(arg1:context.Context):Promise<boolean>;
