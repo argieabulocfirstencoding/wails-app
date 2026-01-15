@@ -28,6 +28,28 @@ func GetActiveTaskRecord(userId string) (*models.ExpTaskRecord, error) {
 	return &expTaskRecord, nil
 }
 
+func StopAllActiveRecords(userId string) error {
+	now := time.Now()
+
+	var taskRecords []models.TaskRecord
+
+	attendance, err := GetUserAttendance(userId)
+	if err != nil {
+		return err
+	}
+
+	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", userId, attendance.ID).
+		Find(&taskRecords).Error; err != nil {
+		return err
+	}
+
+	for _, taskRecord := range taskRecords {
+		db.DB.Model(&taskRecord).Update("ended_at", now)
+	}
+
+	return nil
+}
+
 func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
 	// TODO add fetch on firebase
 	var taskRecord models.TaskRecord
@@ -180,5 +202,3 @@ func weekRange(now time.Time) (monday, sunday time.Time) {
 
 	return monday, sunday
 }
-
-

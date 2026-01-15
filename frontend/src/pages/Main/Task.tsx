@@ -290,7 +290,7 @@ const Task = () => {
   }, [isStarted]);
 
   useEffect(() => {
-    if (timeStarted && !timeEnded && id) {
+    if (!lastTaskRecord?.ended_at && timeStarted && !timeEnded && id) {
       setTaskID(id);
       setStart(true);
     }

@@ -128,6 +128,10 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 		a.ScreenshotService.Stop()
 	}
 
+	if err := services.StopAllActiveRecords(a.AuthUser.LocalID); err != nil {
+		fmt.Printf("Error stoping active task record: %s", err)
+	}
+
 	if a.ScreenshotService.TaskRecordID != nil {
 		record, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
 		if err == nil {
