@@ -124,6 +124,7 @@ func (a *App) GetMonitorCount() int {
 }
 
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
+	// NOTE this needs to be refactor, no logic should be applied here
 	if a.ScreenshotService.Running {
 		a.ScreenshotService.Stop()
 	}
@@ -162,6 +163,7 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 }
 
 func (a *App) StopTracking(taskId string) {
+	// NOTE this needs to be refactor, no logic should be applied here
 	if a.AuthUser == nil {
 		utils.Logger.Println("StopTracking error: AuthUser is nil")
 		return
@@ -206,6 +208,7 @@ func (a *App) StopTracking(taskId string) {
 }
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
+	// NOTE this needs to be refactor, no logic should be applied here
 	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 		Type:    runtime.QuestionDialog,
 		Title:   "Quit?",
@@ -263,11 +266,12 @@ func (a *App) LoginUser(email string) (*models.AuthUser, error) {
 }
 
 func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error) {
+	// TODO check if this function is still being use
+	// NOTE this needs to be refactor, no logic should be applied here
 	user, err := services.FirebaseLogin(email, password)
 	if err != nil {
 		return nil, err
 	}
-	// TODO in the future include returning the profile
 
 	authUser := &models.AuthUser{
 		LocalID: user.LocalID,
@@ -289,6 +293,7 @@ func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error
 
 // TODO recheck if this will sustain online login method
 func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) error {
+	// NOTE this needs to be refactor, no logic should be applied here
 	user := &models.FirebaseLoginResponse{
 		LocalID:      user_id,
 		Email:        email,
@@ -366,6 +371,7 @@ func (a *App) LogoutUser() error {
 }
 
 func (a *App) GetActiveTaskRecord() *string {
+	// NOTE this needs to be refactor, no logic should be applied here
 	taskRecord, err := services.GetActiveTaskRecord(a.AuthUser.LocalID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -394,6 +400,7 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 		return nil, err
 	}
 
+	// NOTE this needs to be refactor, no logic should be applied here
 	a.WorkingTaskID = &record.Record.TaskID
 	return record, nil
 }
@@ -404,11 +411,13 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 		return nil, err
 	}
 
+	// NOTE this needs to be refactor, no logic should be applied here
 	expTask := task.ToExpTask()
 	return &expTask, nil
 }
 
 func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
+	// NOTE this needs to be refactor, no logic should be applied here
 	if config.OnlineMode && isOnline {
 		if err := services.SyncClientsAndProjects(); err != nil {
 			utils.Logger.Printf("error fetching tasks from fes: %v", err)
@@ -439,6 +448,7 @@ func (a *App) OpenUpwork(taskID string) error {
 }
 
 func (a *App) GetAccounts() ([]models.User, error) {
+	// NOTE this needs to be refactor, no logic should be applied here
 	var users []models.User
 
 	if err := db.DB.Model(&models.User{}).Find(&users).Error; err != nil {
@@ -512,6 +522,7 @@ func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
 // This is used to get the tasks that have recently used so that it can be quickly seen.
 // Tasks Records displayed will be ordered by how recent they are
 func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
+	// NOTE this needs to be refactor, no logic should be applied here
 	task_records, err := services.GetAllPreviousTasksRecords(a.AuthUser.LocalID)
 	if err != nil {
 		return nil, err
