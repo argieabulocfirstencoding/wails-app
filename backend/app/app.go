@@ -302,16 +302,17 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		ExpiresIn:    expiresIn,
 	}
 
-	authUser := &models.AuthUser{
-		LocalID: user.LocalID,
-		Email:   user.Email,
-	}
 	// Creates a local representation of your account
 	model_user, _ := services.CreateUser(user.LocalID, user.Email)
 	if model_user != nil {
 		go func() {
 			services.FetchEmployeeDetails(a.ctx, model_user)
 		}()
+	}
+
+	authUser := &models.AuthUser{
+		LocalID: user.LocalID,
+		Email:   user.Email,
 	}
 
 	attendanceID, err := services.LoginAttendance(authUser.LocalID)
@@ -340,6 +341,35 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	config.OnlineMode = true
 	return nil
 }
+
+func (a *App) FetchUserDetails() (*models.AuthUser, error) {
+	user, err := services.GetUserFromId(a.AuthUser.LocalID)
+	if err != nil {
+		return nil, err
+	}
+
+	authUser := &models.AuthUser{
+		LocalID:   user.ID,
+		Email:     user.Email,
+		Name:      strOrEmpty(user.Name),
+		Position:  strOrEmpty(user.Position),
+		Birthdate: strOrEmpty(user.Birthdate),
+		Phone:     strOrEmpty(user.Phone),
+		Address:   strOrEmpty(user.Address),
+		Photo:     strOrEmpty(user.Photo),
+		FESID:     strOrEmpty(user.FESID),
+	}
+
+	return authUser, nil
+}
+
+func strOrEmpty(s *string) string {
+	if s != nil {
+		return *s
+	}
+	return ""
+}
+
 
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time

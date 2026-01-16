@@ -189,6 +189,7 @@ export namespace models {
 	export class User {
 	    ID: string;
 	    Email: string;
+	    Name?: string;
 	    Position?: string;
 	    Birthdate?: string;
 	    Phone?: string;
@@ -204,6 +205,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
 	        this.Email = source["Email"];
+	        this.Name = source["Name"];
 	        this.Position = source["Position"];
 	        this.Birthdate = source["Birthdate"];
 	        this.Phone = source["Phone"];
@@ -302,6 +304,13 @@ export namespace models {
 	export class AuthUser {
 	    localId: string;
 	    email: string;
+	    name: string;
+	    position: string;
+	    birthdate: string;
+	    phone: string;
+	    address: string;
+	    photo: string;
+	    fesid: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AuthUser(source);
@@ -311,6 +320,13 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.localId = source["localId"];
 	        this.email = source["email"];
+	        this.name = source["name"];
+	        this.position = source["position"];
+	        this.birthdate = source["birthdate"];
+	        this.phone = source["phone"];
+	        this.address = source["address"];
+	        this.photo = source["photo"];
+	        this.fesid = source["fesid"];
 	    }
 	}
 	

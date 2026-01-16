@@ -24,3 +24,13 @@ func CreateUser(id string, email string) (*db.User, error) {
 	result := db.DB.Where("id = ?", id).FirstOrCreate(&user)
 	return &user, result.Error
 }
+
+func GetUserFromId(id string) (*db.User, error) {
+	var user db.User
+
+	if err := db.DB.Where("id = ?", id).First(&user).Error; err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}

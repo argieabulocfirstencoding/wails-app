@@ -14,6 +14,8 @@ export function CheckAuth(arg1:any):Promise<boolean>;
 
 export function CreateTask(arg1:string,arg2:string):Promise<models.ExpTask>;
 
+export function FetchUserDetails():Promise<models.AuthUser>;
+
 export function FirebaseLoginUser(arg1:string,arg2:string):Promise<models.AuthUser>;
 
 export function GetAccounts():Promise<Array<models.User>>;

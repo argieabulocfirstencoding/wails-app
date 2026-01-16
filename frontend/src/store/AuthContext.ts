@@ -4,6 +4,13 @@ import { create } from "zustand";
 type AuthUser = {
   uid: string;
   email: string | null;
+  name?: string;
+  position?: string;
+  birthdate?: string;
+  phone?: string;
+  address?: string;
+  photo?: string;
+  fesid?: string;
   idToken?: string; // short-lived
   refreshToken?: string; // long-lived
   offline?: boolean; // mark when logged in offline

@@ -14,6 +14,7 @@ import {
   GetCurrentAttendance,
   GetLastTaskRecords,
   SyncUnsyncedAttendance,
+  FetchUserDetails,
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,24 @@ const Home = () => {
     initializedTask,
     setInitializedTask,
   } = useAuthStore();
+
+  useEffect(() => {
+    async function fetchDetails() {
+      try {
+        const response: models.AuthUser = await FetchUserDetails();
+        console.log("RESPONSE", response);
+
+        useAuthStore.getState().setUser({
+          uid: response.localId,
+          ...response,
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    fetchDetails();
+  }, []);
 
   useEffect(() => {
     async function fetchAllTaskRecords() {

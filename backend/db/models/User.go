@@ -1,9 +1,9 @@
 package models
 
 type User struct {
-	ID string `gorm:"primaryKey"`
-	// Name     string `validate:"required,min=2"` // TODO add this when profile is supported
+	ID        string `gorm:"primaryKey"`
 	Email     string `gorm:"uniqueIndex" validate:"required,email"`
+	Name      *string
 	Position  *string
 	Birthdate *string
 	Phone     *string
@@ -14,9 +14,15 @@ type User struct {
 }
 
 type AuthUser struct {
-	LocalID string `json:"localId"` // uid
-	Email   string `json:"email"`
-	// TODO add profile
+	LocalID   string `json:"localId"` // uid
+	Email     string `json:"email"`
+	Name      string `json:"name"`
+	Position  string `json:"position"`
+	Birthdate string `json:"birthdate"`
+	Phone     string `json:"phone"`
+	Address   string `json:"address"`
+	Photo     string `json:"photo"`
+	FESID     string `json:"fesid"`
 }
 
 type FirebaseLoginResponse struct {

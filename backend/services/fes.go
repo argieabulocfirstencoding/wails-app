@@ -325,58 +325,78 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 		return err
 	}
 
-	employee, ok := response["employee"].(map[string]interface{})
-	position := response["position"].(string)
-	photo := response["photo"].(string)
-	fesid := response["fesid"].(string)
-
-	phone := employee["Account phone number"].(string)
-	address := employee["Address"].(string)
-	rawBirthdate := employee["BirthDate txt"].(string)
-
-	fmt.Println("Employee OK:", ok)
-	fmt.Printf("Employee: %+v\n", employee)
-	fmt.Println("Position:", position)
-	fmt.Println("Photo:", photo)
-	fmt.Println("FESID:", fesid)
-	fmt.Println("Phone:", phone)
-	fmt.Println("Address:", address)
-
-	birthdate := ""
-	if rawBirthdate != "" {
-		slicedBd := strings.Split(rawBirthdate, " ")
-
-		if len(slicedBd) >= 3 {
-			birthdate = fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
-		}
-
-	}
-	fmt.Println("Birthdate:", rawBirthdate)
-
-	if fesid != "" {
-		if user.FESID != &fesid {
-			user.FESID = &fesid
-		}
-		if user.Photo != &photo {
-			user.Photo = &photo
-		}
-		if user.Position != &position {
-			user.Position = &position
-		}
-		if user.Phone != &phone {
-			user.Phone = &phone
-		}
-		if user.Address != &address {
-			user.Address = &address
-		}
-		if user.Birthdate != &birthdate {
-			user.Birthdate = &birthdate
-		}
-
-		db.DB.Save(&user)
+	employeeRaw, exists := response["employee"]
+	if !exists || employeeRaw == nil {
+		return nil
 	}
 
-	return nil
+	switch v := employeeRaw.(type) {
+	case map[string]interface{}:
+		employee := v
+		position, _ := response["position"].(string)
+		photo, _ := response["photo"].(string)
+		fesid, _ := response["fesid"].(string)
+
+		name, _ := employee["Full Name"].(string)
+		phone, _ := employee["Account phone number"].(string)
+		address, _ := employee["Address"].(string)
+		rawBirthdate, _ := employee["BirthDate txt"].(string)
+
+		// fmt.Printf("Employee: %+v\n", employee)
+		// fmt.Println("Position:", position)
+		// fmt.Println("Photo:", photo)
+		// fmt.Println("FESID:", fesid)
+		// fmt.Println("Phone:", phone)
+		// fmt.Println("Address:", address)
+
+		birthdate := ""
+		if rawBirthdate != "" {
+			slicedBd := strings.Split(rawBirthdate, " ")
+
+			if len(slicedBd) >= 3 {
+				birthdate = fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
+			}
+
+		}
+		fmt.Println("Birthdate:", rawBirthdate)
+
+		if fesid != "" {
+			if user.Name != &name {
+				user.Name = &name
+			}
+
+			if user.FESID != &fesid {
+				user.FESID = &fesid
+			}
+			if user.Photo != &photo {
+				user.Photo = &photo
+			}
+			if user.Position != &position {
+				user.Position = &position
+			}
+			if user.Phone != &phone {
+				user.Phone = &phone
+			}
+			if user.Address != &address {
+				user.Address = &address
+			}
+			if user.Birthdate != &birthdate {
+				user.Birthdate = &birthdate
+			}
+
+			db.DB.Save(&user)
+		}
+
+		return nil
+		// use employee
+	case []interface{}:
+		// employee is a list
+		return nil
+	default:
+		// unexpected type
+		return nil
+	}
+
 }
 
 func FetchUpworkCreds(ctx context.Context, taskID string) {

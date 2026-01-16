@@ -32,43 +32,45 @@ const DEFAULT_USER: AccountUser = {
 const AccountSettings = () => {
   const storeUser = useAuthStore((s) => s.user);
 
-  const [user, setUser] = useState<AccountUser>(DEFAULT_USER);
+  const { user } = useAuthStore();
+
+  // const [user, setUser] = useState<AccountUser>(DEFAULT_USER);
 
   const [dark, setDark] = useState<boolean>(
     () => localStorage.getItem("theme") === "dark"
   );
 
   // Hydrate user from store/localStorage
-  useEffect(() => {
-    if (storeUser) {
-      const su: any = storeUser;
-      setUser((prev) => ({
-        ...prev,
-        email: su.email ?? prev.email,
-        fullName:
-          (su.fullName ?? su.displayName ?? su.name ?? prev.fullName) ||
-          prev.fullName,
-        avatar: (su.avatar ??
-          su.photoURL ??
-          su.picture ??
-          prev.avatar) as string,
-        position: su.position ?? prev.position,
-      }));
-    } else {
-      const saved = localStorage.getItem("user");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setUser((prev) => ({
-            ...prev,
-            email: parsed.email ?? prev.email,
-          }));
-        } catch {
-          // ignore parse errors
-        }
-      }
-    }
-  }, [storeUser]);
+  // useEffect(() => {
+  //   if (storeUser) {
+  //     const su: any = storeUser;
+  //     setUser((prev) => ({
+  //       ...prev,
+  //       email: su.email ?? prev.email,
+  //       fullName:
+  //         (su.fullName ?? su.displayName ?? su.name ?? prev.fullName) ||
+  //         prev.fullName,
+  //       avatar: (su.avatar ??
+  //         su.photoURL ??
+  //         su.picture ??
+  //         prev.avatar) as string,
+  //       position: su.position ?? prev.position,
+  //     }));
+  //   } else {
+  //     const saved = localStorage.getItem("user");
+  //     if (saved) {
+  //       try {
+  //         const parsed = JSON.parse(saved);
+  //         setUser((prev) => ({
+  //           ...prev,
+  //           email: parsed.email ?? prev.email,
+  //         }));
+  //       } catch {
+  //         // ignore parse errors
+  //       }
+  //     }
+  //   }
+  // }, [storeUser]);
 
   // Apply theme on mount
   useEffect(() => {
@@ -117,7 +119,7 @@ const AccountSettings = () => {
           <div className="px-6 pt-5 pb-4 flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
               <img
-                src={user.avatar || "/assets/images/default-avatar.png"}
+                src={user?.photo || "/assets/images/default-avatar.png"}
                 alt="Profile avatar"
                 className="w-full h-full object-cover"
               />
@@ -125,15 +127,15 @@ const AccountSettings = () => {
 
             <div className="space-y-1 min-w-0">
               <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-50 truncate">
-                {user.fullName}
+                {user?.name}
               </p>
               <p className="text-xs text-neutral-600 dark:text-neutral-400 flex items-center gap-1 truncate">
                 <Mail className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
-                <span className="truncate">{user.email}</span>
+                <span className="truncate">{user?.email}</span>
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1 truncate">
                 <Briefcase className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
-                <span>{user.position}</span>
+                <span>{user?.position}</span>
               </p>
             </div>
           </div>
@@ -147,7 +149,7 @@ const AccountSettings = () => {
                   Birthdate
                 </p>
                 <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50">
-                  {user.birthdate}
+                  {user?.birthdate}
                 </p>
               </div>
               <div>
@@ -156,41 +158,41 @@ const AccountSettings = () => {
                 </p>
                 <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50 flex items-center gap-1">
                   <Phone className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
-                  <span>{user.phone || "—"}</span>
+                  <span>{user?.phone || "—"}</span>
                 </p>
               </div>
             </div>
 
             {/* Address + employment type */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="flex">
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
                   Address
                 </p>
                 <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50 flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500" />
-                  <span>{user.address}</span>
+                  <span>{user?.address}</span>
                 </p>
               </div>
-              <div>
+              {/* <div>
                 <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
                   Employment type
                 </p>
                 <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50">
                   {user.employmentStatus}
                 </p>
-              </div>
+              </div> */}
             </div>
 
             {/* Edit only (no sign out here) */}
-            <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-start">
+            {/* <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-start">
               <Button
                 type="button"
                 className="px-4 py-2 text-sm font-semibold bg-emerald-600 rounded-full hover:bg-emerald-700 text-white cursor-pointer"
               >
                 Edit profile
               </Button>
-            </div>
+            </div> */}
           </div>
         </section>
 

@@ -7,8 +7,11 @@ import {
   CardTitle,
   CardFooter,
 } from "@/components/ui/card";
+import { useAuthStore } from "@/store/AuthContext";
 
 const AccountSettings = () => {
+  const { user } = useAuthStore();
+
   return (
     <SettingsLayout>
       <div className="flex items-center justify-center min-h-screen bg-gray-50 px-6">
@@ -29,7 +32,7 @@ const AccountSettings = () => {
             <div>
               <p className="text-sm text-gray-500">Full Name</p>
               <p className="text-base font-medium text-gray-800">
-                John Paul Tunacao
+                {user?.name}
               </p>
             </div>
 
