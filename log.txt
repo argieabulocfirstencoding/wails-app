@@ -619,3 +619,37 @@ FES_LOG: 2026/01/15 20:40:24 sync.go:108: access token status: false
 FES_LOG: 2026/01/15 20:40:24 sync.go:108: access token status: false
 FES_LOG: 2026/01/15 20:40:24 sync.go:108: access token status: false
 FES_LOG: 2026/01/15 20:40:24 sync.go:108: access token status: false
+FES_LOG: 2026/01/15 20:57:29 sync.go:108: access token status: false
+FES_LOG: 2026/01/15 20:57:29 sync.go:108: access token status: false
+FES_LOG: 2026/01/15 20:57:33 app.go:378: No active record
+FES_LOG: 2026/01/15 20:57:33 app.go:378: No active record
+FES_LOG: 2026/01/17 05:23:18 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:23:18 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:23:19 app.go:378: No active record
+FES_LOG: 2026/01/17 05:23:20 app.go:378: No active record
+FES_LOG: 2026/01/17 05:29:44 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:29:44 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:29:45 app.go:378: No active record
+FES_LOG: 2026/01/17 05:29:45 app.go:378: No active record
+FES_LOG: 2026/01/17 05:31:06 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:31:06 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:31:07 app.go:378: No active record
+FES_LOG: 2026/01/17 05:31:08 app.go:378: No active record
+FES_LOG: 2026/01/17 05:34:58 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:34:58 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:35:00 app.go:378: No active record
+FES_LOG: 2026/01/17 05:35:00 app.go:378: No active record
+FES_LOG: 2026/01/17 05:37:06 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:37:06 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:37:08 app.go:378: No active record
+FES_LOG: 2026/01/17 05:37:08 app.go:378: No active record
+FES_LOG: 2026/01/17 05:46:58 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:46:58 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 05:47:01 app.go:378: No active record
+FES_LOG: 2026/01/17 05:47:01 app.go:378: No active record
+FES_LOG: 2026/01/17 06:02:17 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 06:02:17 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 06:02:19 app.go:378: No active record
+FES_LOG: 2026/01/17 06:02:19 app.go:378: No active record
+FES_LOG: 2026/01/17 06:05:07 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 06:05:07 sync.go:108: access token status: false

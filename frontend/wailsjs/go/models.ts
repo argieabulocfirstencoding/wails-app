@@ -189,6 +189,12 @@ export namespace models {
 	export class User {
 	    ID: string;
 	    Email: string;
+	    Position?: string;
+	    Birthdate?: string;
+	    Phone?: string;
+	    Address?: string;
+	    Photo?: string;
+	    FESID?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new User(source);
@@ -198,6 +204,12 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
 	        this.Email = source["Email"];
+	        this.Position = source["Position"];
+	        this.Birthdate = source["Birthdate"];
+	        this.Phone = source["Phone"];
+	        this.Address = source["Address"];
+	        this.Photo = source["Photo"];
+	        this.FESID = source["FESID"];
 	    }
 	}
 	export class Attendance {

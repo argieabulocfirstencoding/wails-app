@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/utils"
 	"fmt"
 	"log"
 	"net/http"
-	"os/exec"
+	"strings"
 	"time"
 
 	// alias to avoid conflict with Wails runtime
-	stdruntime "runtime" // alias to avoid conflict with Wails runtime
+	// alias to avoid conflict with Wails runtime
 
 	"github.com/go-vgo/robotgo/clipboard"
 	"github.com/micmonay/keybd_event"
@@ -312,10 +313,11 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 	// https://firstencoding.app/version-test/api/1.1/wf/employee_details
 
 	// FIX development mode only
-	url := "https://firstencoding.app/version-test/api/1.1/wf/employee_details"
+	url := "https://firstencoding.app/api/1.1/wf/employee_details"
 	method := "POST"
 	body := map[string]interface{}{
 		"email": user.Email,
+		// "email": "johnpaultunacao.firstencoding@gmail.com",
 	}
 
 	response, err := FetchBubble(url, method, body)
@@ -324,15 +326,55 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 	}
 
 	employee, ok := response["employee"].(map[string]interface{})
-	position := utils.GetStringValue(response["position"])
-	photo := utils.GetStringValue(response["photo"])
-	fesid := utils.GetStringValue(response["fesid"])
+	position := response["position"].(string)
+	photo := response["photo"].(string)
+	fesid := response["fesid"].(string)
+
+	phone := employee["Account phone number"].(string)
+	address := employee["Address"].(string)
+	rawBirthdate := employee["BirthDate txt"].(string)
 
 	fmt.Println("Employee OK:", ok)
 	fmt.Printf("Employee: %+v\n", employee)
 	fmt.Println("Position:", position)
 	fmt.Println("Photo:", photo)
 	fmt.Println("FESID:", fesid)
+	fmt.Println("Phone:", phone)
+	fmt.Println("Address:", address)
+
+	birthdate := ""
+	if rawBirthdate != "" {
+		slicedBd := strings.Split(rawBirthdate, " ")
+
+		if len(slicedBd) >= 3 {
+			birthdate = fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
+		}
+
+	}
+	fmt.Println("Birthdate:", rawBirthdate)
+
+	if fesid != "" {
+		if user.FESID != &fesid {
+			user.FESID = &fesid
+		}
+		if user.Photo != &photo {
+			user.Photo = &photo
+		}
+		if user.Position != &position {
+			user.Position = &position
+		}
+		if user.Phone != &phone {
+			user.Phone = &phone
+		}
+		if user.Address != &address {
+			user.Address = &address
+		}
+		if user.Birthdate != &birthdate {
+			user.Birthdate = &birthdate
+		}
+
+		db.DB.Save(&user)
+	}
 
 	return nil
 }
@@ -342,9 +384,7 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
 
-	if err := openFESApp(); err != nil {
-		fmt.Print(err)
-	}
+	openFESApp()
 	runtime.EventsEmit(ctx, "upwork-button", true)
 
 	task, err := GetTaskFromID(taskID)
@@ -391,28 +431,12 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
 
-	if err := openFESApp(); err != nil {
-		fmt.Print(err)
-	}
+	openFESApp()
 	runtime.EventsEmit(ctx, "upwork-button", true)
 }
 
-func openFESApp() error {
-	url := "fesapp://"
-
-	switch stdruntime.GOOS {
-	case "windows":
-		cmd := exec.Command("cmd", "/C", "start", "", url)
-		return cmd.Run()
-	case "darwin":
-		cmd := exec.Command("open", url)
-		return cmd.Run()
-	case "linux":
-		cmd := exec.Command("xdg-open", url)
-		return cmd.Run()
-	default:
-		return nil
-	}
+func openFESApp() {
+	runtime.BrowserOpenURL(context.Background(), "fesapp://")
 }
 
 func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[string]interface{}, error) {

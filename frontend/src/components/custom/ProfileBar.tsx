@@ -326,6 +326,7 @@ const ProfileBar = () => {
         {/* Left side – user info */}
         <div className="flex items-center gap-3 sm:gap-4">
           <img
+            // src="//cf9237271c7c9759e747853c3b817950.cdn.bubble.io/f1764841309776x100054280396554060/jp.png"
             src="https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"
             className={`rounded-full border-2 ${
               online ? "border-emerald-500" : "border-neutral-500"
