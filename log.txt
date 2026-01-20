@@ -683,3 +683,30 @@ FES_LOG: 2026/01/17 07:25:15 sync.go:108: access token status: false
 FES_LOG: 2026/01/17 07:25:15 sync.go:108: access token status: false
 FES_LOG: 2026/01/17 07:25:18 app.go:408: No active record
 FES_LOG: 2026/01/17 07:25:18 app.go:408: No active record
+FES_LOG: 2026/01/17 07:27:22 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 07:27:22 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 07:27:24 app.go:408: No active record
+FES_LOG: 2026/01/17 07:27:24 app.go:408: No active record
+FES_LOG: 2026/01/17 07:28:32 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 07:28:36 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 07:28:36 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 07:28:37 fes.go:295: error on bulk task create database is locked (5) (SQLITE_BUSY)
+FES_LOG: 2026/01/17 07:28:37 app.go:453: error fetching tasks from fes: database is locked (5) (SQLITE_BUSY)
+FES_LOG: 2026/01/17 07:28:37 app.go:408: No active record
+FES_LOG: 2026/01/17 07:28:37 app.go:408: No active record
+FES_LOG: 2026/01/17 07:34:01 app.go:178: StopTaskRecord error: record not found
+FES_LOG: 2026/01/17 07:34:01 sync.go:108: access token status: false
+FES_LOG: 2026/01/17 07:34:04 app.go:178: StopTaskRecord error: record not found
+FES_LOG: 2026/01/21 00:15:47 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 00:15:48 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 00:15:50 app.go:408: No active record
+FES_LOG: 2026/01/21 00:15:50 app.go:408: No active record
+FES_LOG: 2026/01/21 00:20:41 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 00:20:41 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 00:20:43 app.go:408: No active record
+FES_LOG: 2026/01/21 00:20:43 app.go:408: No active record
+FES_LOG: 2026/01/21 00:21:45 app.go:178: StopTaskRecord error: record not found
+FES_LOG: 2026/01/21 00:23:44 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 00:23:44 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 00:23:46 app.go:408: No active record
+FES_LOG: 2026/01/21 00:23:46 app.go:408: No active record

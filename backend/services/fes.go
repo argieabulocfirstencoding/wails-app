@@ -404,7 +404,7 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
 
-	openFESApp()
+	openFESApp(ctx)
 	runtime.EventsEmit(ctx, "upwork-button", true)
 
 	task, err := GetTaskFromID(taskID)
@@ -451,12 +451,12 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
 
-	openFESApp()
+	openFESApp(ctx)
 	runtime.EventsEmit(ctx, "upwork-button", true)
 }
 
-func openFESApp() {
-	runtime.BrowserOpenURL(context.Background(), "fesapp://")
+func openFESApp(ctx context.Context) {
+	runtime.BrowserOpenURL(ctx, "fesapp://")
 }
 
 func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[string]interface{}, error) {
