@@ -144,6 +144,7 @@ export namespace models {
 	    // Go type: time
 	    SyncedAt?: any;
 	    SyncStatus: string;
+	    Gap: number;
 	    Screenshots: Screenshot[];
 	
 	    static createFrom(source: any = {}) {
@@ -165,6 +166,7 @@ export namespace models {
 	        this.Duration = source["Duration"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
 	        this.SyncStatus = source["SyncStatus"];
+	        this.Gap = source["Gap"];
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
 	    }
 	

@@ -62,6 +62,18 @@ func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
 	return &taskRecordExp, nil
 }
 
+func GetLastTaskRecordFromAttendance(userId string, attendanceId uint) (*models.TaskRecord, error) {
+	var taskRecord models.TaskRecord
+
+	if err := db.DB.Where("user_id = ? AND attendance_id = ?", userId, attendanceId).
+		Order("started_at DESC").
+		First(&taskRecord).Error; err != nil {
+		return nil, err
+	}
+
+	return &taskRecord, nil
+}
+
 func GetTaskRecordFromID(taskRecordId uint) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("task_records.id = ?", taskRecordId).First(&taskRecord).Error; err != nil {
@@ -131,15 +143,21 @@ func StopTaskRecord(userId, taskId string) error {
 }
 
 func NewTaskRecord(userId, taskId string, attendanceId uint, padagan bool) (*models.TaskRecord, error) {
+	now := time.Now()
+
 	record := models.TaskRecord{
 		UserID:       userId,
 		AttendanceID: attendanceId,
 		TaskID:       taskId,
 		Padagan:      padagan,
+		StartedAt:    now,
 	}
 
-	err := db.DB.Create(&record).Error
-	if err != nil {
+	if err := CalculateGap(&record, now); err != nil {
+		return nil, err
+	}
+
+	if err := db.DB.Create(&record).Error; err != nil {
 		return nil, err
 	}
 

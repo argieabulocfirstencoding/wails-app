@@ -18,6 +18,7 @@ type TaskRecord struct {
 	Duration     *int32
 	SyncedAt     *time.Time
 	SyncStatus   string `gorm:"not null;default:'pending'"`
+	Gap          int32  `gorm:"not null;default:0"`
 	Screenshots  []Screenshot
 }
 
