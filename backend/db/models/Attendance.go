@@ -10,6 +10,8 @@ type Attendance struct {
 	gorm.Model
 	UserID     string `gorm:"not null"`
 	User       User   `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	ClientTime uint32 `gorm:"not null;default:0"`
+	TotalGap   uint32 `gorm:"not null;default:0"`
 	TimeIn     time.Time
 	TimeOut    *time.Time
 	SyncedAt   *time.Time

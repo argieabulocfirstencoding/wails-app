@@ -226,6 +226,8 @@ export namespace models {
 	    DeletedAt: any;
 	    UserID: string;
 	    User: User;
+	    ClientTime: number;
+	    TotalGap: number;
 	    // Go type: time
 	    TimeIn: any;
 	    // Go type: time
@@ -246,6 +248,8 @@ export namespace models {
 	        this.DeletedAt = this.convertValues(source["DeletedAt"], null);
 	        this.UserID = source["UserID"];
 	        this.User = this.convertValues(source["User"], User);
+	        this.ClientTime = source["ClientTime"];
+	        this.TotalGap = source["TotalGap"];
 	        this.TimeIn = this.convertValues(source["TimeIn"], null);
 	        this.TimeOut = this.convertValues(source["TimeOut"], null);
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);

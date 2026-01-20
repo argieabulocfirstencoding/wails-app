@@ -466,31 +466,48 @@ func (s *SyncService) SyncUser(user models.AuthUser) error {
 	return nil
 }
 
+type FirestoreTimestamp struct {
+	TimestampValue string `json:"timestampValue"`
+}
+type FirestoreString struct {
+	StringValue string `json:"stringValue"`
+}
+type FirestoreInteger struct {
+	IntegerValue string `json:"integerValue"`
+}
+
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 	db.DB.Model(&attendance).Update("sync_status", "pending")
 	// ============== PRE DEFINITION =============
 	now := time.Now()
 	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")
 	s.RefreshAccessToken()
+	CalculateAttendanceSummary(attendance)
 
 	fields := map[string]interface{}{
-		"synced_at": map[string]string{
-			"timestampValue": now.UTC().Format(time.RFC3339),
+		"synced_at": FirestoreTimestamp{
+			TimestampValue: now.UTC().Format(time.RFC3339),
 		},
-		"started_at": map[string]string{
-			"timestampValue": attendance.TimeIn.UTC().Format(time.RFC3339),
+		"started_at": FirestoreTimestamp{
+			TimestampValue: attendance.TimeIn.UTC().Format(time.RFC3339),
 		},
-		"duration": map[string]string{
-			"integerValue": fmt.Sprintf("%d", int(now.Sub(attendance.TimeIn).Seconds())),
+		"duration": FirestoreInteger{
+			IntegerValue: fmt.Sprintf("%d", int(now.Sub(attendance.TimeIn).Seconds())),
+		},
+		"client_time": FirestoreInteger{
+			IntegerValue: fmt.Sprintf("%d", attendance.ClientTime),
+		},
+		"total_gap": FirestoreInteger{
+			IntegerValue: fmt.Sprintf("%d", attendance.TotalGap),
 		},
 	}
 
 	if attendance.TimeOut != nil {
-		fields["ended_at"] = map[string]string{
-			"timestampValue": attendance.TimeOut.UTC().Format(time.RFC3339),
+		fields["ended_at"] = FirestoreTimestamp{
+			TimestampValue: attendance.TimeOut.UTC().Format(time.RFC3339),
 		}
-		fields["duration"] = map[string]string{
-			"integerValue": fmt.Sprintf("%d", int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds())),
+		fields["duration"] = FirestoreInteger{
+			IntegerValue: fmt.Sprintf("%d", int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds())),
 		}
 	}
 
