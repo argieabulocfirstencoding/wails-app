@@ -32,21 +32,29 @@ func CalculateGap(tr *models.TaskRecord, now time.Time) error {
 	return nil
 }
 
-type AttendanceSummary struct {
-	TotalClientTime uint32
-	TotalGap        uint32
-	TotalDuration   uint32
-}
-
 func CalculateAttendanceSummary(attendance *models.Attendance) error {
-	var total AttendanceSummary
+
+	var total struct {
+		TotalClientTime uint32 `gorm:"column:total_client_time"`
+		TotalGap        uint32 `gorm:"column:total_gap"`
+		TotalDuration   uint32 `gorm:"column:total_duration"`
+	}
 
 	if err := db.DB.Model(&models.TaskRecord{}).
-		Joins("JOIN tasks ON task_records.task_id = tasks.id").
-		Select(`SUM(CASE 
-		WHEN (tasks.project_name = ? OR tasks.project_name = ?)
-		THEN 0 ELSE task_records.duration END) as total_client_time,
-		SUM(gap) AS total_gap, SUM(duration) as total_duration`, "Break", "Training").
+		Joins("JOIN tasks ON task_records.task_id = tasks.task_id").
+		Select(`
+			COALESCE(SUM(CASE 
+				WHEN tasks.project_name IN (?, ?)
+				THEN 0 ELSE task_records.duration 
+			END),0) AS total_client_time,
+			
+			COALESCE(SUM(CASE 
+				WHEN tasks.project_name IN (?, ?)
+				THEN 0 ELSE task_records.gap
+			END),0) AS total_gap,
+			
+			COALESCE(SUM(task_records.duration),0) AS total_duration
+		`, "Break", "Training", "Break", "Training").
 		Where("attendance_id = ?", attendance.ID).
 		Scan(&total).Error; err != nil {
 		return err
@@ -54,6 +62,12 @@ func CalculateAttendanceSummary(attendance *models.Attendance) error {
 
 	//TODO attendance.TotalDuration = total.TotalDuration
 	attendance.ClientTime = total.TotalClientTime
-	attendance.TotalGap = total.TotalGap // FIX not showing right
+	attendance.TotalGap = total.TotalGap
+
+	err := db.DB.Save(attendance).Error
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
