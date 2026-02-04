@@ -192,6 +192,9 @@ export namespace models {
 	    ID: string;
 	    Email: string;
 	    Name?: string;
+	    FirstName?: string;
+	    LastName?: string;
+	    MiddleName?: string;
 	    Position?: string;
 	    Birthdate?: string;
 	    Phone?: string;
@@ -208,6 +211,9 @@ export namespace models {
 	        this.ID = source["ID"];
 	        this.Email = source["Email"];
 	        this.Name = source["Name"];
+	        this.FirstName = source["FirstName"];
+	        this.LastName = source["LastName"];
+	        this.MiddleName = source["MiddleName"];
 	        this.Position = source["Position"];
 	        this.Birthdate = source["Birthdate"];
 	        this.Phone = source["Phone"];

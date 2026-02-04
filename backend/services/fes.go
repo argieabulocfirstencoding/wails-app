@@ -315,9 +315,14 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 	// FIX development mode only
 	url := "https://firstencoding.app/api/1.1/wf/employee_details"
 	method := "POST"
+
+	email := user.Email
+	if user.Email == "test@fes.com" {
+		email = "johnpaultunacao.firstencoding@gmail.com"
+	}
+
 	body := map[string]interface{}{
-		"email": user.Email,
-		// "email": "johnpaultunacao.firstencoding@gmail.com",
+		"email": email,
 	}
 
 	response, err := FetchBubble(url, method, body)
@@ -333,21 +338,9 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 	switch v := employeeRaw.(type) {
 	case map[string]interface{}:
 		employee := v
-		position, _ := response["position"].(string)
-		photo, _ := response["photo"].(string)
+
 		fesid, _ := response["fesid"].(string)
-
-		name, _ := employee["Full Name"].(string)
-		phone, _ := employee["Account phone number"].(string)
-		address, _ := employee["Address"].(string)
 		rawBirthdate, _ := employee["BirthDate txt"].(string)
-
-		// fmt.Printf("Employee: %+v\n", employee)
-		// fmt.Println("Position:", position)
-		// fmt.Println("Photo:", photo)
-		// fmt.Println("FESID:", fesid)
-		// fmt.Println("Phone:", phone)
-		// fmt.Println("Address:", address)
 
 		birthdate := ""
 		if rawBirthdate != "" {
@@ -361,30 +354,29 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 		fmt.Println("Birthdate:", rawBirthdate)
 
 		if fesid != "" {
-			if user.Name != &name {
-				user.Name = &name
+			fields := map[**string]string{
+				&user.Name:       employee["Full Name"].(string),
+				&user.FirstName:  employee["FirstName"].(string),
+				&user.LastName:   employee["LastName"].(string),
+				&user.MiddleName: employee["MiddleName"].(string),
+				&user.FESID:      response["fesid"].(string),
+				&user.Photo:      response["photo"].(string),
+				&user.Position:   response["position"].(string),
+				&user.Phone:      employee["Account phone number"].(string),
+				&user.Address:    employee["Address"].(string),
+				&user.Birthdate:  birthdate,
 			}
 
-			if user.FESID != &fesid {
-				user.FESID = &fesid
-			}
-			if user.Photo != &photo {
-				user.Photo = &photo
-			}
-			if user.Position != &position {
-				user.Position = &position
-			}
-			if user.Phone != &phone {
-				user.Phone = &phone
-			}
-			if user.Address != &address {
-				user.Address = &address
-			}
-			if user.Birthdate != &birthdate {
-				user.Birthdate = &birthdate
+			updated := false
+			for ptr, val := range fields {
+				updated = strPtrUpdate(ptr, val) || updated
 			}
 
-			db.DB.Save(&user)
+			if updated {
+				if err := db.DB.Save(&user).Error; err != nil {
+					fmt.Println("Failed to save user:", err)
+				}
+			}
 		}
 
 		return nil
@@ -500,4 +492,17 @@ func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[stri
 	}
 
 	return response, nil
+}
+
+// Updates a **string pointer** if nil or value changed, returns true if updated
+func strPtrUpdate(field **string, val string) bool {
+	if val == "" {
+		return false // skip empty updates
+	}
+
+	if *field == nil || **field != val {
+		*field = &val
+		return true
+	}
+	return false
 }

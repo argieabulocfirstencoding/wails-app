@@ -1,15 +1,18 @@
 package models
 
 type User struct {
-	ID        string `gorm:"primaryKey"`
-	Email     string `gorm:"uniqueIndex" validate:"required,email"`
-	Name      *string
-	Position  *string
-	Birthdate *string
-	Phone     *string
-	Address   *string
-	Photo     *string
-	FESID     *string `gorm:"uniqueIndex"`
+	ID         string `gorm:"primaryKey"`
+	Email      string `gorm:"uniqueIndex" validate:"required,email"`
+	Name       *string
+	FirstName  *string
+	LastName   *string
+	MiddleName *string
+	Position   *string
+	Birthdate  *string
+	Phone      *string
+	Address    *string
+	Photo      *string
+	FESID      *string `gorm:"uniqueIndex"`
 	// Tasks []Task
 }
 
