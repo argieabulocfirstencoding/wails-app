@@ -928,3 +928,11 @@ FES_LOG: 2026/02/05 04:07:10 sync.go:108: access token status: false
 FES_LOG: 2026/02/05 04:07:10 sync.go:108: access token status: false
 FES_LOG: 2026/02/05 04:07:15 sync.go:108: access token status: false
 FES_LOG: 2026/02/05 04:07:15 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 04:30:48 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 04:30:49 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 04:30:50 app.go:426: No active record
+FES_LOG: 2026/02/05 04:30:50 app.go:426: No active record
+FES_LOG: 2026/02/05 04:53:19 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 04:53:19 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 04:53:21 app.go:426: No active record
+FES_LOG: 2026/02/05 04:53:21 app.go:426: No active record

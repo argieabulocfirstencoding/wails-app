@@ -23,6 +23,16 @@ type FirestoreDocument struct {
 	Fields map[string]interface{} `json:"fields"`
 }
 
+type FirestoreTimestamp struct {
+	TimestampValue string `json:"timestampValue"`
+}
+type FirestoreString struct {
+	StringValue string `json:"stringValue"`
+}
+type FirestoreInteger struct {
+	IntegerValue string `json:"integerValue"`
+}
+
 type FirestoreListResponse struct {
 	Documents []FirestoreDocument `json:"documents"`
 }
@@ -439,14 +449,39 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 
 func (s *SyncService) SyncUser(user models.AuthUser) error {
 	now := time.Now()
+	userModel, err := GetUserFromId(user.LocalID)
+	if err != nil {
+		return err
+	}
+
 	s.RefreshAccessToken()
 
+	middleInitial := ""
+	if len(userModel.MiddleName) > 0 {
+		middleInitial = fmt.Sprintf("%c.", userModel.MiddleName[0])
+	}
+
 	fields := map[string]interface{}{
-		"email": map[string]string{
-			"stringValue": user.Email,
+		"FESID": FirestoreString{
+			StringValue: userModel.FESID,
 		},
-		"updated_at": map[string]string{
-			"timestampValue": now.UTC().Format(time.RFC3339),
+		"Full Name": FirestoreString{
+			StringValue: fmt.Sprintf("%s %s %s", userModel.FirstName, middleInitial, userModel.LastName),
+		},
+		"First Name": FirestoreString{
+			StringValue: userModel.FirstName,
+		},
+		"Last Name": FirestoreString{
+			StringValue: userModel.LastName,
+		},
+		"Middle Name": FirestoreString{
+			StringValue: userModel.MiddleName,
+		},
+		"email": FirestoreString{
+			StringValue: user.Email,
+		},
+		"updated_at": FirestoreTimestamp{
+			TimestampValue: now.UTC().Format(time.RFC3339),
 		},
 	}
 
@@ -464,16 +499,6 @@ func (s *SyncService) SyncUser(user models.AuthUser) error {
 	}
 
 	return nil
-}
-
-type FirestoreTimestamp struct {
-	TimestampValue string `json:"timestampValue"`
-}
-type FirestoreString struct {
-	StringValue string `json:"stringValue"`
-}
-type FirestoreInteger struct {
-	IntegerValue string `json:"integerValue"`
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {

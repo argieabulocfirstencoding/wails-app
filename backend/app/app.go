@@ -370,13 +370,13 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 	authUser := &models.AuthUser{
 		LocalID:   user.ID,
 		Email:     user.Email,
-		Name:      strOrEmpty(user.Name),
-		Position:  strOrEmpty(user.Position),
-		Birthdate: strOrEmpty(user.Birthdate),
-		Phone:     strOrEmpty(user.Phone),
-		Address:   strOrEmpty(user.Address),
-		Photo:     strOrEmpty(user.Photo),
-		FESID:     strOrEmpty(user.FESID),
+		Name:      user.Name,
+		Position:  user.Position,
+		Birthdate: user.Birthdate,
+		Phone:     user.Phone,
+		Address:   user.Address,
+		Photo:     user.Photo,
+		FESID:     user.FESID,
 	}
 
 	return authUser, nil

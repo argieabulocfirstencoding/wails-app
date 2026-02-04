@@ -354,22 +354,22 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 		fmt.Println("Birthdate:", rawBirthdate)
 
 		if fesid != "" {
-			fields := map[**string]string{
-				&user.Name:       employee["Full Name"].(string),
-				&user.FirstName:  employee["FirstName"].(string),
-				&user.LastName:   employee["LastName"].(string),
-				&user.MiddleName: employee["MiddleName"].(string),
-				&user.FESID:      response["fesid"].(string),
-				&user.Photo:      response["photo"].(string),
-				&user.Position:   response["position"].(string),
-				&user.Phone:      employee["Account phone number"].(string),
-				&user.Address:    employee["Address"].(string),
-				&user.Birthdate:  birthdate,
+			fields := map[string]string{
+				user.Name:       employee["Full Name"].(string),
+				user.FirstName:  employee["FirstName"].(string),
+				user.LastName:   employee["LastName"].(string),
+				user.MiddleName: employee["MiddleName"].(string),
+				user.FESID:      response["fesid"].(string),
+				user.Photo:      response["photo"].(string),
+				user.Position:   response["position"].(string),
+				user.Phone:      employee["Account phone number"].(string),
+				user.Address:    employee["Address"].(string),
+				user.Birthdate:  birthdate,
 			}
 
 			updated := false
 			for ptr, val := range fields {
-				updated = strPtrUpdate(ptr, val) || updated
+				updated = checkIfNeedUpdate(ptr, val) || updated
 			}
 
 			if updated {
@@ -495,14 +495,15 @@ func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[stri
 }
 
 // Updates a **string pointer** if nil or value changed, returns true if updated
-func strPtrUpdate(field **string, val string) bool {
+func checkIfNeedUpdate(field string, val string) bool {
 	if val == "" {
 		return false // skip empty updates
 	}
 
-	if *field == nil || **field != val {
-		*field = &val
+	if field == "" || field != val {
+		field = val
 		return true
 	}
+
 	return false
 }

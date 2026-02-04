@@ -2,17 +2,17 @@ package models
 
 type User struct {
 	ID         string `gorm:"primaryKey"`
-	Email      string `gorm:"uniqueIndex" validate:"required,email"`
-	Name       *string
-	FirstName  *string
-	LastName   *string
-	MiddleName *string
-	Position   *string
-	Birthdate  *string
-	Phone      *string
-	Address    *string
-	Photo      *string
-	FESID      *string `gorm:"uniqueIndex"`
+	Name       string `gorm:"default:''"`
+	FirstName  string `gorm:"default:''"`
+	LastName   string `gorm:"default:''"`
+	MiddleName string `gorm:"default:''"`
+	Position   string `gorm:"default:''"`
+	Birthdate  string `gorm:"default:''"`
+	Phone      string `gorm:"default:''"`
+	Address    string `gorm:"default:''"`
+	Photo      string `gorm:"default:''"`
+	Email      string `gorm:"default:''"`
+	FESID      string `gorm:"uniqueIndex;default:''"`
 	// Tasks []Task
 }
 

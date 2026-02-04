@@ -190,17 +190,17 @@ export namespace models {
 	}
 	export class User {
 	    ID: string;
+	    Name: string;
+	    FirstName: string;
+	    LastName: string;
+	    MiddleName: string;
+	    Position: string;
+	    Birthdate: string;
+	    Phone: string;
+	    Address: string;
+	    Photo: string;
 	    Email: string;
-	    Name?: string;
-	    FirstName?: string;
-	    LastName?: string;
-	    MiddleName?: string;
-	    Position?: string;
-	    Birthdate?: string;
-	    Phone?: string;
-	    Address?: string;
-	    Photo?: string;
-	    FESID?: string;
+	    FESID: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new User(source);
@@ -209,7 +209,6 @@ export namespace models {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
-	        this.Email = source["Email"];
 	        this.Name = source["Name"];
 	        this.FirstName = source["FirstName"];
 	        this.LastName = source["LastName"];
@@ -219,6 +218,7 @@ export namespace models {
 	        this.Phone = source["Phone"];
 	        this.Address = source["Address"];
 	        this.Photo = source["Photo"];
+	        this.Email = source["Email"];
 	        this.FESID = source["FESID"];
 	    }
 	}
