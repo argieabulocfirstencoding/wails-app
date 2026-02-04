@@ -135,7 +135,7 @@ const ProfileBar = () => {
       const authUser = await signInWithEmailAndPassword(
         auth,
         syncUser.email || "",
-        syncUser.password || ""
+        syncUser.password || "",
       );
       const tokenResult = await authUser.user.getIdTokenResult();
 
@@ -154,7 +154,7 @@ const ProfileBar = () => {
         payload.email,
         payload.idToken,
         payload.refreshToken,
-        payload.expiresIn
+        payload.expiresIn,
       );
 
       useAuthStore.getState().setUser({
@@ -191,6 +191,11 @@ const ProfileBar = () => {
       setSyncLoading(false);
     }
   }
+
+  useEffect(() => {
+    console.log("user updated", user);
+
+  }, [user]);
 
   return (
     <div className="sticky bottom-0 z-20">
@@ -332,7 +337,7 @@ const ProfileBar = () => {
               user?.photo ||
               "https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"
             }
-            className={`rounded-full border-2 ${
+            className={`rounded-full border-2 object-cover object-top ${
               online ? "border-emerald-500" : "border-neutral-500"
             } select-none`}
             style={{ height: 48, width: 48 }}

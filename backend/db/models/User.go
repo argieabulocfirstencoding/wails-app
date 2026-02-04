@@ -12,8 +12,8 @@ type User struct {
 	Address    string `gorm:"default:''"`
 	Photo      string `gorm:"default:''"`
 	Email      string `gorm:"default:''"`
-	FESID      string `gorm:"uniqueIndex;default:''"`
-	// Tasks []Task
+	FESID      string `gorm:"default:''"`
+	Attendance []Attendance
 }
 
 type AuthUser struct {

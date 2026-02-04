@@ -936,3 +936,80 @@ FES_LOG: 2026/02/05 04:53:19 sync.go:118: access token status: false
 FES_LOG: 2026/02/05 04:53:19 sync.go:118: access token status: false
 FES_LOG: 2026/02/05 04:53:21 app.go:426: No active record
 FES_LOG: 2026/02/05 04:53:21 app.go:426: No active record
+FES_LOG: 2026/02/05 04:56:52 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 04:56:52 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 04:56:54 app.go:426: No active record
+FES_LOG: 2026/02/05 04:56:54 app.go:426: No active record
+FES_LOG: 2026/02/05 04:57:23 app.go:188: StopTaskRecord error: record not found
+FES_LOG: 2026/02/05 04:57:23 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 04:57:51 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 04:57:51 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 04:57:54 app.go:426: No active record
+FES_LOG: 2026/02/05 04:57:54 app.go:426: No active record
+FES_LOG: 2026/02/05 05:01:04 app.go:188: StopTaskRecord error: record not found
+FES_LOG: 2026/02/05 05:01:04 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:01:30 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:01:32 app.go:426: No active record
+FES_LOG: 2026/02/05 05:01:33 app.go:426: No active record
+FES_LOG: 2026/02/05 05:02:13 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:02:51 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:02:51 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:02:59 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:02:59 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:07:30 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:07:32 app.go:426: No active record
+FES_LOG: 2026/02/05 05:07:32 app.go:426: No active record
+FES_LOG: 2026/02/05 05:16:35 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:16:35 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:16:37 app.go:430: No active record
+FES_LOG: 2026/02/05 05:16:37 app.go:430: No active record
+FES_LOG: 2026/02/05 05:16:54 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:16:54 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:16:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:16:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:20:17 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:20:17 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:20:19 app.go:432: No active record
+FES_LOG: 2026/02/05 05:20:19 app.go:432: No active record
+FES_LOG: 2026/02/05 05:21:30 app.go:188: StopTaskRecord error: record not found
+FES_LOG: 2026/02/05 05:23:31 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:23:31 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:23:32 app.go:431: No active record
+FES_LOG: 2026/02/05 05:23:33 app.go:431: No active record
+FES_LOG: 2026/02/05 05:31:07 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:31:07 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:31:08 app.go:431: No active record
+FES_LOG: 2026/02/05 05:31:09 app.go:431: No active record
+FES_LOG: 2026/02/05 05:31:22 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:32:09 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:32:10 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:32:11 app.go:431: No active record
+FES_LOG: 2026/02/05 05:32:12 app.go:431: No active record
+FES_LOG: 2026/02/05 05:36:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:37:47 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:37:47 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:37:48 fes.go:295: error on bulk task create database is locked (5) (SQLITE_BUSY)
+FES_LOG: 2026/02/05 05:37:48 app.go:476: error fetching tasks from fes: database is locked (5) (SQLITE_BUSY)
+FES_LOG: 2026/02/05 05:37:48 app.go:431: No active record
+FES_LOG: 2026/02/05 05:37:49 app.go:431: No active record
+FES_LOG: 2026/02/05 05:38:20 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:39:11 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:39:34 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:39:35 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:39:37 app.go:431: No active record
+FES_LOG: 2026/02/05 05:39:37 app.go:431: No active record
+FES_LOG: 2026/02/05 05:42:03 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:42:03 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:42:04 app.go:431: No active record
+FES_LOG: 2026/02/05 05:42:04 app.go:431: No active record
+FES_LOG: 2026/02/05 05:44:01 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:44:11 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:44:11 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:44:13 app.go:431: No active record
+FES_LOG: 2026/02/05 05:44:13 app.go:431: No active record
+FES_LOG: 2026/02/05 05:44:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:44:50 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:44:50 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 05:44:52 app.go:431: No active record
+FES_LOG: 2026/02/05 05:44:52 app.go:431: No active record
+FES_LOG: 2026/02/05 05:44:58 sync.go:118: access token status: false

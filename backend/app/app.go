@@ -313,7 +313,12 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	}
 
 	// Creates a local representation of your account
-	model_user, _ := services.CreateUser(user.LocalID, user.Email)
+	model_user, err := services.CreateUser(user.LocalID, user.Email)
+	if err != nil {
+		fmt.Printf("error creating account %s\n", err)
+		return err
+	}
+
 	if model_user != nil {
 		go func() {
 			services.FetchEmployeeDetails(a.ctx, model_user)
