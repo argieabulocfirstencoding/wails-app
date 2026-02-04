@@ -800,3 +800,62 @@ FES_LOG: 2026/01/21 05:04:46 sync.go:108: access token status: false
 FES_LOG: 2026/01/21 05:04:46 sync.go:108: access token status: false
 FES_LOG: 2026/01/21 05:04:51 sync.go:108: access token status: false
 FES_LOG: 2026/01/21 05:04:51 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 05:06:34 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 05:06:34 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 05:06:36 app.go:408: No active record
+FES_LOG: 2026/01/21 05:06:37 app.go:408: No active record
+FES_LOG: 2026/01/21 05:06:46 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 05:06:46 sync.go:108: access token status: false
+FES_LOG: 2026/01/21 05:07:27 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 21:48:44 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 21:48:44 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 21:48:46 app.go:408: No active record
+FES_LOG: 2026/02/03 21:48:46 app.go:408: No active record
+FES_LOG: 2026/02/03 21:50:26 app.go:178: StopTaskRecord error: record not found
+FES_LOG: 2026/02/03 22:26:39 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 22:26:39 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 22:38:25 app.go:418: No active record
+FES_LOG: 2026/02/03 22:38:25 app.go:418: No active record
+FES_LOG: 2026/02/03 22:38:25 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 22:38:25 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 22:41:29 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 22:41:30 sync.go:108: access token status: false
+FES_LOG: 2026/02/03 22:41:31 app.go:424: No active record
+FES_LOG: 2026/02/03 22:41:31 app.go:424: No active record
+FES_LOG: 2026/02/05 03:09:18 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:09:18 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:09:20 app.go:435: No active record
+FES_LOG: 2026/02/05 03:09:20 app.go:435: No active record
+FES_LOG: 2026/02/05 03:13:01 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:13:01 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:13:03 app.go:435: No active record
+FES_LOG: 2026/02/05 03:13:04 app.go:435: No active record
+FES_LOG: 2026/02/05 03:14:05 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:14:05 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:14:06 app.go:436: No active record
+FES_LOG: 2026/02/05 03:14:06 app.go:436: No active record
+FES_LOG: 2026/02/05 03:14:29 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:14:29 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:14:31 app.go:436: No active record
+FES_LOG: 2026/02/05 03:14:31 app.go:436: No active record
+FES_LOG: 2026/02/05 03:16:57 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:16:57 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:17:00 app.go:436: No active record
+FES_LOG: 2026/02/05 03:17:00 app.go:436: No active record
+FES_LOG: 2026/02/05 03:17:49 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:17:49 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:17:51 app.go:436: No active record
+FES_LOG: 2026/02/05 03:17:51 app.go:436: No active record
+FES_LOG: 2026/02/05 03:21:34 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:21:34 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:21:36 app.go:436: No active record
+FES_LOG: 2026/02/05 03:21:36 app.go:436: No active record
+FES_LOG: 2026/02/05 03:25:22 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:25:22 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:25:23 app.go:436: No active record
+FES_LOG: 2026/02/05 03:25:24 app.go:436: No active record
+FES_LOG: 2026/02/05 03:25:27 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:25:27 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:25:31 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:25:31 sync.go:108: access token status: false
+FES_LOG: 2026/02/05 03:25:56 app.go:198: StopTaskRecord error: record not found

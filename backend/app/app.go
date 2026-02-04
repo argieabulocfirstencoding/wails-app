@@ -125,6 +125,11 @@ func (a *App) GetMonitorCount() int {
 
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	// NOTE this needs to be refactor, no logic should be applied here
+
+	if a.AttendanceID == nil {
+		return
+	}
+
 	if a.ScreenshotService.Running {
 		a.ScreenshotService.Stop()
 	}
@@ -138,11 +143,16 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 		if err == nil {
 			a.ScreenshotService.SyncRecord(record)
 		}
+		if err != nil {
+			fmt.Printf("Error on syncing record: %s", err)
+		}
+
 	}
 
 	a.ScreenshotService.FolderName = localStorageValue
 	a.WorkingTaskID = &taskId
 	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID, padagan)
+
 	if err != nil {
 		utils.Logger.Printf("error starting task record: %v", err)
 	}
@@ -336,7 +346,16 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		a.SyncService.SyncUser(*authUser)
 		a.SyncService.SyncCredentials()
 		// a.SyncService.SyncTasks()
+
 	}()
+
+	// Syncing attendance
+	// attendance, err := services.GetAttendanceFromID(*attendanceID)
+	// if err != nil {
+	// 	fmt.Printf("error on sync connection %s", err)
+	// }
+
+	// services.NewSyncService().SyncAttendance(attendance)
 
 	config.OnlineMode = true
 	return nil
@@ -369,7 +388,6 @@ func strOrEmpty(s *string) string {
 	}
 	return ""
 }
-
 
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time

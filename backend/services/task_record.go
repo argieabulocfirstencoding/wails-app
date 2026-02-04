@@ -38,6 +38,8 @@ func StopAllActiveRecords(userId string) error {
 		return err
 	}
 
+	fmt.Println("pass here stoppping all active records")
+
 	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", userId, attendance.ID).
 		Find(&taskRecords).Error; err != nil {
 		return err
