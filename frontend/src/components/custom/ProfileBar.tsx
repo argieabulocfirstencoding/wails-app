@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Settings } from "lucide-react";
 import Drawer from "@/components/custom/Drawer";
@@ -24,7 +24,7 @@ import {
 } from "@/../wailsjs/go/app/App";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth } from "@/firebase";
-import SpinnerLoader from "./SpinnerLoader";
+import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
 
 interface SyncUser {
   email: string | null | undefined;
@@ -63,6 +63,22 @@ const ProfileBar = () => {
       localStorage.setItem("theme", "light");
     }
   }, [dark]);
+
+  const hasSubscribed = useRef(false);
+
+  useEffect(() => {
+    if (hasSubscribed.current) return;
+    hasSubscribed.current = true;
+
+    const off = EventsOn("open_fesapp", () => {
+      BrowserOpenURL("fesapp://");
+    });
+
+    return () => {
+      off();
+      hasSubscribed.current = false;
+    };
+  }, []);
 
   const handleLogout = () => {
     const currentTheme = localStorage.getItem("theme");
@@ -194,7 +210,6 @@ const ProfileBar = () => {
 
   useEffect(() => {
     console.log("user updated", user);
-
   }, [user]);
 
   return (

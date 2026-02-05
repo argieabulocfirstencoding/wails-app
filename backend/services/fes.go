@@ -369,6 +369,8 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 			if err := db.DB.Save(&user).Error; err != nil {
 				fmt.Println("Failed to save user:", err)
 			}
+
+			runtime.EventsEmit(ctx, "employee_details_fetched")
 		}
 
 		return nil
@@ -387,8 +389,8 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 	fmt.Print("Fetching Upwork Credentials Pleas wait")
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
-
 	openFESApp(ctx)
+
 	runtime.EventsEmit(ctx, "upwork-button", true)
 
 	task, err := GetTaskFromID(taskID)
@@ -431,6 +433,7 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 	// Copy password
 	copyToClipboard("username")
 	fmt.Print("Fetching Upwork Credentials Successful")
+	kb.HasCTRL(false)
 
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
@@ -440,7 +443,7 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 }
 
 func openFESApp(ctx context.Context) {
-	runtime.BrowserOpenURL(ctx, "fesapp://")
+	runtime.EventsEmit(ctx, "open_fesapp")
 }
 
 func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[string]interface{}, error) {

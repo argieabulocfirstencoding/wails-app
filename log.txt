@@ -1013,3 +1013,37 @@ FES_LOG: 2026/02/05 05:44:50 sync.go:118: access token status: false
 FES_LOG: 2026/02/05 05:44:52 app.go:431: No active record
 FES_LOG: 2026/02/05 05:44:52 app.go:431: No active record
 FES_LOG: 2026/02/05 05:44:58 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:03:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:03:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:03:52 app.go:431: No active record
+FES_LOG: 2026/02/05 21:03:53 app.go:431: No active record
+FES_LOG: 2026/02/05 21:19:00 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:00 app.go:417: error syncing attendance on logout
+FES_LOG: 2026/02/05 21:19:01 app.go:431: No active record
+FES_LOG: 2026/02/05 21:19:01 app.go:431: No active record
+FES_LOG: 2026/02/05 21:19:08 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:12 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:12 sync.go:208: failed fetching important keys: Get "https://firestore.googleapis.com/v1/projects/fesapp-4892c/databases/(default)/documents/creds?pageSize=1": dial tcp: lookup firestore.googleapis.com: no such host
+FES_LOG: 2026/02/05 21:19:14 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:15 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:15 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:15 sync.go:216: failed to decode firestore response on creds: unexpected end of JSON input
+FES_LOG: 2026/02/05 21:19:15 sync.go:221: cannot find documents on firestore
+FES_LOG: 2026/02/05 21:19:18 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:24 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:24 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:26 app.go:431: No active record
+FES_LOG: 2026/02/05 21:19:27 app.go:431: No active record
+FES_LOG: 2026/02/05 21:19:39 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:43 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:43 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:19:46 app.go:431: No active record
+FES_LOG: 2026/02/05 21:19:46 app.go:431: No active record
+FES_LOG: 2026/02/05 21:39:41 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:39:41 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:39:43 app.go:431: No active record
+FES_LOG: 2026/02/05 21:39:44 app.go:431: No active record
+FES_LOG: 2026/02/05 21:43:47 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:43:47 sync.go:118: access token status: false
+FES_LOG: 2026/02/05 21:43:49 app.go:431: No active record
+FES_LOG: 2026/02/05 21:43:49 app.go:431: No active record

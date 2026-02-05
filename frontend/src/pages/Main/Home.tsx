@@ -20,7 +20,8 @@ import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/custom/Loader";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
-import { models } from "wailsjs/go/models";
+import { models } from "@/../wailsjs/go/models";
+import { EventsOn } from "@/../wailsjs/runtime/runtime";
 
 interface TaskProps {
   taskId: string | null;
@@ -72,7 +73,13 @@ const Home = () => {
       }
     }
 
+    const off = EventsOn("employee_details_fetched", () => {
+      fetchDetails();
+    });
+
     fetchDetails();
+
+    return () => off();
   }, []);
 
   useEffect(() => {
@@ -114,7 +121,7 @@ const Home = () => {
     try {
       if (typeof GetTasks !== "function") {
         console.warn(
-          "GetTasks binding not available (wails dev server not running?)"
+          "GetTasks binding not available (wails dev server not running?)",
         );
       } else {
         // pass required boolean argument (e.g. includeArchived = true)
@@ -181,7 +188,7 @@ const Home = () => {
     try {
       if (typeof GetTasks !== "function") {
         console.warn(
-          "GetTasks binding not available (wails dev server not running?)"
+          "GetTasks binding not available (wails dev server not running?)",
         );
       } else {
         // pass required boolean argument (e.g. includeArchived = true)
@@ -381,7 +388,7 @@ const Home = () => {
           filteredTasks
             .slice()
             .sort((a, b) =>
-              a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0
+              a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0,
             )
             .map((task, index) => (
               <TaskItem
