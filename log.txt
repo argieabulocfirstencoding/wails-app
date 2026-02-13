@@ -1047,3 +1047,35 @@ FES_LOG: 2026/02/05 21:43:47 sync.go:118: access token status: false
 FES_LOG: 2026/02/05 21:43:47 sync.go:118: access token status: false
 FES_LOG: 2026/02/05 21:43:49 app.go:431: No active record
 FES_LOG: 2026/02/05 21:43:49 app.go:431: No active record
+FES_LOG: 2026/02/14 06:01:41 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:01:43 app.go:431: No active record
+FES_LOG: 2026/02/14 06:01:44 app.go:431: No active record
+FES_LOG: 2026/02/14 06:01:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:02:16 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:02:16 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:02:26 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:02:27 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:05:51 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:05:53 app.go:431: No active record
+FES_LOG: 2026/02/14 06:05:53 app.go:431: No active record
+FES_LOG: 2026/02/14 06:06:14 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:06:14 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:06:31 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:06:31 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:09:39 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:09:40 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:10:39 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:10:40 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:11:07 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:11:07 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:14:06 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:14:08 app.go:431: No active record
+FES_LOG: 2026/02/14 06:14:08 app.go:431: No active record
+FES_LOG: 2026/02/14 06:15:24 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:15:35 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:16:03 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:16:03 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:16:24 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:17:37 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:17:39 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 06:17:39 sync.go:118: access token status: false

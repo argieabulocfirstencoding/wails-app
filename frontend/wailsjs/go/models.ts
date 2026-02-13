@@ -201,6 +201,9 @@ export namespace models {
 	    Photo: string;
 	    Email: string;
 	    FESID: string;
+	    SupervisorId: string;
+	    EmployeeId: string;
+	    EmploymentId: string;
 	    Attendance: Attendance[];
 	
 	    static createFrom(source: any = {}) {
@@ -221,6 +224,9 @@ export namespace models {
 	        this.Photo = source["Photo"];
 	        this.Email = source["Email"];
 	        this.FESID = source["FESID"];
+	        this.SupervisorId = source["SupervisorId"];
+	        this.EmployeeId = source["EmployeeId"];
+	        this.EmploymentId = source["EmploymentId"];
 	        this.Attendance = this.convertValues(source["Attendance"], Attendance);
 	    }
 	
@@ -343,6 +349,9 @@ export namespace models {
 	    address: string;
 	    photo: string;
 	    fesid: string;
+	    supervisor_id: string;
+	    employee_id: string;
+	    employment_id: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AuthUser(source);
@@ -359,6 +368,9 @@ export namespace models {
 	        this.address = source["address"];
 	        this.photo = source["photo"];
 	        this.fesid = source["fesid"];
+	        this.supervisor_id = source["supervisor_id"];
+	        this.employee_id = source["employee_id"];
+	        this.employment_id = source["employment_id"];
 	    }
 	}
 	

@@ -1,31 +1,38 @@
 package models
 
 type User struct {
-	ID         string `gorm:"primaryKey"`
-	Name       string `gorm:"default:''"`
-	FirstName  string `gorm:"default:''"`
-	LastName   string `gorm:"default:''"`
-	MiddleName string `gorm:"default:''"`
-	Position   string `gorm:"default:''"`
-	Birthdate  string `gorm:"default:''"`
-	Phone      string `gorm:"default:''"`
-	Address    string `gorm:"default:''"`
-	Photo      string `gorm:"default:''"`
-	Email      string `gorm:"default:''"`
-	FESID      string `gorm:"default:''"`
+	ID           string `gorm:"primaryKey"`
+	Name         string
+	FirstName    string
+	LastName     string
+	MiddleName   string
+	Position     string
+	Birthdate    string
+	Phone        string
+	Address      string
+	Photo        string
+	Email        string
+	FESID        string
+	SupervisorId string
+	EmployeeId   string
+	EmploymentId string
+
 	Attendance []Attendance
 }
 
 type AuthUser struct {
-	LocalID   string `json:"localId"` // uid
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	Position  string `json:"position"`
-	Birthdate string `json:"birthdate"`
-	Phone     string `json:"phone"`
-	Address   string `json:"address"`
-	Photo     string `json:"photo"`
-	FESID     string `json:"fesid"`
+	LocalID      string `json:"localId"` // uid
+	Email        string `json:"email"`
+	Name         string `json:"name"`
+	Position     string `json:"position"`
+	Birthdate    string `json:"birthdate"`
+	Phone        string `json:"phone"`
+	Address      string `json:"address"`
+	Photo        string `json:"photo"`
+	FESID        string `json:"fesid"`
+	SupervisorId string `json:"supervisor_id"`
+	EmployeeId   string `json:"employee_id"`
+	EmploymentId string `json:"employment_id"`
 }
 
 type FirebaseLoginResponse struct {

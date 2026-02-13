@@ -348,7 +348,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	// TODO handle checking connection and only one connection attempt at a time
 	go func() {
 		a.SyncService.Connect(a.ctx)
-		a.SyncService.SyncUser(*authUser)
+		// a.SyncService.SyncUser(*authUser)
 		a.SyncService.SyncCredentials()
 		// a.SyncService.SyncTasks()
 

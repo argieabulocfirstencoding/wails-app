@@ -365,6 +365,9 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 			user.Phone = employee["Account phone number"].(string)
 			user.Address = employee["Address"].(string)
 			user.Birthdate = birthdate
+			user.SupervisorId = response["immediate_supervisor"].(string)
+			user.EmployeeId = response["employee_unique_id"].(string)
+			user.EmploymentId = response["employeement_unique_id"].(string)
 
 			if err := db.DB.Save(&user).Error; err != nil {
 				fmt.Println("Failed to save user:", err)

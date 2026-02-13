@@ -357,8 +357,10 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	db.DB.Model(&taskRecord).Update("sync_status", "pending")
 	// ============== PRE DEFINITION =============
 	now := time.Now()
-	startedTime := taskRecord.StartedAt
-	recordID := fmt.Sprintf("%d", startedTime.UTC().UnixMilli())
+	user, err := GetUserFromId(taskRecord.UserID)
+	if err != nil {
+		return fmt.Errorf("error in getting user data from synctaskrecord %s", err)
+	}
 	attendance, err := GetAttendanceFromID(taskRecord.AttendanceID)
 	if err != nil {
 		return err
@@ -368,11 +370,10 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		return err
 	}
 
-	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")
 	// NOTE if failed to end task, use synced_at as ended_at
 	fields := map[string]interface{}{
-		"synced_at": map[string]string{
-			"timestampValue": now.UTC().Format(time.RFC3339),
+		"synced_at": FirestoreInteger{
+			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
 		},
 		"task_id": map[string]string{
 			"stringValue": taskRecord.TaskID,
@@ -383,17 +384,20 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		"task_name": map[string]string{
 			"stringValue": task.Client.Fullname + " - " + task.Title,
 		},
-		// "memo": map[string]string{
-		// 	"stringValue": taskRecord.Memo,
-		// },
-		// "notes": map[string]string{
-		// 	"stringValue": taskRecord.Notes,
-		// },
-		"started_at": map[string]string{
-			"timestampValue": taskRecord.StartedAt.UTC().Format(time.RFC3339),
+		"SupervisorID": FirestoreString{
+			StringValue: user.SupervisorId,
 		},
-		"ended_at": map[string]string{
-			"timestampValue": now.UTC().Format(time.RFC3339),
+		"EmployeeID": FirestoreString{
+			StringValue: user.EmployeeId,
+		},
+		"EmploymentID": FirestoreString{
+			StringValue: user.EmploymentId,
+		},
+		"started_at": FirestoreInteger{
+			IntegerValue: strconv.FormatInt(taskRecord.StartedAt.Local().UnixMilli(), 10),
+		},
+		"ended_at": FirestoreInteger{
+			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
 		},
 		"duration": map[string]string{
 			"integerValue": fmt.Sprintf("%d", int(now.Sub(taskRecord.StartedAt).Seconds())),
@@ -401,8 +405,8 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	if taskRecord.EndedAt != nil {
-		fields["ended_at"] = map[string]string{
-			"timestampValue": taskRecord.EndedAt.UTC().Format(time.RFC3339),
+		fields["ended_at"] = FirestoreInteger{
+			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
 		}
 	}
 	if taskRecord.Duration != nil {
@@ -412,8 +416,8 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 	}
 
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("users/%s/attendance/%s/task_records/%s",
-		taskRecord.UserID, attendanceFormattedID, recordID,
+	path := fmt.Sprintf("task_records/%s-%d",
+		user.EmployeeId, taskRecord.StartedAt.Local().UnixMilli(),
 	)
 	// path := fmt.Sprintf("users/%s/attendance/%s/tasks/%s/task_records/%s",
 	// 	taskRecord.UserID, attendanceFormattedID, taskRecord.TaskID, recordID,
@@ -477,6 +481,15 @@ func (s *SyncService) SyncUser(user models.AuthUser) error {
 		"Middle Name": FirestoreString{
 			StringValue: userModel.MiddleName,
 		},
+		"SupervisorID": FirestoreString{
+			StringValue: userModel.SupervisorId,
+		},
+		"EmployeeID": FirestoreString{
+			StringValue: userModel.EmployeeId,
+		},
+		"EmploymentID": FirestoreString{
+			StringValue: userModel.EmploymentId,
+		},
 		"email": FirestoreString{
 			StringValue: user.Email,
 		},
@@ -503,18 +516,21 @@ func (s *SyncService) SyncUser(user models.AuthUser) error {
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 	db.DB.Model(&attendance).Update("sync_status", "pending")
+	user, err := GetUserFromId(attendance.UserID)
+	if err != nil {
+		return fmt.Errorf("error in syncattendance when fetching user %s", err)
+	}
 	// ============== PRE DEFINITION =============
 	now := time.Now()
-	attendanceFormattedID := attendance.CreatedAt.UTC().Format("20060102T150405")
 	s.RefreshAccessToken()
 	CalculateAttendanceSummary(attendance)
 
 	fields := map[string]interface{}{
-		"synced_at": FirestoreTimestamp{
-			TimestampValue: now.UTC().Format(time.RFC3339),
+		"synced_at": FirestoreInteger{
+			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
 		},
-		"started_at": FirestoreTimestamp{
-			TimestampValue: attendance.TimeIn.UTC().Format(time.RFC3339),
+		"started_at": FirestoreInteger{
+			IntegerValue: strconv.FormatInt(attendance.TimeIn.Local().UnixMilli(), 10),
 		},
 		"duration": FirestoreInteger{
 			IntegerValue: fmt.Sprintf("%d", int(now.Sub(attendance.TimeIn).Seconds())),
@@ -525,11 +541,20 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 		"total_gap": FirestoreInteger{
 			IntegerValue: fmt.Sprintf("%d", attendance.TotalGap),
 		},
+		"SupervisorID": FirestoreString{
+			StringValue: user.SupervisorId,
+		},
+		"EmployeeID": FirestoreString{
+			StringValue: user.EmployeeId,
+		},
+		"EmploymentID": FirestoreString{
+			StringValue: user.EmploymentId,
+		},
 	}
 
 	if attendance.TimeOut != nil {
-		fields["ended_at"] = FirestoreTimestamp{
-			TimestampValue: attendance.TimeOut.UTC().Format(time.RFC3339),
+		fields["ended_at"] = FirestoreInteger{
+			IntegerValue: strconv.FormatInt(attendance.TimeOut.Local().UnixMilli(), 10),
 		}
 		fields["duration"] = FirestoreInteger{
 			IntegerValue: fmt.Sprintf("%d", int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds())),
@@ -537,8 +562,8 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 	}
 
 	// ============= REQUEST CONFIG ==============
-	path := fmt.Sprintf("users/%s/attendance/%s",
-		attendance.UserID, attendanceFormattedID,
+	path := fmt.Sprintf("attendance/%s-%d",
+		user.EmployeeId, attendance.TimeIn.Local().UnixMilli(),
 	)
 	method := "PATCH"
 	body := map[string]interface{}{
