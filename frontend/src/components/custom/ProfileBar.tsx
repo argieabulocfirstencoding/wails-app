@@ -67,6 +67,7 @@ const ProfileBar = () => {
   const hasSubscribed = useRef(false);
 
   useEffect(() => {
+    if (!EventsOn) return;
     if (hasSubscribed.current) return;
     hasSubscribed.current = true;
 

@@ -59,6 +59,8 @@ const Home = () => {
   } = useAuthStore();
 
   useEffect(() => {
+    if (!EventsOn) return;
+
     async function fetchDetails() {
       try {
         const response: models.AuthUser = await FetchUserDetails();

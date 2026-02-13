@@ -135,7 +135,7 @@ const Task = () => {
       const secs = duration.seconds ?? 0;
 
       return `${hours}h:${String(minutes).padStart(2, "0")}m:${String(
-        secs
+        secs,
       ).padStart(2, "0")}s`;
     } else {
       return `--:--:--`;
@@ -213,7 +213,7 @@ const Task = () => {
     const newWindow = window.open(
       "",
       "_blank",
-      `width=${width},height=${height},left=${left},top=${top}`
+      `width=${width},height=${height},left=${left},top=${top}`,
     );
 
     if (newWindow) {
@@ -299,6 +299,7 @@ const Task = () => {
   }, [timeStarted, timeEnded]);
 
   useEffect(() => {
+    if (!EventsOn) return;
     const off = EventsOn("upwork-button", () => {
       console.log("upwork button alright");
       setLaunching(false);
@@ -308,6 +309,7 @@ const Task = () => {
   }, []);
 
   useEffect(() => {
+    if (!EventsOn) return;
     const off = EventsOn("screenshot", (pictures: string[]) => {
       setSyncing(true);
       const now = Date.now();

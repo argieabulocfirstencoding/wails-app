@@ -31,6 +31,8 @@ function App() {
   const { taskID } = useAuthStore();
 
   useEffect(() => {
+     if (!EventsOn) return
+     
     console.log("SHUTDOWN EVENT HANDLER LOADED");
     // TODO this is just temporary measures to ensure logging out of account means task end
     const off = EventsOn("app_shutdown", async () => {

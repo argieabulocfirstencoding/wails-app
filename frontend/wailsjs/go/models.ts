@@ -508,3 +508,26 @@ export namespace options {
 
 }
 
+export namespace types {
+	
+	export class TaskSummary {
+	    TaskID: string;
+	    Padagan: boolean;
+	    TotalDuration: number;
+	    TaskName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TaskSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.TaskID = source["TaskID"];
+	        this.Padagan = source["Padagan"];
+	        this.TotalDuration = source["TotalDuration"];
+	        this.TaskName = source["TaskName"];
+	    }
+	}
+
+}
+

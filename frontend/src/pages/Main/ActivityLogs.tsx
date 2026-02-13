@@ -1,74 +1,24 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import SettingsLayout from "@/layouts/SettingsLayout";
-import { History, LogIn, LogOut, AlertTriangle } from "lucide-react";
+import {
+  History,
+  LogIn,
+  LogOut,
+  AlertTriangle,
+  UserCircle2,
+} from "lucide-react";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
-import { models } from "wailsjs/go/models";
-import { GetActivityLogRecord } from "@/../wailsjs/go/app/App";
+import { models, types } from "wailsjs/go/models";
+import {
+  GetActivityLogRecord,
+  GetTotalClientRecords,
+} from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
 
-type ActivityLog = {
-  event: string;
-  detail?: string;
-  timestamp: string; // ISO or formatted
-};
-
-// Static sample data for demonstration purposes
-const staticLogs: ActivityLog[] = [
-  {
-    event: "Logged in",
-    detail: "FES App Tracker session started",
-    timestamp: "2025-10-22T14:03:00Z",
-  },
-  {
-    event: "Task synced successfully",
-    detail: "5 unsynced task records pushed to cloud",
-    timestamp: "2025-10-22T13:22:00Z",
-  },
-  {
-    event: "Screenshot captured",
-    detail: "Screen 1 • Auto-capture",
-    timestamp: "2025-10-22T12:45:10Z",
-  },
-  {
-    event: "Logged out",
-    detail: "FES App Tracker session ended",
-    timestamp: "2025-10-22T12:15:00Z",
-  },
-  {
-    event: "Logged in",
-    detail: "FES App Tracker session started",
-    timestamp: "2025-10-21T09:45:00Z",
-  },
-  {
-    event: "Attendance started",
-    detail: "Workday session opened",
-    timestamp: "2025-10-21T09:46:20Z",
-  },
-  {
-    event: "Screenshot captured",
-    detail: "Screen 2 • Auto-capture",
-    timestamp: "2025-10-21T08:30:10Z",
-  },
-  {
-    event: "Logged out",
-    detail: "FES App Tracker session ended",
-    timestamp: "2025-10-21T07:58:00Z",
-  },
-  {
-    event: "Logged in",
-    detail: "FES App Tracker session started",
-    timestamp: "2025-10-20T16:10:00Z",
-  },
-  {
-    event: "Logged out",
-    detail: "FES App Tracker session ended",
-    timestamp: "2025-10-20T13:40:00Z",
-  },
-];
-
 const ActivityLogs = () => {
   const [activities, setActivities] = useState<models.ActivityLogRecord[]>();
+  const [summaries, setSummary] = useState<types.TaskSummary[]>();
   const [date, setDate] = useState<Date>(new Date());
 
   useEffect(() => {
@@ -78,16 +28,42 @@ const ActivityLogs = () => {
           timeZone: "Asia/Manila",
         });
         const logs = await GetActivityLogRecord(dateOnly);
-        console.log("date only: ", dateOnly);
         setActivities(logs);
-        console.log("Logs: ", logs);
-      } catch (error) {}
+      } catch (error) {
+        console.log("Error in fetchActivity in activity logs ", error);
+      }
     }
 
     fetchActivityLogs();
   }, [date]);
 
-  const logs = staticLogs;
+  useEffect(() => {
+    async function fetchTodayClientSummary() {
+      try {
+        const dateOnly = date.toLocaleDateString("en-CA", {
+          timeZone: "Asia/Manila",
+        });
+
+        const results = await GetTotalClientRecords(dateOnly);
+        console.log("results", results);
+        setSummary(results);
+      } catch (error) {
+        console.log("Error in fetchActivity in activity logs ", error);
+      }
+    }
+
+    fetchTodayClientSummary();
+  }, [date]);
+
+  function secondsToHHMM(seconds: number): string {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+
+  console.log(secondsToHHMM(3661)); // "01:01"
+  console.log(secondsToHHMM(5400)); // "01:30"
+  console.log(secondsToHHMM(90000)); // "25:00"
 
   const renderIcon = (event: string) => {
     const lower = event.toLowerCase();
@@ -143,6 +119,62 @@ const ActivityLogs = () => {
             Here you can manage your activity logs.
           </p>
         </header>
+        <div className="absolute top-3 z-999 right-4 flex justify-end items-end">
+          <Calendar22 setDate={setDate} date={date} />
+        </div>
+        {summaries && summaries.length > 0 && (
+          <section
+            className="
+            rounded-2xl
+            border border-neutral-200 dark:border-neutral-800
+            bg-white dark:bg-neutral-900
+            overflow-hidden
+          "
+          >
+            <div className="px-6 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
+                Client
+              </span>
+              {/* <History className="w-4 h-4 text-neutral-400 dark:text-neutral-500" /> */}
+
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
+                Total Time
+              </span>
+            </div>
+            {summaries.map((summary, idx) => (
+              <div
+                key={summary.TaskID + " " + idx}
+                className="px-4 py-4 flex items-start justify-between gap-4"
+              >
+                <div className="flex items-start gap-3">
+                  <UserCircle2 />
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                      {summary.TaskName}
+                    </p>
+                    {summary.Padagan && (
+                      <p className="text-[8px] text-red-500 dark:text-red-400 leading-relaxed">
+                        Padagan
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end w-32 gap-1">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    <div className="flex flex-col items-end leading-tight">
+                      <span className="text-neutral-700 dark:text-neutral-300">
+                        Total Time:
+                      </span>
+                      <span className="text-neutral-500 dark:text-neutral-400">
+                        {secondsToHHMM(summary.TotalDuration)} hrs
+                      </span>
+                    </div>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* Main card */}
         <section
@@ -159,8 +191,6 @@ const ActivityLogs = () => {
               Recent Activity
             </span>
             {/* <History className="w-4 h-4 text-neutral-400 dark:text-neutral-500" /> */}
-
-            <Calendar22 setDate={setDate} date={date} />
           </div>
 
           {/* Body */}
@@ -170,44 +200,6 @@ const ActivityLogs = () => {
                 No activity logs yet.
               </div>
             ) : (
-              // logs.map((log, idx) => (
-              //   <div
-              //     key={log.event + log.timestamp + idx}
-              //     className="px-4 py-4 flex items-start justify-between gap-4"
-              //   >
-              //     <div className="flex items-start gap-3">
-              //       {renderIcon(log.event)}
-              //       <div className="space-y-0.5">
-              //         <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-              //           {log.event}
-              //         </p>
-              //         {log.detail && (
-              //           <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-              //             {log.detail}
-              //           </p>
-              //         )}
-              //       </div>
-              //     </div>
-              //     <div className="flex flex-col items-end gap-1">
-              //       <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              //         {(() => {
-              //           const t = formatTimestamp(log.timestamp);
-              //           return (
-              //             <div className="flex flex-col items-end leading-tight">
-              //               <span className="text-[11px] text-neutral-700 dark:text-neutral-300">
-              //                 {t.date}
-              //               </span>
-              //               <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              //                 {t.time}
-              //               </span>
-              //             </div>
-              //           );
-              //         })()}
-              //       </span>
-              //     </div>
-              //   </div>
-              // ))
-
               activities?.map((activity, idx) => (
                 <ActivityBannerSet
                   activity={activity}

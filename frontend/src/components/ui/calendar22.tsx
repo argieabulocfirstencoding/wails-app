@@ -22,9 +22,9 @@ export function Calendar22({ date, setDate }: Calendar22Props) {
 
   return (
     <div className="flex flex-col">
-      <Label htmlFor="date" className="px-1 text-[10px]">
+      {/* <Label htmlFor="date" className="px-1 text-[10px]">
         Filter Date
-      </Label>
+      </Label> */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button

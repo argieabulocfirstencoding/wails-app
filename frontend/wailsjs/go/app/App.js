@@ -62,6 +62,10 @@ export function GetTasks(arg1) {
   return window['go']['app']['App']['GetTasks'](arg1);
 }
 
+export function GetTotalClientRecords(arg1) {
+  return window['go']['app']['App']['GetTotalClientRecords'](arg1);
+}
+
 export function LoginUser(arg1) {
   return window['go']['app']['App']['LoginUser'](arg1);
 }

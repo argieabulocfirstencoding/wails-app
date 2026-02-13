@@ -8,6 +8,7 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
+	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
 	"log"
@@ -348,7 +349,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	// TODO handle checking connection and only one connection attempt at a time
 	go func() {
 		a.SyncService.Connect(a.ctx)
-		// a.SyncService.SyncUser(*authUser)
+		a.SyncService.SyncUser(*authUser)
 		a.SyncService.SyncCredentials()
 		// a.SyncService.SyncTasks()
 
@@ -570,6 +571,10 @@ func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
 
 	expAttendance := attendance.ToExp()
 	return &expAttendance, nil
+}
+
+func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error) {
+	return services.GetTodaySummary(dateStr)
 }
 
 // This is used to get the tasks that have recently used so that it can be quickly seen.
