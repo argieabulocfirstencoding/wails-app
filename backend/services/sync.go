@@ -370,10 +370,15 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		return err
 	}
 
+	duration := int(now.Sub(taskRecord.StartedAt).Seconds())
+
 	// NOTE if failed to end task, use synced_at as ended_at
 	fields := map[string]interface{}{
 		"synced_at": FirestoreInteger{
 			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
+		},
+		"attendance_date": FirestoreInteger{
+			IntegerValue: strconv.FormatInt(attendance.TimeIn.Local().UnixMilli(), 10),
 		},
 		"task_id": map[string]string{
 			"stringValue": taskRecord.TaskID,
@@ -400,18 +405,15 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
 		},
 		"duration": map[string]string{
-			"integerValue": fmt.Sprintf("%d", int(now.Sub(taskRecord.StartedAt).Seconds())),
+			"integerValue": fmt.Sprintf("%d", duration),
 		},
 	}
+
+	db.DB.Model(&taskRecord).Update("duration", duration)
 
 	if taskRecord.EndedAt != nil {
 		fields["ended_at"] = FirestoreInteger{
 			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
-		}
-	}
-	if taskRecord.Duration != nil {
-		fields["duration"] = map[string]string{
-			"integerValue": fmt.Sprintf("%d", *taskRecord.Duration),
 		}
 	}
 
@@ -553,11 +555,12 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 	}
 
 	if attendance.TimeOut != nil {
+		duration := int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds())
 		fields["ended_at"] = FirestoreInteger{
 			IntegerValue: strconv.FormatInt(attendance.TimeOut.Local().UnixMilli(), 10),
 		}
 		fields["duration"] = FirestoreInteger{
-			IntegerValue: fmt.Sprintf("%d", int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds())),
+			IntegerValue: fmt.Sprintf("%d", duration),
 		}
 	}
 

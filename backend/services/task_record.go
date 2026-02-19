@@ -173,7 +173,7 @@ func UpdateRecord(tr *models.TaskRecord) error {
 
 	if !tr.StartedAt.IsZero() {
 		duration := int32(now.Sub(tr.StartedAt).Seconds())
-		tr.Duration = &duration
+		tr.Duration = duration
 	}
 
 	// This part updates the database

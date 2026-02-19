@@ -320,12 +320,6 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		return err
 	}
 
-	if model_user != nil {
-		go func() {
-			services.FetchEmployeeDetails(a.ctx, model_user)
-		}()
-	}
-
 	authUser := &models.AuthUser{
 		LocalID: user.LocalID,
 		Email:   user.Email,
@@ -334,6 +328,17 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	attendanceID, err := services.LoginAttendance(authUser.LocalID)
 	if attendanceID == nil {
 		return err
+	}
+
+	if model_user != nil && attendanceID != nil {
+		go func() {
+			services.FetchEmployeeDetails(a.ctx, model_user)
+			attendance, err := services.GetAttendanceFromID(*attendanceID)
+			if err != nil {
+				return
+			}
+			a.SyncService.SyncAttendance(attendance)
+		}()
 	}
 
 	keyring.Set("refresh", email, refreshToken)

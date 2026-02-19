@@ -140,7 +140,7 @@ export namespace models {
 	    Padagan: boolean;
 	    // Go type: time
 	    EndedAt?: any;
-	    Duration?: number;
+	    Duration: number;
 	    // Go type: time
 	    SyncedAt?: any;
 	    SyncStatus: string;
@@ -411,7 +411,7 @@ export namespace models {
 	    started_at: any;
 	    // Go type: time
 	    ended_at?: any;
-	    duration?: number;
+	    duration: number;
 	    padagan: boolean;
 	    sync_status: string;
 	

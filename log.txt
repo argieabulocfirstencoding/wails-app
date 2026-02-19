@@ -1140,3 +1140,33 @@ FES_LOG: 2026/02/14 07:08:08 sync.go:118: access token status: false
 FES_LOG: 2026/02/14 07:08:08 sync.go:118: access token status: false
 FES_LOG: 2026/02/14 07:09:03 sync.go:118: access token status: false
 FES_LOG: 2026/02/14 07:09:03 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:16:42 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:16:42 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:16:45 app.go:432: No active record
+FES_LOG: 2026/02/14 07:16:45 app.go:432: No active record
+FES_LOG: 2026/02/14 07:16:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:17:05 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:17:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:17:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:18:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:18:55 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:19:28 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:19:28 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:24:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:24:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:25:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:25:44 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:26:12 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:26:12 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:26:35 app.go:189: StopTaskRecord error: record not found
+FES_LOG: 2026/02/14 07:26:35 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:26:40 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:26:40 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:26:43 app.go:432: No active record
+FES_LOG: 2026/02/14 07:26:43 app.go:432: No active record
+FES_LOG: 2026/02/14 07:26:54 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:26:54 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:27:20 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:27:29 sync.go:118: access token status: false
+FES_LOG: 2026/02/14 07:27:47 app.go:189: StopTaskRecord error: record not found
+FES_LOG: 2026/02/14 07:27:47 sync.go:118: access token status: false
