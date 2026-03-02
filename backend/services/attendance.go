@@ -35,7 +35,7 @@ func LoginAttendance(userId string) (*uint, error) {
 			if err := db.DB.Create(&lastAttendance).Error; err != nil {
 				return nil, err
 			}
-
+				
 			fmt.Print("Create new attendance session")
 		} else {
 			fmt.Print("Error creating new attendance session" + err.Error())

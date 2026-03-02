@@ -298,7 +298,7 @@ func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error
 	a.AuthUser = authUser
 
 	a.SyncService.Connect(a.ctx)
-	// a.SyncService.SyncTasks()
+
 	return authUser, nil
 }
 
@@ -369,6 +369,9 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	// services.NewSyncService().SyncAttendance(attendance)
 
 	config.OnlineMode = true
+	if err := services.AutoCloseStuckSessions(authUser.LocalID); err != nil {
+		return err
+	}
 	return nil
 }
 

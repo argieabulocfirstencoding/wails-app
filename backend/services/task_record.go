@@ -46,6 +46,7 @@ func StopAllActiveRecords(userId string) error {
 	}
 
 	for _, taskRecord := range taskRecords {
+
 		db.DB.Model(&taskRecord).Update("ended_at", now)
 	}
 

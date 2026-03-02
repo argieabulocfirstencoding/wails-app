@@ -167,22 +167,6 @@ const Home = () => {
     fetchAttendanceSyncStatus();
   }, []);
 
-  // Not used for now
-  async function createTask() {
-    if (!newTask?.title || !newTask?.client) return;
-
-    try {
-      const task = await CreateTask(newTask.title, newTask.client);
-      if (task) {
-        setNewTask({ taskId: null, title: "", client: "" });
-        setOpen(false);
-        fetchTasks();
-      }
-    } catch (error) {
-      console.log("Error creating task: ", error);
-    }
-  }
-
   // Refresh (button)
   async function fetchTasks() {
     if (!online) return;
@@ -223,24 +207,53 @@ const Home = () => {
     }, 2000);
   }
 
-  // TODO add sort so that previous tasks that have task records will be ordered by their task record
-  const filteredTasks = (tasks ?? []).filter((task) => {
-    if (!searchQuery) {
-      if (taskRecords && taskRecords.length > 0) {
-        // Only show tasks that have a corresponding record
-        return taskRecords.some((record) => record.task_id === task.taskId);
-      }
-      // No taskRecords, show all tasks
-      return true;
-    }
+  const [tasksState, setTasksState] = useState<models.ExpTask[]>([]);
 
-    // If searching, filter by searchQuery
-    const lowerQuery = searchQuery.toLowerCase();
-    return (
-      task.title.toLowerCase().includes(lowerQuery) ||
-      task.client.toLowerCase().includes(lowerQuery)
+  // When tasks or taskRecords change, compute final sorted array
+  useEffect(() => {
+    if (!tasks) return;
+
+    // Step 1: Build latest timestamp map
+    const latestMap = (taskRecords ?? []).reduce<Record<string, number>>(
+      (acc, record) => {
+        const timestamp = new Date(record.started_at).getTime();
+        if (!acc[record.task_id] || timestamp > acc[record.task_id]) {
+          acc[record.task_id] = timestamp;
+        }
+        return acc;
+      },
+      {},
     );
-  });
+
+    // Step 2: Sort tasks globally
+    const sorted = [...tasks].sort((a, b) => {
+      const aTime = latestMap[a.taskId] ?? 0;
+      const bTime = latestMap[b.taskId] ?? 0;
+      return bTime - aTime; // latest first
+    });
+
+    setTasksState(sorted);
+  }, [tasks, taskRecords]);
+
+  // Step 3: Render
+  tasksState
+    .filter((task) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        task.title.toLowerCase().includes(q) ||
+        task.client.toLowerCase().includes(q)
+      );
+    })
+    .map((task, index) => (
+      <TaskItem
+        key={task.taskId ?? index}
+        taskId={task.taskId}
+        title={task.title}
+        client={task.client}
+        active={task.taskId === taskID}
+      />
+    ));
 
   return (
     <MainLayout>
@@ -386,8 +399,8 @@ const Home = () => {
               Fetching tasks...
             </span>
           </div>
-        ) : filteredTasks && filteredTasks.length > 0 ? (
-          filteredTasks
+        ) : tasksState && tasksState.length > 0 ? (
+          tasksState
             .slice()
             .sort((a, b) =>
               a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0,
