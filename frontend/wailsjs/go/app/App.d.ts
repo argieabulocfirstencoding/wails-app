@@ -13,6 +13,8 @@ export function BeforeClose(arg1:context.Context):Promise<boolean>;
 
 export function CheckAuth(arg1:any):Promise<boolean>;
 
+export function ClearScreenshots():Promise<void>;
+
 export function CreateTask(arg1:string,arg2:string):Promise<models.ExpTask>;
 
 export function FetchUserDetails():Promise<models.AuthUser>;
@@ -26,6 +28,8 @@ export function GetActiveTaskRecord():Promise<any>;
 export function GetActivityLogRecord(arg1:string):Promise<Array<models.ActivityLogRecord>>;
 
 export function GetCurrentAttendance():Promise<models.ExpAttendance>;
+
+export function GetFolderSize():Promise<number>;
 
 export function GetLastTaskRecord(arg1:string):Promise<models.TaskRecordWithScreenshots>;
 

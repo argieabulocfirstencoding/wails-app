@@ -18,6 +18,10 @@ export function CheckAuth(arg1) {
   return window['go']['app']['App']['CheckAuth'](arg1);
 }
 
+export function ClearScreenshots() {
+  return window['go']['app']['App']['ClearScreenshots']();
+}
+
 export function CreateTask(arg1, arg2) {
   return window['go']['app']['App']['CreateTask'](arg1, arg2);
 }
@@ -44,6 +48,10 @@ export function GetActivityLogRecord(arg1) {
 
 export function GetCurrentAttendance() {
   return window['go']['app']['App']['GetCurrentAttendance']();
+}
+
+export function GetFolderSize() {
+  return window['go']['app']['App']['GetFolderSize']();
 }
 
 export function GetLastTaskRecord(arg1) {

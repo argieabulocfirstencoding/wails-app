@@ -4,7 +4,18 @@ import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
-import { User, Mail, Phone, MapPin, Briefcase, Moon, Sun } from "lucide-react";
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Briefcase,
+  Moon,
+  Sun,
+  CameraIcon,
+  Folder,
+} from "lucide-react";
+import { GetFolderSize, ClearScreenshots } from "@/../wailsjs/go/app/App";
 
 type AccountUser = {
   fullName: string;
@@ -17,60 +28,21 @@ type AccountUser = {
   avatar: string;
 };
 
-const DEFAULT_USER: AccountUser = {
-  fullName: "Arjun P. Rosell",
-  email: "arjunrosell.firstencoding@gmail.com",
-  position: "Web Developer",
-  birthdate: "March 10, 2000",
-  phone: "09234567890",
-  address: "Compostela, Cebu",
-  employmentStatus: "Probationary",
-  avatar:
-    "https://lh3.googleusercontent.com/a/ACg8ocJWYobBkgAVfMMKK1NZZoAlx3Zk9xr1ONbhYI7bJL-W6cpYSNE=s288-c-no",
-};
-
 const AccountSettings = () => {
   const storeUser = useAuthStore((s) => s.user);
-
   const { user } = useAuthStore();
+
+  const [size, setSize] = useState<number>(0);
 
   // const [user, setUser] = useState<AccountUser>(DEFAULT_USER);
 
   const [dark, setDark] = useState<boolean>(
-    () => localStorage.getItem("theme") === "dark"
+    () => localStorage.getItem("theme") === "dark",
   );
 
-  // Hydrate user from store/localStorage
-  // useEffect(() => {
-  //   if (storeUser) {
-  //     const su: any = storeUser;
-  //     setUser((prev) => ({
-  //       ...prev,
-  //       email: su.email ?? prev.email,
-  //       fullName:
-  //         (su.fullName ?? su.displayName ?? su.name ?? prev.fullName) ||
-  //         prev.fullName,
-  //       avatar: (su.avatar ??
-  //         su.photoURL ??
-  //         su.picture ??
-  //         prev.avatar) as string,
-  //       position: su.position ?? prev.position,
-  //     }));
-  //   } else {
-  //     const saved = localStorage.getItem("user");
-  //     if (saved) {
-  //       try {
-  //         const parsed = JSON.parse(saved);
-  //         setUser((prev) => ({
-  //           ...prev,
-  //           email: parsed.email ?? prev.email,
-  //         }));
-  //       } catch {
-  //         // ignore parse errors
-  //       }
-  //     }
-  //   }
-  // }, [storeUser]);
+  useEffect(() => {
+    fetchScreenshotSize();
+  }, []);
 
   // Apply theme on mount
   useEffect(() => {
@@ -79,10 +51,45 @@ const AccountSettings = () => {
     setDark(Boolean(isDark));
   }, []);
 
+  async function fetchScreenshotSize() {
+    try {
+      const result = await GetFolderSize();
+      if (result) {
+        setSize(result);
+      }
+    } catch (error) {
+      console.error("error on fetching screenshot size: ", error);
+    }
+  }
+
+  async function clearScreenshotStorage() {
+    if (size === 0) return;
+
+    try {
+      await ClearScreenshots();
+      const newSize = await GetFolderSize();
+      setSize(newSize);
+    } catch (error) {
+      console.error("Error clearing screenshots:", error);
+    }
+  }
+
   function handleThemeChange(next: boolean) {
     setDark(next);
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
+  }
+
+  function byteConverter(bytes: number): string {
+    if (bytes >= 1024 ** 3) {
+      return (bytes / 1024 ** 3).toFixed(2) + " GB";
+    } else if (bytes >= 1024 ** 2) {
+      return (bytes / 1024 ** 2).toFixed(2) + " MB";
+    } else if (bytes >= 1024) {
+      return (bytes / 1024).toFixed(2) + " KB";
+    } else {
+      return bytes + " B";
+    }
   }
 
   return (
@@ -174,25 +181,7 @@ const AccountSettings = () => {
                   <span>{user?.address}</span>
                 </p>
               </div>
-              {/* <div>
-                <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-500">
-                  Employment type
-                </p>
-                <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-50">
-                  {user.employmentStatus}
-                </p>
-              </div> */}
             </div>
-
-            {/* Edit only (no sign out here) */}
-            {/* <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex justify-start">
-              <Button
-                type="button"
-                className="px-4 py-2 text-sm font-semibold bg-emerald-600 rounded-full hover:bg-emerald-700 text-white cursor-pointer"
-              >
-                Edit profile
-              </Button>
-            </div> */}
           </div>
         </section>
 
@@ -236,6 +225,68 @@ const AccountSettings = () => {
               onCheckedChange={handleThemeChange}
               className="flex-shrink-0 cursor-pointer"
             />
+          </div>
+        </section>
+
+        {/* Preferences card */}
+        <section
+          className="
+            rounded-2xl
+            border border-neutral-200 dark:border-neutral-800
+            bg-white dark:bg-neutral-900
+            overflow-hidden
+          "
+        >
+          <div className="px-6 py-3 border-b border-neutral-200 dark:border-neutral-800">
+            <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-neutral-500 dark:text-neutral-500">
+              Features
+            </span>
+          </div>
+
+          {/* Theme row with Switch */}
+          {/* <div className="px-6 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="mt-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 p-1.5">
+                <CameraIcon className="w-4 h-4 text-neutral-700 dark:text-neutral-200" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                  Screenshot
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  Switch between turning screenshot feature.
+                </p>
+              </div>
+            </div>
+
+            <Switch
+              // checked={dark}
+              // onCheckedChange={handleThemeChange}
+              className="flex-shrink-0 cursor-pointer"
+            />
+          </div> */}
+
+          <div className="px-6 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="mt-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 p-1.5">
+                <Folder className="w-4 h-4 text-neutral-700 dark:text-neutral-200" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                  Screenshots Storage
+                </p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  {byteConverter(size || 0)}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              className="text-white font-bold bg-red-500 cursor-pointer hover:bg-red-400 active:bg-red-700"
+              onClick={clearScreenshotStorage}
+            >
+              Clear
+            </Button>
           </div>
         </section>
 

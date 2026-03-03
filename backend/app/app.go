@@ -608,6 +608,14 @@ func (a *App) AddMemo(memo, notes string) {
 	a.ScreenshotService.AddMemo(memo, notes)
 }
 
+func (a *App) GetFolderSize() (int64, error) {
+	return services.GetScreenshotStorageSize(a.ctx)
+}
+
+func (a *App) ClearScreenshots() error {
+	return services.ClearScreenshots(a.ctx);
+}
+
 // ----------------------------------------------------
 // SINGLE INSTANCE LOGIC
 // ----------------------------------------------------
