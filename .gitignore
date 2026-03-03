@@ -1,4 +1,5 @@
-build/bin
+build/*
+build
 node_modules
 frontend/dist
 backend/screenshots
