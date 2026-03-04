@@ -77,7 +77,7 @@ const Task = () => {
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
 
-  const { setTaskID, tasks } = useAuthStore();
+  const { setTaskID, tasks, taskID } = useAuthStore();
 
   function fetchTaskDetails() {
     tasks.forEach((value) => {
@@ -313,7 +313,11 @@ const Task = () => {
         const isActive = !record.ended_at;
         setStart(isActive);
 
-        if (isActive) setTaskID(id);
+        if (isActive) {
+          setTaskID(id);
+
+          console.log("This is active");
+        }
       }
     }
 

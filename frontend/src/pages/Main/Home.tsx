@@ -22,6 +22,7 @@ import Loader from "@/components/custom/Loader";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import { models } from "@/../wailsjs/go/models";
 import { EventsOn } from "@/../wailsjs/runtime/runtime";
+import { formatDistance } from "date-fns";
 
 interface TaskProps {
   taskId: string | null;
@@ -205,31 +206,66 @@ const Home = () => {
     }, 2000);
   }
 
-  const [tasksState, setTasksState] = useState<models.ExpTask[]>([]);
-
-  // When tasks or taskRecords change, compute final sorted array
   const sortedTasks = useMemo(() => {
     if (!tasks || !taskRecords) return [];
 
-    const latestMap = (taskRecords ?? []).reduce<Record<string, number>>(
-      (acc, record) => {
-        const timestamp = new Date(record.started_at).getTime();
-        if (!acc[record.task_id] || timestamp > acc[record.task_id]) {
-          acc[record.task_id] = timestamp;
-        }
-        return acc;
-      },
-      {},
-    );
+    // Step 1: Group taskRecords by task_id
+    const recordsByTask: Record<string, models.ExpTaskRecord[]> = {};
+    taskRecords.forEach((record) => {
+      if (!recordsByTask[record.task_id]) recordsByTask[record.task_id] = [];
+      recordsByTask[record.task_id].push(record);
+    });
 
-    return [...tasks]
-      .sort((a, b) => {
-        const aTime = latestMap[a.taskId] ?? 0;
-        const bTime = latestMap[b.taskId] ?? 0;
-        return bTime - aTime;
-      })
-      .sort((a, b) => (a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0));
-  }, [tasks, taskRecords, taskID]);
+    // Step 2: Determine the active task
+    const activeTaskId = taskRecords.find((r) => !r.ended_at)?.task_id ?? null;
+
+    // Step 3: Map tasks with their records and compute latest ended_at timestamp
+    let mappedTasks = tasks.map((task) => {
+      const records = recordsByTask[task.taskId] ?? [];
+      const latestEndedAt = records.length
+        ? Math.max(
+            ...records.map((r) =>
+              r.ended_at ? new Date(r.ended_at).getTime() : 0,
+            ),
+          )
+        : 0;
+
+      return {
+        ...task,
+        records,
+        active: task.taskId === activeTaskId,
+        latestEndedAt,
+      };
+    });
+
+    // Step 4: Filter tasks based on default "only tasks with records"
+    const hasAnyRecords = mappedTasks.some((t) => t.records.length > 0);
+
+    if (!searchQuery.trim()) {
+      mappedTasks = hasAnyRecords
+        ? mappedTasks.filter((t) => t.records.length > 0)
+        : mappedTasks; // if no records exist, show all
+    }
+
+    // Step 5: Apply search filter if there is a query (search all tasks)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      mappedTasks = mappedTasks.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.client.toLowerCase().includes(q),
+      );
+    }
+
+    // Step 6: Sort tasks: active first, then by latest ended_at descending
+    mappedTasks.sort((a, b) => {
+      if (a.active) return -1;
+      if (b.active) return 1;
+      return b.latestEndedAt - a.latestEndedAt;
+    });
+
+    return mappedTasks;
+  }, [tasks, taskRecords, taskID, searchQuery]);
 
   return (
     <MainLayout>
@@ -379,10 +415,8 @@ const Home = () => {
           sortedTasks.map((task, index) => (
             <TaskItem
               key={task.taskId ?? index}
-              taskId={task.taskId}
-              title={task.title}
-              client={task.client}
-              active={task.taskId === taskID}
+              task={task}
+              active={task.active}
             />
           ))
         ) : (
@@ -396,13 +430,11 @@ const Home = () => {
 };
 
 interface TaskItemProps {
-  taskId: string | null;
-  title: string;
-  client: string;
+  task: any;
   active: boolean;
 }
 
-const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
+const TaskItem = ({ task, active }: TaskItemProps) => {
   const navigate = useNavigate();
 
   return (
@@ -414,7 +446,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
               ? "bg-green-100 dark:bg-green-900/60 border-l-4 border-green-600 shadow-sm"
               : "hover:bg-green-50 dark:hover:bg-neutral-800 border-l-4 border-transparent hover:border-green-500"
           }`}
-        onClick={() => navigate("/task/" + taskId)}
+        onClick={() => navigate("/task/" + task.taskId)}
       >
         <div className="flex flex-col">
           <span
@@ -424,7 +456,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
                 : "font-semibold text-green-700 dark:text-green-400"
             }`}
           >
-            {title}
+            {task.title}
           </span>
           <span
             className={`truncate text-xs sm:text-sm mt-0.5 ${
@@ -433,7 +465,7 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
                 : "font-medium text-gray-700 dark:text-gray-300"
             }`}
           >
-            {client}
+            {task.client}
           </span>
           <span
             className={`mt-1 text-[11px] sm:text-xs font-medium ${
@@ -442,7 +474,16 @@ const TaskItem = ({ taskId, title, client, active }: TaskItemProps) => {
                 : "text-gray-500 dark:text-gray-400"
             }`}
           >
-            Time last tracked: --
+            Time last tracked:{" "}
+            {task.records.length
+              ? formatDistance(
+                  new Date(
+                    task.records[0].ended_at || task.records[0].started_at,
+                  ),
+                  new Date(),
+                  { addSuffix: true },
+                )
+              : "--"}
           </span>
         </div>
 

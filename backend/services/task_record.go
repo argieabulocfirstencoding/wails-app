@@ -88,13 +88,16 @@ func GetTaskRecordFromID(taskRecordId uint) (*models.TaskRecord, error) {
 }
 
 func GetAllPreviousTasksRecords(userID string) ([]models.TaskRecord, error) {
-	var taskRecords []models.TaskRecord
+	sub := db.DB.
+		Model(&models.TaskRecord{}).
+		Select("task_id, MAX(started_at) as started_at").
+		Where("user_id = ?", userID).
+		Group("task_id")
 
+	var taskRecords []models.TaskRecord
 	err := db.DB.
-		Where("user_id = ?", userID). // filter by user
-		Order("started_at DESC").     // order by recent tasks
-		Group("task_id").             // make unique based on task_id
-		Find(&taskRecords).Error      // fetch all matching records
+		Joins("JOIN (?) AS t ON t.task_id = task_records.task_id AND t.started_at = task_records.started_at", sub).
+		Find(&taskRecords).Error
 
 	if err != nil {
 		fmt.Println("DB error:", err)
