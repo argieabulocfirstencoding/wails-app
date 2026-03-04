@@ -1,4 +1,4 @@
-import { models } from "wailsjs/go/models";
+import { models, types } from "wailsjs/go/models";
 import { create } from "zustand";
 
 type AuthUser = {
@@ -25,6 +25,10 @@ type AuthState = {
   fetchedActiveRecord: boolean;
   synced: boolean;
   tasks: models.ExpTask[];
+  summaries: types.TaskSummary[];
+  attendance: models.Attendance | undefined;
+  setAttendance: (a: models.Attendance) => void;
+  setSummary: (summary: types.TaskSummary[]) => void;
   setAttendanceSynced: (synced: boolean) => void;
   setTaskID: (taskID: string | null) => void;
   setTasks: (tasks: models.ExpTask[]) => void;
@@ -48,6 +52,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   attendanceSynced: false,
   initializedTask: false,
   tasks: [],
+  summaries: [],
+  attendance: undefined,
+  setAttendance: (a) => set({ attendance: a }),
+  setSummary: (summaries) => set({ summaries }),
   setAttendanceSynced: (synced) => set({ attendanceSynced: synced }),
   setTasks: (tasks) => set({ tasks }),
   setTaskID: (taskID) => set({ taskID }),

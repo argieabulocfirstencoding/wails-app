@@ -8,33 +8,19 @@ import {
   UserCircle2,
 } from "lucide-react";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
-import { models, types } from "wailsjs/go/models";
-import {
-  GetActivityLogRecord,
-  GetTotalClientRecords,
-} from "@/../wailsjs/go/app/App";
+import { models } from "@/../wailsjs/go/models";
+import { GetTotalClientRecords } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
+import { fetchTodayClientSummary } from "@/lib/utils";
 
 const ActivityLogs = () => {
   const [activities, setActivities] = useState<models.ActivityLogRecord[]>();
-  const [summaries, setSummary] = useState<types.TaskSummary[]>();
+  const { summaries, setSummary } = useAuthStore();
   const [date, setDate] = useState<Date>(new Date());
 
   useEffect(() => {
-    async function fetchActivityLogs() {
-      try {
-        const dateOnly = date.toLocaleDateString("en-CA", {
-          timeZone: "Asia/Manila",
-        });
-        const logs = await GetActivityLogRecord(dateOnly);
-        setActivities(logs);
-      } catch (error) {
-        console.log("Error in fetchActivity in activity logs ", error);
-      }
-    }
-
-    fetchActivityLogs();
+    fetchTodayClientSummary(date);
   }, [date]);
 
   useEffect(() => {

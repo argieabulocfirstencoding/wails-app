@@ -253,7 +253,7 @@ func (a *App) RegisterUser(email string) (*db.User, error) {
 }
 
 // TODO production call to backend server for auth
-func (a *App) LoginUser(email string) (*models.AuthUser, error) {
+func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	user, err := services.OfflineLogin(email)
 	if err != nil {
 		return nil, err
@@ -264,16 +264,21 @@ func (a *App) LoginUser(email string) (*models.AuthUser, error) {
 		Email:   user.Email,
 	}
 
-	attendanceID, err := services.LoginAttendance(authUser.LocalID)
-	if attendanceID == nil {
+	attendance, err := services.LoginAttendance(authUser.LocalID)
+	if attendance == nil {
 		return nil, err
 	}
 
-	a.AttendanceID = attendanceID
+	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
 	config.OnlineMode = false
 
-	return authUser, nil
+	offlineData := &models.OfflineLoginProps{
+		AuthUser:   *authUser,
+		Attendance: *attendance,
+	}
+
+	return offlineData, nil
 }
 
 func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error) {
@@ -289,12 +294,12 @@ func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error
 		Email:   user.Email,
 	}
 
-	attendanceID, err := services.LoginAttendance(authUser.LocalID)
-	if attendanceID == nil {
+	attendance, err := services.LoginAttendance(authUser.LocalID)
+	if attendance == nil {
 		return nil, err
 	}
 
-	a.AttendanceID = attendanceID
+	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
 
 	a.SyncService.Connect(a.ctx)
@@ -303,7 +308,7 @@ func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error
 }
 
 // TODO recheck if this will sustain online login method
-func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) error {
+func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) (*models.Attendance, error) {
 	// NOTE this needs to be refactor, no logic should be applied here
 	user := &models.FirebaseLoginResponse{
 		LocalID:      user_id,
@@ -317,7 +322,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	model_user, err := services.CreateUser(user.LocalID, user.Email)
 	if err != nil {
 		fmt.Printf("error creating account %s\n", err)
-		return err
+		return nil, err
 	}
 
 	authUser := &models.AuthUser{
@@ -325,10 +330,12 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 		Email:   user.Email,
 	}
 
-	attendanceID, err := services.LoginAttendance(authUser.LocalID)
-	if attendanceID == nil {
-		return err
+	attendance, err := services.LoginAttendance(authUser.LocalID)
+	if attendance == nil {
+		return nil, err
 	}
+
+	attendanceID := &attendance.ID
 
 	if model_user != nil && attendanceID != nil {
 		go func() {
@@ -370,9 +377,9 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 
 	config.OnlineMode = true
 	if err := services.AutoCloseStuckSessions(authUser.LocalID); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return attendance, nil
 }
 
 func (a *App) FetchUserDetails() (*models.AuthUser, error) {
@@ -613,7 +620,7 @@ func (a *App) GetFolderSize() (int64, error) {
 }
 
 func (a *App) ClearScreenshots() error {
-	return services.ClearScreenshots(a.ctx);
+	return services.ClearScreenshots(a.ctx)
 }
 
 // ----------------------------------------------------

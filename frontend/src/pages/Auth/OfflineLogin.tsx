@@ -29,6 +29,7 @@ const OfflineLogin = () => {
   const [email, setEmail] = useState("");
   const [emails, setEmails] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
+  const { setAttendance } = useAuthStore();
 
   async function loginUser(event: FormEvent) {
     event.preventDefault();
@@ -38,13 +39,14 @@ const OfflineLogin = () => {
       const authUser = await LoginUser(email);
 
       useAuthStore.getState().setUser({
-        uid: authUser.localId,
-        email: authUser.email,
+        uid: authUser.AuthUser.localId,
+        email: authUser.AuthUser.email,
         offline: true,
       });
 
       const user = useAuthStore.getState().user;
       if (user) {
+        setAttendance(authUser.Attendance);
         localStorage.setItem("user", JSON.stringify(user));
         navigate("/home");
       }

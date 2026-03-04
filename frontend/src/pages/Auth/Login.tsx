@@ -23,7 +23,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { online, setSynced } = useAuthStore();
+  const { online, setSynced, setAttendance } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -65,12 +65,12 @@ const Login = () => {
       setLoadingMsg("Syncing account…");
       showCancel(false);
 
-      await BackendFirebaseSync(
+      const attendance = await BackendFirebaseSync(
         payload.userId,
         payload.email,
         payload.idToken,
         payload.refreshToken,
-        payload.expiresIn
+        payload.expiresIn,
       );
 
       useAuthStore.getState().setUser({
@@ -83,6 +83,7 @@ const Login = () => {
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
         setSynced(true);
+        setAttendance(attendance);
         navigate("/home");
       }
     } catch (error: any) {

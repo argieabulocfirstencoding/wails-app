@@ -23,6 +23,7 @@ import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import { models } from "@/../wailsjs/go/models";
 import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatDistance } from "date-fns";
+import { fetchTodayClientSummary } from "@/lib/utils";
 
 interface TaskProps {
   taskId: string | null;
@@ -82,6 +83,13 @@ const Home = () => {
 
     return () => off();
   }, []);
+
+  useEffect(() => {
+    fetchTodayClientSummary();
+  }, []);
+
+
+
 
   useEffect(() => {
     async function fetchAllTaskRecords() {

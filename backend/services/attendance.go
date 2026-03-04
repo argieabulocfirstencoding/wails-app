@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func LoginAttendance(userId string) (*uint, error) {
+func LoginAttendance(userId string) (*models.Attendance, error) {
 	// TODO sync in firebase
 	// TODO add firebase check for the last synced attendance
 
@@ -35,7 +35,7 @@ func LoginAttendance(userId string) (*uint, error) {
 			if err := db.DB.Create(&lastAttendance).Error; err != nil {
 				return nil, err
 			}
-				
+
 			fmt.Print("Create new attendance session")
 		} else {
 			fmt.Print("Error creating new attendance session" + err.Error())
@@ -44,7 +44,7 @@ func LoginAttendance(userId string) (*uint, error) {
 
 	}
 
-	return &lastAttendance.ID, nil
+	return &lastAttendance, nil
 }
 
 func LogoutAttendance(attendance *models.Attendance) error {

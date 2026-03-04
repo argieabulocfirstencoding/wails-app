@@ -34,3 +34,8 @@ func (a Attendance) ToExp() ExpAttendance {
 		SyncStatus: a.SyncStatus,
 	}
 }
+
+type OfflineLoginProps struct {
+	AuthUser   AuthUser
+	Attendance Attendance
+}
