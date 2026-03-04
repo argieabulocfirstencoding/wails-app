@@ -6,7 +6,7 @@ import {
   CheckCircle,
   TriangleAlert,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CreateTask,
   GetActiveTaskRecord,
@@ -36,13 +36,11 @@ const Home = () => {
     title: "",
     client: "",
   });
-  const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSyncing, setSyncing] = useState(false);
   const [taskRecords, setTaskRecords] = useState<models.ExpTaskRecord[]>();
-  const [showingTasks, setShowingTasks] = useState();
   const {
     taskID,
     setFetchedActiveRecord,
@@ -210,10 +208,9 @@ const Home = () => {
   const [tasksState, setTasksState] = useState<models.ExpTask[]>([]);
 
   // When tasks or taskRecords change, compute final sorted array
-  useEffect(() => {
-    if (!tasks) return;
+  const sortedTasks = useMemo(() => {
+    if (!tasks || !taskRecords) return [];
 
-    // Step 1: Build latest timestamp map
     const latestMap = (taskRecords ?? []).reduce<Record<string, number>>(
       (acc, record) => {
         const timestamp = new Date(record.started_at).getTime();
@@ -225,35 +222,14 @@ const Home = () => {
       {},
     );
 
-    // Step 2: Sort tasks globally
-    const sorted = [...tasks].sort((a, b) => {
-      const aTime = latestMap[a.taskId] ?? 0;
-      const bTime = latestMap[b.taskId] ?? 0;
-      return bTime - aTime; // latest first
-    });
-
-    setTasksState(sorted);
-  }, [tasks, taskRecords]);
-
-  // Step 3: Render
-  tasksState
-    .filter((task) => {
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        task.title.toLowerCase().includes(q) ||
-        task.client.toLowerCase().includes(q)
-      );
-    })
-    .map((task, index) => (
-      <TaskItem
-        key={task.taskId ?? index}
-        taskId={task.taskId}
-        title={task.title}
-        client={task.client}
-        active={task.taskId === taskID}
-      />
-    ));
+    return [...tasks]
+      .sort((a, b) => {
+        const aTime = latestMap[a.taskId] ?? 0;
+        const bTime = latestMap[b.taskId] ?? 0;
+        return bTime - aTime;
+      })
+      .sort((a, b) => (a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0));
+  }, [tasks, taskRecords, taskID]);
 
   return (
     <MainLayout>
@@ -399,21 +375,16 @@ const Home = () => {
               Fetching tasks...
             </span>
           </div>
-        ) : tasksState && tasksState.length > 0 ? (
-          tasksState
-            .slice()
-            .sort((a, b) =>
-              a.taskId === taskID ? -1 : b.taskId === taskID ? 1 : 0,
-            )
-            .map((task, index) => (
-              <TaskItem
-                key={task.taskId ?? index}
-                taskId={task.taskId}
-                title={task.title}
-                client={task.client}
-                active={task.taskId === taskID}
-              />
-            ))
+        ) : sortedTasks.length > 0 ? (
+          sortedTasks.map((task, index) => (
+            <TaskItem
+              key={task.taskId ?? index}
+              taskId={task.taskId}
+              title={task.title}
+              client={task.client}
+              active={task.taskId === taskID}
+            />
+          ))
         ) : (
           <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
             No tasks found.

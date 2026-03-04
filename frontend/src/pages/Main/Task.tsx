@@ -75,6 +75,7 @@ const Task = () => {
   const [isLaunching, setLaunching] = useState(false);
   const [isSyncing, setSyncing] = useState(false);
   const [isPadagan, setPadagan] = useState(false);
+  const [isHydrated, setHydrated] = useState(false);
 
   const { setTaskID, tasks } = useAuthStore();
 
@@ -260,6 +261,8 @@ const Task = () => {
       }
     } catch (error) {
       console.log("Error fetching last record: " + error);
+    } finally {
+      setHydrated(true);
     }
   }
 
@@ -290,13 +293,32 @@ const Task = () => {
   }, [isStarted]);
 
   useEffect(() => {
-    if (!lastTaskRecord?.ended_at && timeStarted && !timeEnded && id) {
-      setTaskID(id);
-      setStart(true);
+    async function init() {
+      if (!id) return;
+
+      const response = await GetLastTaskRecord(id);
+
+      if (response?.record) {
+        const record = response.record;
+
+        const started = new Date(record.started_at).getTime();
+        const ended = record.ended_at
+          ? new Date(record.ended_at).getTime()
+          : null;
+
+        setLastTaskRecord(record);
+        setStartTime(started);
+        setEndTime(ended ?? undefined);
+
+        const isActive = !record.ended_at;
+        setStart(isActive);
+
+        if (isActive) setTaskID(id);
+      }
     }
 
-    fetchLastRecord();
-  }, [timeStarted, timeEnded]);
+    init();
+  }, [id]);
 
   useEffect(() => {
     if (!EventsOn) return;
@@ -323,6 +345,36 @@ const Task = () => {
     });
     return () => off();
   }, []);
+
+  if (!isHydrated)
+    return (
+      <MainLayout>
+        <div
+          className="
+        sticky top-0 z-30
+        bg-white/90 dark:bg-neutral-950/85
+        backdrop-blur-md
+        border-b border-neutral-200 dark:border-neutral-800
+        shadow-sm
+      "
+        >
+          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+            <button
+              onClick={() => navigate("/home")}
+              className="
+            group inline-flex items-center gap-1.5 text-sm font-semibold
+            text-neutral-800 dark:text-neutral-100
+            hover:text-emerald-500 dark:hover:text-emerald-400
+            transition-colors cursor-pointer
+          "
+            >
+              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+              <span>Back</span>
+            </button>
+          </div>{" "}
+        </div>
+      </MainLayout>
+    );
 
   return (
     <MainLayout>
@@ -406,9 +458,13 @@ const Task = () => {
           {/* Time + Start/Stop */}
           <div className="flex items-end justify-between gap-4">
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-                {getFormattedTime()}
-              </p>
+              {!isHydrated ? (
+                <div className="h-9 w-32 rounded-md bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
+              ) : (
+                <p className="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
+                  {getFormattedTime()}
+                </p>
+              )}
               <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
                 Time tracking {isStarted ? "on" : "off"}
               </p>
@@ -425,39 +481,44 @@ const Task = () => {
 
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2 text-[11px] sm:text-xs">
-                {isSyncing ? (
-                  <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400">
-                    Syncing
-                    <SpinnerLoader className="scale-[0.45]" />
-                  </span>
-                ) : isSynced ? (
-                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                    Synced
-                    <CircleCheckBig className="w-3 h-3" />
-                  </span>
-                ) : (
-                  lastTaskRecord && (
-                    <span className="inline-flex items-center gap-1 text-amber-500">
-                      Not synced
-                      <CircleAlert className="w-3 h-3" />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={handleSyncTaskRecord}
-                            className="ml-1 rounded-full p-1 text-neutral-400 dark:text-neutral-300 hover:text-neutral-700 dark:hover:text-white transition-colors cursor-pointer"
-                          >
-                            <RefreshCcw className="w-3.5 h-3.5" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Click to sync this session</p>
-                        </TooltipContent>
-                      </Tooltip>
+                {isHydrated ? (
+                  isSyncing ? (
+                    <span className="flex items-center gap-1 text-neutral-500 dark:text-neutral-400">
+                      Syncing
+                      <SpinnerLoader className="scale-[0.45]" />
                     </span>
+                  ) : isSynced ? (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      Synced
+                      <CircleCheckBig className="w-3 h-3" />
+                    </span>
+                  ) : (
+                    lastTaskRecord && (
+                      <span className="inline-flex items-center gap-1 text-amber-500">
+                        Not synced
+                        <CircleAlert className="w-3 h-3" />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={handleSyncTaskRecord}
+                              className="ml-1 rounded-full p-1 text-neutral-400 dark:text-neutral-300 hover:text-neutral-700 dark:hover:text-white transition-colors cursor-pointer"
+                            >
+                              <RefreshCcw className="w-3.5 h-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Click to sync this session</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </span>
+                    )
                   )
+                ) : (
+                  ""
                 )}
               </div>
+
               {taskDetails?.title.toLowerCase().includes("break") ||
               taskDetails?.title.toLowerCase().includes("training") ? (
                 isStarted ? (
