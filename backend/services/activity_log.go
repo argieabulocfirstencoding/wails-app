@@ -4,7 +4,6 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/utils"
-	"fmt"
 	"time"
 )
 
@@ -21,9 +20,7 @@ func GetAttendanceAndRecords(dateStr string) ([]models.ActivityLogRecord, error)
 	}
 
 	startOfDay := date
-	fmt.Printf("Start of Day: %v", startOfDay)
 	endOfDay := date.Add(24 * time.Hour)
-	fmt.Printf("End of Day: %v", endOfDay)
 
 	var foundAttendance []models.Attendance
 	if err := db.DB.Where("time_in >= ? AND time_in < ?", startOfDay, endOfDay).Find(&foundAttendance).Error; err != nil {

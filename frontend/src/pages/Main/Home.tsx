@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
-  CreateTask,
   GetActiveTaskRecord,
   GetTasks,
   GetCurrentAttendance,
@@ -20,10 +19,10 @@ import { useAuthStore } from "@/store/AuthContext";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/custom/Loader";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
-import { models } from "@/../wailsjs/go/models";
+import { models, types } from "@/../wailsjs/go/models";
 import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatDistance } from "date-fns";
-import { fetchTodayClientSummary } from "@/lib/utils";
+import { fetchTodayClientSummary, secondsToHHMM } from "@/lib/utils";
 
 interface TaskProps {
   taskId: string | null;
@@ -56,6 +55,7 @@ const Home = () => {
     setAttendanceSynced,
     initializedTask,
     setInitializedTask,
+    summaries,
   } = useAuthStore();
 
   useEffect(() => {
@@ -87,9 +87,6 @@ const Home = () => {
   useEffect(() => {
     fetchTodayClientSummary();
   }, []);
-
-
-
 
   useEffect(() => {
     async function fetchAllTaskRecords() {
@@ -224,6 +221,8 @@ const Home = () => {
       recordsByTask[record.task_id].push(record);
     });
 
+    const summariesByTask: Record<string, types.TaskSummary[]> = {};
+
     // Step 2: Determine the active task
     const activeTaskId = taskRecords.find((r) => !r.ended_at)?.task_id ?? null;
 
@@ -237,12 +236,14 @@ const Home = () => {
             ),
           )
         : 0;
+      const recordSummary = summaries.find((s) => s.TaskID === task.taskId);
 
       return {
         ...task,
         records,
         active: task.taskId === activeTaskId,
         latestEndedAt,
+        recordSummary,
       };
     });
 
@@ -404,7 +405,7 @@ const Home = () => {
               Contract
             </span>
             <span className="text-[11px] sm:text-xs font-semibold tracking-wide uppercase text-gray-600 dark:text-gray-400">
-              This week&apos;s hours
+              This day&apos;s hours
             </span>
           </div>
         </div>
@@ -498,7 +499,7 @@ const TaskItem = ({ task, active }: TaskItemProps) => {
         {/* Right column placeholder for future hours */}
         <div className="flex items-start justify-end">
           <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 opacity-70">
-            --
+            {task.recordSummary ? secondsToHHMM(task.recordSummary.TotalDuration) + " hrs" : "--"} 
           </span>
         </div>
       </div>

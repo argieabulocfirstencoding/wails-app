@@ -12,7 +12,7 @@ import { models } from "@/../wailsjs/go/models";
 import { GetTotalClientRecords } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
-import { fetchTodayClientSummary } from "@/lib/utils";
+import { fetchTodayClientSummary, secondsToHHMM } from "@/lib/utils";
 
 const ActivityLogs = () => {
   const [activities, setActivities] = useState<models.ActivityLogRecord[]>();
@@ -41,11 +41,7 @@ const ActivityLogs = () => {
     fetchTodayClientSummary();
   }, [date]);
 
-  function secondsToHHMM(seconds: number): string {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-  }
+  
 
   console.log(secondsToHHMM(3661)); // "01:01"
   console.log(secondsToHHMM(5400)); // "01:30"

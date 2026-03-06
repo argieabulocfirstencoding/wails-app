@@ -1,7 +1,7 @@
 import { useAuthStore } from "@/store/AuthContext";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { GetTotalClientRecords } from "wailsjs/go/app/App";
+import { GetTotalClientRecords } from "@/../wailsjs/go/app/App";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -33,3 +33,9 @@ export const fetchTodayClientSummary = async (optionalDate?: Date) => {
     console.error("Error fetching client summary:", error);
   }
 };
+
+export function secondsToHHMM(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${String(hours).padStart(1, "0")}:${String(minutes).padStart(2, "0")}`;
+}

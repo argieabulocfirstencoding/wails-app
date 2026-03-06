@@ -17,7 +17,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  TakeScreenshot,
   GetMonitorCount,
   StartTracking,
   StopTracking,
