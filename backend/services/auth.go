@@ -6,7 +6,7 @@ import (
 )
 
 // NOTE for local login
-func OfflineLogin(email string) (*db.User, error) {
+var OfflineLogin = func(email string) (*db.User, error) {
 	var user db.User
 
 	result := db.DB.Where("email = ?", email).First(&user)

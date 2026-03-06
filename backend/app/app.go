@@ -252,60 +252,19 @@ func (a *App) RegisterUser(email string) (*db.User, error) {
 	return user, nil
 }
 
-// TODO production call to backend server for auth
+// NOTE this is offline login
 func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
-	user, err := services.OfflineLogin(email)
+	offlineData, attendanceID, authUser, err := services.LoginUser(email)
 	if err != nil {
 		return nil, err
 	}
 
-	authUser := &models.AuthUser{
-		LocalID: user.ID,
-		Email:   user.Email,
-	}
-
-	attendance, err := services.LoginAttendance(authUser.LocalID)
-	if attendance == nil {
-		return nil, err
-	}
-
-	a.AttendanceID = &attendance.ID
+	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
-	config.OnlineMode = false
-
-	offlineData := &models.OfflineLoginProps{
-		AuthUser:   *authUser,
-		Attendance: *attendance,
-	}
 
 	return offlineData, nil
 }
 
-func (a *App) FirebaseLoginUser(email, password string) (*models.AuthUser, error) {
-	// TODO check if this function is still being use
-	// NOTE this needs to be refactor, no logic should be applied here
-	user, err := services.FirebaseLogin(email, password)
-	if err != nil {
-		return nil, err
-	}
-
-	authUser := &models.AuthUser{
-		LocalID: user.LocalID,
-		Email:   user.Email,
-	}
-
-	attendance, err := services.LoginAttendance(authUser.LocalID)
-	if attendance == nil {
-		return nil, err
-	}
-
-	a.AttendanceID = &attendance.ID
-	a.AuthUser = authUser
-
-	a.SyncService.Connect(a.ctx)
-
-	return authUser, nil
-}
 
 // TODO recheck if this will sustain online login method
 func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) (*models.Attendance, error) {

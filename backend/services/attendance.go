@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func LoginAttendance(userId string) (*models.Attendance, error) {
+var LoginAttendance = func(userId string) (*models.Attendance, error) {
 	// TODO sync in firebase
 	// TODO add firebase check for the last synced attendance
 
@@ -47,7 +48,7 @@ func LoginAttendance(userId string) (*models.Attendance, error) {
 	return &lastAttendance, nil
 }
 
-func LogoutAttendance(attendance *models.Attendance) error {
+var LogoutAttendance = func(attendance *models.Attendance) error {
 	now := time.Now()
 	if err := db.DB.Model(&attendance).Update("time_out", now).Error; err != nil {
 		return err
@@ -56,7 +57,7 @@ func LogoutAttendance(attendance *models.Attendance) error {
 	return nil
 }
 
-func GetAttendanceFromID(attendanceID uint) (*models.Attendance, error) {
+var GetAttendanceFromID = func(attendanceID uint) (*models.Attendance, error) {
 	var attendance models.Attendance
 
 	if err := db.DB.Where("attendances.id = ?", attendanceID).First(&attendance).Error; err != nil {
@@ -66,7 +67,7 @@ func GetAttendanceFromID(attendanceID uint) (*models.Attendance, error) {
 	return &attendance, nil
 }
 
-func GetUserAttendance(userId string) (*models.Attendance, error) {
+var GetUserAttendance = func(userId string) (*models.Attendance, error) {
 	var attendance models.Attendance
 
 	if err := db.DB.Where("attendances.user_id = ?", userId).Last(&attendance).Error; err != nil {
@@ -74,4 +75,30 @@ func GetUserAttendance(userId string) (*models.Attendance, error) {
 	}
 
 	return &attendance, nil
+}
+
+var LoginUser = func(email string) (*models.OfflineLoginProps, *uint, *models.AuthUser, error) {
+	user, err := OfflineLogin(email)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	authUser := &models.AuthUser{
+		LocalID: user.ID,
+		Email:   user.Email,
+	}
+
+	attendance, err := LoginAttendance(authUser.LocalID)
+	if attendance == nil {
+		return nil, nil, nil, err
+	}
+
+	config.OnlineMode = false
+
+	offlineData := &models.OfflineLoginProps{
+		AuthUser:   *authUser,
+		Attendance: *attendance,
+	}
+
+	return offlineData, &attendance.ID, authUser, nil
 }
