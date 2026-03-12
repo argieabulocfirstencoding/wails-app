@@ -32,11 +32,6 @@ interface TaskProps {
 
 const Home = () => {
   const navigate = useNavigate();
-  const [newTask, setNewTask] = useState<TaskProps>({
-    taskId: null,
-    title: "",
-    client: "",
-  });
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -97,6 +92,15 @@ const Home = () => {
     }
 
     fetchAllTaskRecords();
+  }, []);
+
+  useEffect(() => {
+    const off = EventsOn("attendance-synced", (synced: boolean) => {
+      setAttendanceSynced(synced);
+      setSyncing(false);
+    });
+
+    return () => off();
   }, []);
 
   useEffect(() => {
@@ -165,7 +169,7 @@ const Home = () => {
   // Upgrade: Need to check for an event and database changes especially on screenshot will turn this to unsynced
   useEffect(() => {
     async function fetchAttendanceSyncStatus() {
-      fetchCurrentAttendance();
+      await fetchCurrentAttendance();
     }
 
     fetchAttendanceSyncStatus();
@@ -499,7 +503,9 @@ const TaskItem = ({ task, active }: TaskItemProps) => {
         {/* Right column placeholder for future hours */}
         <div className="flex items-start justify-end">
           <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 opacity-70">
-            {task.recordSummary ? secondsToHHMM(task.recordSummary.TotalDuration) + " hrs" : "--"} 
+            {task.recordSummary
+              ? secondsToHHMM(task.recordSummary.TotalDuration) + " hrs"
+              : "--"}
           </span>
         </div>
       </div>

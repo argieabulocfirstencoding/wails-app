@@ -30,10 +30,6 @@ export function FetchUserDetails() {
   return window['go']['app']['App']['FetchUserDetails']();
 }
 
-export function FirebaseLoginUser(arg1, arg2) {
-  return window['go']['app']['App']['FirebaseLoginUser'](arg1, arg2);
-}
-
 export function GetAccounts() {
   return window['go']['app']['App']['GetAccounts']();
 }

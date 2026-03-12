@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 	"gorm.io/gorm"
 )
@@ -353,8 +354,20 @@ func (s *SyncService) AttemptSyncAttendance(attendance *models.Attendance) error
 
 // ================== ACTUAL FUNCTIONS ========================
 
-func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
-	db.DB.Model(&taskRecord).Update("sync_status", "pending")
+func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) {
+
+	defer func() {
+		if err != nil {
+			runtime.EventsEmit(s.ctx, "record-synced", false)
+		} else {
+			runtime.EventsEmit(s.ctx, "record-synced", true)
+		}
+	}()
+
+	err = db.DB.Model(taskRecord).Update("sync_status", "pending").Error
+	if err != nil {
+		return err
+	}
 	// ============== PRE DEFINITION =============
 	now := time.Now()
 	user, err := GetUserFromId(taskRecord.UserID)
@@ -409,8 +422,6 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		},
 	}
 
-	db.DB.Model(&taskRecord).Update("duration", duration)
-
 	if taskRecord.EndedAt != nil {
 		fields["ended_at"] = FirestoreInteger{
 			IntegerValue: strconv.FormatInt(now.Local().UnixMilli(), 10),
@@ -429,6 +440,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		"fields": fields,
 	}
 	s.RefreshAccessToken()
+
 	if s.isConnected {
 		_, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, method, body)
 		if err != nil {
@@ -436,15 +448,12 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		}
 
 		now := time.Now()
-		taskRecord.SyncedAt = &now
-		db.DB.Save(&taskRecord)
+		err = db.DB.Model(taskRecord).Updates(map[string]interface{}{
+			"sync_status": "synced",
+			"synced_at":   now,
+			"duration":    duration,
+		}).Error
 	}
-
-	// updates database that record is synced
-	db.DB.Model(&taskRecord).Updates(map[string]interface{}{
-		"sync_status": "synced",
-		"synced_at":   time.Now(),
-	})
 
 	if err = s.SyncAttendance(attendance); err != nil {
 		return err
@@ -516,9 +525,21 @@ func (s *SyncService) SyncUser(user models.AuthUser) error {
 	return nil
 }
 
-func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
-	db.DB.Model(&attendance).Update("sync_status", "pending")
-	user, err := GetUserFromId(attendance.UserID)
+func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
+	defer func() {
+		if err != nil {
+			runtime.EventsEmit(s.ctx, "attendance-synced", false)
+		} else {
+			runtime.EventsEmit(s.ctx, "attendance-synced", true)
+		}
+	}()
+
+	if err = db.DB.Model(attendance).Update("sync_status", "pending").Error; err != nil {
+		return err;
+	}
+
+	var user *db.User
+	user, err = GetUserFromId(attendance.UserID)
 	if err != nil {
 		return fmt.Errorf("error in syncattendance when fetching user %s", err)
 	}
@@ -574,18 +595,18 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 	}
 
 	if s.isConnected {
-		_, err := FirebaseDocumentRequest(s.ctx, *s.IdToken, path, method, body)
+		_, err = FirebaseDocumentRequest(s.ctx, *s.IdToken, path, method, body)
 		if err != nil {
 			return err
 		}
 
-		db.DB.Model(&attendance).Updates(map[string]interface{}{
+		db.DB.Model(attendance).Updates(map[string]interface{}{
 			"sync_status": "synced",
 			"synced_at":   time.Now(),
 		})
 
 		// Sync all unsynced records of the current attendance session
-		if err := s.SyncUnsyncedRecords(); err != nil {
+		if err = s.SyncUnsyncedRecords(); err != nil {
 			log.Println("Not able to sync previous task records")
 		}
 	}

@@ -428,7 +428,6 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 		return nil, err
 	}
 
-	// NOTE this needs to be refactor, no logic should be applied here
 	a.WorkingTaskID = &record.Record.TaskID
 	return record, nil
 }
@@ -439,7 +438,6 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 		return nil, err
 	}
 
-	// NOTE this needs to be refactor, no logic should be applied here
 	expTask := task.ToExpTask()
 	return &expTask, nil
 }

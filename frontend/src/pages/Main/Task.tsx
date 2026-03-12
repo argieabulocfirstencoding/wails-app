@@ -62,7 +62,7 @@ const Task = () => {
   const [isStarted, setStart] = useState(false);
   const [timeStarted, setStartTime] = useState<number>(0);
   const [timeEnded, setEndTime] = useState<number>();
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [_, setElapsedTime] = useState<number>(0);
   const [monitor, setMonitor] = useState<number>(0);
   const [screenshots, setScreenshots] = useState<ScreenshotProps | null>(null);
   const [screenshotDate, setScreenshotDate] = useState<string>("");
@@ -78,25 +78,21 @@ const Task = () => {
 
   const { setTaskID, tasks, taskID } = useAuthStore();
 
-  function fetchTaskDetails() {
-    tasks.forEach((value) => {
-      if (value.taskId === id) setTaskDetails(value);
-    });
-  }
-
   async function startTime() {
-    setSyncing(true);
-    resetTimer();
     if (!id) return;
-    const timeStart = Date.now();
-    const stringifiedDateTime = JSON.stringify(timeStart);
-    setStart(true);
-    setStartTime(timeStart);
-    await StartTracking(id, stringifiedDateTime, isPadagan).then(() => {
-      setTimeout(() => {
-        setSyncing(false);
-      }, 1000);
-    });
+
+    try {
+      setSyncing(true);
+      resetTimer();
+
+      const timeStart = Date.now();
+      await StartTracking(id, JSON.stringify(timeStart), isPadagan);
+
+      setStart(true);
+      setStartTime(timeStart);
+    } finally {
+      setSyncing(false);
+    }
   }
 
   function resetTimer() {
@@ -108,19 +104,11 @@ const Task = () => {
   async function stopTime() {
     setSyncing(true);
     if (id) await StopTracking(id);
-    (async () => {
-      await fetchLastRecord();
-    })();
 
-    // await fetchLastRecord();
     setTaskID(null);
     const timeStop = Date.now();
     setStart(false);
     setEndTime(timeStop);
-
-    setTimeout(() => {
-      setSyncing(false);
-    }, 1500);
   }
 
   function getFormattedTime() {
@@ -141,25 +129,6 @@ const Task = () => {
       return `--:--:--`;
     }
   }
-
-  useEffect(() => {
-    console.log(lastTaskRecord);
-    setSynced(lastTaskRecord?.sync_status === "synced");
-  }, [lastTaskRecord?.sync_status]);
-
-  // TODO remove this because testing only
-  // async function screenshotNow() {
-  //   const now = Date.now();
-  //   const pictures = await TakeScreenshot();
-  //   if (pictures) {
-  //     const screenshotTaken: ScreenshotProps = { date: now, pictures };
-  //     localStorage.setItem(
-  //       "last_screenshot_" + id,
-  //       JSON.stringify(screenshotTaken)
-  //     );
-  //     setScreenshots(screenshotTaken);
-  //   }
-  // }
 
   async function countMonitor() {
     const monitorCount = await GetMonitorCount();
@@ -192,13 +161,6 @@ const Task = () => {
     if (!lastTaskRecord) return;
     setSyncing(true);
     await SyncUnsyncedTaskRecord(lastTaskRecord.id);
-    (async () => {
-      await fetchLastRecord();
-    })();
-
-    setTimeout(() => {
-      setSyncing(false);
-    }, 1500);
   }
 
   function openPreview(base64: string) {
@@ -231,48 +193,21 @@ const Task = () => {
     }
   }
 
-  async function fetchLastRecord() {
+  useEffect(() => {
     if (!id) return;
-    try {
-      const response = await GetLastTaskRecord(id);
-      if (response) {
-        const record = response.record;
-        const screenshots = response.screenshots;
-        const date = response.takenAt;
-
-        if (record) {
-          setLastTaskRecord(record);
-
-          console.log("RECORD PADAGAN: ", record.padagan);
-          const started = new Date(record.started_at);
-          const ended = record.ended_at ? new Date(record.ended_at) : null;
-          setStartTime(started.getTime());
-          setEndTime(ended?.getTime());
-        }
-
-        if (screenshots && date) {
-          const screenshotTaken: ScreenshotProps = {
-            date,
-            pictures: screenshots,
-          };
-          setScreenshots(screenshotTaken);
-        }
-      }
-    } catch (error) {
-      console.log("Error fetching last record: " + error);
-    } finally {
-      setHydrated(true);
-    }
-  }
+    const task = tasks.find((t) => t.taskId === id);
+    if (task) setTaskDetails(task);
+  }, [tasks, id]);
 
   useEffect(() => {
     getLastScreenshotTime();
-    fetchLastRecord();
-  }, [isSyncing]);
+  }, [screenshots]);
 
   useEffect(() => {
-    fetchTaskDetails();
-    console.log("Task details: ", taskDetails);
+    setSynced(lastTaskRecord?.sync_status === "synced");
+  }, [lastTaskRecord?.sync_status]);
+
+  useEffect(() => {
     const memoRecord = localStorage.getItem("memo");
     const tagRecord = localStorage.getItem("tag");
     if (memoRecord) setMemo(memoRecord);
@@ -289,44 +224,48 @@ const Task = () => {
       setElapsedTime(elapsed);
     }, 1000);
     return () => clearInterval(interval);
-  }, [isStarted]);
+  }, [isStarted, timeStarted]);
 
   useEffect(() => {
     async function init() {
       if (!id) return;
+      try {
+        const response = await GetLastTaskRecord(id);
+        if (response?.record) {
+          const record = response.record;
+          const started = new Date(record.started_at).getTime();
+          const ended = record.ended_at
+            ? new Date(record.ended_at).getTime()
+            : null;
 
-      const response = await GetLastTaskRecord(id);
+          setLastTaskRecord(record);
+          setStartTime(started);
+          setEndTime(ended ?? undefined);
+          setSynced(record.sync_status === "synced");
 
-      if (response?.record) {
-        const record = response.record;
+          const isActive = !record.ended_at;
+          setStart(isActive);
+          if (isActive) setTaskID(id);
 
-        const started = new Date(record.started_at).getTime();
-        const ended = record.ended_at
-          ? new Date(record.ended_at).getTime()
-          : null;
-
-        setLastTaskRecord(record);
-        setStartTime(started);
-        setEndTime(ended ?? undefined);
-
-        const isActive = !record.ended_at;
-        setStart(isActive);
-
-        if (isActive) {
-          setTaskID(id);
-
-          console.log("This is active");
+          if (response.screenshots && response.takenAt) {
+            setScreenshots({
+              date: response.takenAt,
+              pictures: response.screenshots,
+            });
+          }
         }
+      } catch (err) {
+        console.error("Init error:", err);
+      } finally {
+        setHydrated(true); // ← moved here, single source of truth
       }
     }
-
     init();
   }, [id]);
 
   useEffect(() => {
     if (!EventsOn) return;
     const off = EventsOn("upwork-button", () => {
-      console.log("upwork button alright");
       setLaunching(false);
     });
 
@@ -340,14 +279,21 @@ const Task = () => {
       const now = Date.now();
       const screenshotTaken: ScreenshotProps = { date: now, pictures };
       setScreenshots(screenshotTaken);
-
-      fetchLastRecord();
-      setTimeout(() => {
-        setSyncing(false);
-      }, 1500);
     });
     return () => off();
   }, []);
+
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("record-synced", (synced: boolean) => {
+      setSynced(synced);
+      setSyncing(false);
+    });
+
+    return () => off();
+  }, []);
+
+  const titleLower = taskDetails?.title?.toLowerCase() ?? "";
 
   if (!isHydrated)
     return (
@@ -405,8 +351,8 @@ const Task = () => {
             <span>Back</span>
           </button>
 
-          {taskDetails?.title?.toLowerCase().includes("upwork") &&
-            !taskDetails?.title?.toLowerCase().includes("training") && (
+          {titleLower.includes("upwork") &&
+            !titleLower.includes("training") && (
               <img
                 onClick={LaunchUpwork}
                 src={upworkLogo}
@@ -522,8 +468,8 @@ const Task = () => {
                 )}
               </div>
 
-              {taskDetails?.title.toLowerCase().includes("break") ||
-              taskDetails?.title.toLowerCase().includes("training") ? (
+              {titleLower.includes("break") ||
+              titleLower.includes("training") ? (
                 isStarted ? (
                   <StopButton onClick={stopTime} />
                 ) : (
@@ -548,7 +494,6 @@ const Task = () => {
                       defaultValue={isPadagan ? "Padagan" : "Not Padagan"}
                       className="grid gap-3"
                       onValueChange={(v) => {
-                        console.log("Padagan: ", v === "Padagan");
                         if (v === "Padagan") {
                           setPadagan(true);
                         } else {
@@ -612,9 +557,11 @@ const Task = () => {
                       <DialogClose asChild>
                         <Button variant="outline">Cancel</Button>
                       </DialogClose>
-                      <Button type="submit" onClick={startTime}>
-                        Start
-                      </Button>
+                      <DialogClose asChild>
+                        <Button type="submit" onClick={startTime}>
+                          Start
+                        </Button>
+                      </DialogClose>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -622,7 +569,7 @@ const Task = () => {
             </div>
           </div>
 
-          {!taskDetails?.title.toLowerCase().includes("break") ? (
+          {!titleLower.includes("break") ? (
             <>
               {/* Divider */}
               <div className="mt-4 border-t border-neutral-200 dark:border-neutral-700 pt-4" />
@@ -680,7 +627,7 @@ const Task = () => {
         </div>
 
         {/* Latest screenshot block + images stay the same */}
-        {!taskDetails?.title.toLowerCase().includes("break") ? (
+        {!titleLower.includes("break") ? (
           <>
             <div className="flex flex-col mt-4 mb-1">
               <div className="flex justify-between items-baseline">
