@@ -126,6 +126,7 @@ func (a *App) GetMonitorCount() int {
 
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	// NOTE this needs to be refactor, no logic should be applied here
+	// FIX https://chatgpt.com/c/69b2df18-4fd0-8321-a821-12d5b92e3b2e
 
 	if a.AttendanceID == nil {
 		return
@@ -423,12 +424,13 @@ func (a *App) GetActiveTaskRecord() *string {
 }
 
 func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {
-	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
-	if err != nil {
-		return nil, err
+	record, _ := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
+	// Removed erro handling for record beause most times when screenshots are deleted they throws an error here messing up "break".
+	// So move forward disregarding if break is found or not.
+	if record != nil {
+		a.WorkingTaskID = &record.Record.TaskID
 	}
-
-	a.WorkingTaskID = &record.Record.TaskID
+	
 	return record, nil
 }
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {

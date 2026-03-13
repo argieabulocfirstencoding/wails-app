@@ -235,6 +235,9 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 	trws := &models.TaskRecordWithScreenshots{}
 
 	expTaskRecord, err := GetLastTaskRecord(userId, taskId)
+	if expTaskRecord == nil {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

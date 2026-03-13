@@ -216,19 +216,17 @@ const Home = () => {
   }
 
   const sortedTasks = useMemo(() => {
-    if (!tasks || !taskRecords) return [];
-
-    // Step 1: Group taskRecords by task_id
+    if (!tasks) return []; // only check tasks
     const recordsByTask: Record<string, models.ExpTaskRecord[]> = {};
-    taskRecords.forEach((record) => {
+
+    (taskRecords ?? []).forEach((record) => {
       if (!recordsByTask[record.task_id]) recordsByTask[record.task_id] = [];
       recordsByTask[record.task_id].push(record);
     });
 
-    const summariesByTask: Record<string, types.TaskSummary[]> = {};
-
     // Step 2: Determine the active task
-    const activeTaskId = taskRecords.find((r) => !r.ended_at)?.task_id ?? null;
+    const activeTaskId =
+      (taskRecords ?? []).find((r) => !r.ended_at)?.task_id ?? null;
 
     // Step 3: Map tasks with their records and compute latest ended_at timestamp
     let mappedTasks = tasks.map((task) => {
@@ -263,10 +261,8 @@ const Home = () => {
     // Step 5: Apply search filter if there is a query (search all tasks)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      mappedTasks = mappedTasks.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.client.toLowerCase().includes(q),
+      mappedTasks = mappedTasks.filter((t) =>
+        `${t.title} - ${t.client}`.toLowerCase().includes(q),
       );
     }
 
@@ -417,7 +413,7 @@ const Home = () => {
 
       {/* Task List */}
       <div className="max-w-5xl mx-auto">
-        {loading ? (
+        {loading || !tasks ? (
           <div className="w-full min-h-100 flex items-center justify-center flex-col py-10">
             <Loader />
             <span className="mt-4 text-sm text-gray-600 dark:text-gray-400">

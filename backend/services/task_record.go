@@ -58,6 +58,10 @@ func GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND task_id = ?", userId, taskId).Last(&taskRecord).Error; err != nil {
 		fmt.Println("DB error:", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
 		return nil, err
 	}
 
