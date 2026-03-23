@@ -228,11 +228,15 @@ const Task = () => {
 
   useEffect(() => {
     async function init() {
+
+      console.log("ID: ", id)
       if (!id) return;
       try {
         const response = await GetLastTaskRecord(id);
+        console.log("Record: ", response);
         if (response?.record) {
           const record = response.record;
+
           const started = new Date(record.started_at).getTime();
           const ended = record.ended_at
             ? new Date(record.ended_at).getTime()

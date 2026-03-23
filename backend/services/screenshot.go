@@ -242,6 +242,8 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 		return nil, err
 	}
 
+	trws.Record = expTaskRecord
+
 	var screenshot models.Screenshot
 	if err := db.DB.Where("task_id = ?", expTaskRecord.TaskID).Last(&screenshot).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -250,7 +252,7 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 		} else {
 			// ❌ Real DB error
 			fmt.Println("DB error:", err)
-			return nil, err
+			return trws, err
 		}
 	}
 
@@ -262,14 +264,13 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 		for _, path := range paths {
 			data, err := os.ReadFile(path)
 			if err != nil {
-				return nil, err
+				return trws, err
 			}
 			base64Img := "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
 			pictures = append(pictures, base64Img)
 		}
 	}
 
-	trws.Record = expTaskRecord
 	trws.Screenshots = pictures
 	trws.Date = screenshot.TakenAt
 	return trws, nil
