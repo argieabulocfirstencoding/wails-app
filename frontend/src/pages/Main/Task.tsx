@@ -76,7 +76,7 @@ const Task = () => {
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
 
-  const { setTaskID, tasks, taskID } = useAuthStore();
+  const { setTaskID, tasks } = useAuthStore();
 
   async function startTime() {
     if (!id) return;
@@ -87,6 +87,10 @@ const Task = () => {
 
       const timeStart = Date.now();
       await StartTracking(id, JSON.stringify(timeStart), isPadagan);
+
+      if (lastTaskRecord) {
+        lastTaskRecord.padagan = isPadagan;
+      }
 
       setStart(true);
       setStartTime(timeStart);
@@ -228,12 +232,9 @@ const Task = () => {
 
   useEffect(() => {
     async function init() {
-
-      console.log("ID: ", id)
       if (!id) return;
       try {
         const response = await GetLastTaskRecord(id);
-        console.log("Record: ", response);
         if (response?.record) {
           const record = response.record;
 
@@ -503,6 +504,8 @@ const Task = () => {
                         } else {
                           setPadagan(false);
                         }
+
+                        console.log("changed padagan");
                       }}
                     >
                       <Label htmlFor="padagan" className="cursor-pointer">
