@@ -26,7 +26,7 @@ import (
 type App struct {
 	ctx               context.Context
 	ScreenshotService *services.ScreenshotService
-	SyncService       *services.FesSyncService
+	SyncService       *services.FirebaseSyncService
 	AuthService       *serviceclasses.AuthService
 	windowOpen        bool
 	AuthUser          *models.AuthUser
@@ -36,7 +36,7 @@ type App struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	syncService := services.NewFesSyncService()
+	syncService := services.NewFirebaseSyncService()
 	screenshotService := services.NewScreenshotService(syncService)
 	authService := serviceclasses.NewAuthService()
 

@@ -9,10 +9,6 @@ func NewLoggerService() *LoggerService {
 	return &LoggerService{}
 }
 
-func (l *LoggerService) Log(message string) {
-	fmt.Print(message)
-}
-
 func (l *LoggerService) Error(message string) {
 
 }
@@ -41,16 +37,16 @@ func (l *LoggerService) Panic(message string) {
 
 }
 
-func (l *LoggerService) Print(message string) {
-
+func (l *LoggerService) Print(a ...any) {
+	fmt.Print(a)
 }
 
-func (l *LoggerService) Println(message string) {
-
+func (l *LoggerService) Println(a ...any) {
+	fmt.Println(a)
 }
 
-func (l *LoggerService) Printf(message string) {
-
+func (l *LoggerService) Printf(format string, a ...any) {
+	fmt.Printf(format, a)
 }
 
 func (l *LoggerService) Printlnf(message string) {

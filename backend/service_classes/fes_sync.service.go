@@ -1,8 +1,9 @@
-package services
+package serviceclasses
 
 import (
 	"context"
 	"fesapp/backend/db/models"
+	"fesapp/backend/services"
 	"sync"
 	"time"
 )
@@ -13,7 +14,7 @@ type FesSyncService struct {
 	AuthUser    *models.FirebaseLoginResponse
 	IdToken     *string
 	IssuedAt    *time.Time
-	Backblaze   *BackblazeSync
+	Backblaze   *services.BackblazeSync
 
 	connecting bool
 	queue      []func()
@@ -21,7 +22,7 @@ type FesSyncService struct {
 }
 
 func NewFesSyncService() *FesSyncService {
-	backblaze := NewBackblazeSync()
+	backblaze := services.NewBackblazeSync()
 	return &FesSyncService{
 		Backblaze: backblaze,
 	}
