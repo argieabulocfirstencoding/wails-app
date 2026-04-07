@@ -43,7 +43,7 @@ func ExtractUIDFromPath(docName string) string {
 	return parts[len(parts)-1]
 }
 
-type SyncService struct {
+type FirebaseSyncService struct {
 	ctx         context.Context
 	isConnected bool
 	AuthUser    *models.FirebaseLoginResponse
@@ -56,14 +56,14 @@ type SyncService struct {
 	mu         sync.Mutex
 }
 
-func NewSyncService() *SyncService {
+func NewFirebaseSyncService() *FirebaseSyncService {
 	backblaze := NewBackblazeSync()
-	return &SyncService{
+	return &FirebaseSyncService{
 		Backblaze: backblaze,
 	}
 }
 
-func (s *SyncService) Connect(ctx context.Context) error {
+func (s *FirebaseSyncService) Connect(ctx context.Context) error {
 	s.ctx = ctx
 
 	// --- CRITICAL SECTION 1: Check and Set Connecting Flag ---
@@ -111,7 +111,7 @@ func (s *SyncService) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (s *SyncService) RefreshAccessToken() {
+func (s *FirebaseSyncService) RefreshAccessToken() {
 	// Refresh Access Token only if it has expired
 	isExpired := FirebaseAccessTokenIsExpired(s.AuthUser.ExpiresIn, *s.IssuedAt)
 	// isExpired := true
@@ -147,7 +147,7 @@ func (s *SyncService) RefreshAccessToken() {
 	}
 }
 
-func (s *SyncService) TestSync() bool {
+func (s *FirebaseSyncService) TestSync() bool {
 	const maxRetries = 3
 	// Start with a short delay and let it grow exponentially
 	baseDelay := 500 * time.Millisecond
@@ -198,7 +198,7 @@ func (s *SyncService) TestSync() bool {
 	return false
 }
 
-func (s *SyncService) SyncCredentials() {
+func (s *FirebaseSyncService) SyncCredentials() {
 	path := "creds?pageSize=1"
 	method := "GET"
 
@@ -253,7 +253,7 @@ func (s *SyncService) SyncCredentials() {
 }
 
 // NOTE this is deprecated tasks are from bubble api now
-func (s *SyncService) SyncTasks() {
+func (s *FirebaseSyncService) SyncTasks() {
 	path := "tasks"
 	method := "GET"
 
@@ -291,7 +291,7 @@ func (s *SyncService) SyncTasks() {
 }
 
 // ================== QUEUE SYNC HELPER ========================
-func (s *SyncService) AttemptSyncTaskRecord(taskRecord *models.TaskRecord) error {
+func (s *FirebaseSyncService) AttemptSyncTaskRecord(taskRecord *models.TaskRecord) error {
 
 	s.mu.Lock()
 	if taskRecord.SyncStatus == "synced" {
@@ -327,7 +327,7 @@ func (s *SyncService) AttemptSyncTaskRecord(taskRecord *models.TaskRecord) error
 	return err
 }
 
-func (s *SyncService) AttemptSyncAttendance(attendance *models.Attendance) error {
+func (s *FirebaseSyncService) AttemptSyncAttendance(attendance *models.Attendance) error {
 	s.mu.Lock()
 	if !s.isConnected {
 		log.Println("⚠️ Not connected — queuing syncing attendance")
@@ -354,7 +354,7 @@ func (s *SyncService) AttemptSyncAttendance(attendance *models.Attendance) error
 
 // ================== ACTUAL FUNCTIONS ========================
 
-func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) {
+func (s *FirebaseSyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) {
 
 	defer func() {
 		if err != nil {
@@ -462,7 +462,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 	return nil
 }
 
-func (s *SyncService) SyncUser(user models.AuthUser) error {
+func (s *FirebaseSyncService) SyncUser(user models.AuthUser) error {
 	now := time.Now()
 	userModel, err := GetUserFromId(user.LocalID)
 	if err != nil {
@@ -525,7 +525,7 @@ func (s *SyncService) SyncUser(user models.AuthUser) error {
 	return nil
 }
 
-func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
+func (s *FirebaseSyncService) SyncAttendance(attendance *models.Attendance) (err error) {
 	defer func() {
 		if err != nil {
 			runtime.EventsEmit(s.ctx, "attendance-synced", false)
@@ -535,7 +535,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 	}()
 
 	if err = db.DB.Model(attendance).Update("sync_status", "pending").Error; err != nil {
-		return err;
+		return err
 	}
 
 	var user *db.User
@@ -614,7 +614,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 	return nil
 }
 
-func (s *SyncService) SyncAllAttendance() error {
+func (s *FirebaseSyncService) SyncAllAttendance() error {
 	var unsynced []models.Attendance
 	if err := db.DB.Where("user_id = ? and synced_at IS NULL").Find(&unsynced).Error; err != nil {
 		return err
@@ -640,7 +640,7 @@ func (s *SyncService) SyncAllAttendance() error {
 	return nil
 }
 
-func (s *SyncService) SyncUnsyncedRecords() error {
+func (s *FirebaseSyncService) SyncUnsyncedRecords() error {
 	attendance, err := GetUserAttendance(s.AuthUser.LocalID)
 	if err != nil {
 		return err

@@ -51,10 +51,10 @@ type ScreenshotService struct {
 	Notes        string
 	TaskRecordID *uint
 	TaskID       *string
-	SyncService  *SyncService
+	SyncService  *FesSyncService
 }
 
-func NewScreenshotService(sync *SyncService) *ScreenshotService {
+func NewScreenshotService(sync *FesSyncService) *ScreenshotService {
 	return &ScreenshotService{
 		stopChan:    make(chan struct{}),
 		SyncService: sync,

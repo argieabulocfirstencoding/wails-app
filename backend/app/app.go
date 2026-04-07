@@ -7,6 +7,7 @@ import (
 	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
+	serviceclasses "fesapp/backend/service_classes"
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
@@ -25,7 +26,8 @@ import (
 type App struct {
 	ctx               context.Context
 	ScreenshotService *services.ScreenshotService
-	SyncService       *services.SyncService
+	SyncService       *services.FesSyncService
+	AuthService       *serviceclasses.AuthService
 	windowOpen        bool
 	AuthUser          *models.AuthUser
 	WorkingTaskID     *string
@@ -34,12 +36,14 @@ type App struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	syncService := services.NewSyncService()
+	syncService := services.NewFesSyncService()
 	screenshotService := services.NewScreenshotService(syncService)
+	authService := serviceclasses.NewAuthService()
 
 	return &App{
 		ScreenshotService: screenshotService,
 		SyncService:       syncService,
+		AuthService:       authService,
 	}
 }
 
@@ -95,7 +99,7 @@ func (a *App) Startup(ctx context.Context) {
 		}, func() {})
 	}()
 
-	a.SyncService.Backblaze.Connect(a.ctx)
+	// a.SyncService.Backblaze.Connect(a.ctx)
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -111,14 +115,15 @@ func (a *App) Shutdown(ctx context.Context) {
 	runtime.LogPrint(ctx, "App is shutdown")
 }
 
-func (a *App) TakeScreenshot() []string {
-	screenshots, err := a.ScreenshotService.Screenshot()
-	if err != nil {
-		panic(err)
-	}
+// DEPRECATED this was only used for testing
+// func (a *App) TakeScreenshot() []string {
+// 	screenshots, err := a.ScreenshotService.Screenshot()
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	return screenshots
-}
+// 	return screenshots
+// }
 
 func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
@@ -234,15 +239,15 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 }
 
 // Deprecated testing purpose only
-func (a *App) CheckAuth(name *string) bool {
-	service := "fesapp"
-	if name == nil || *name == "" {
-		return false
-	}
+// func (a *App) CheckAuth(name *string) bool {
+// 	service := "fesapp"
+// 	if name == nil || *name == "" {
+// 		return false
+// 	}
 
-	_, err := keyring.Get(service, *name)
-	return err == nil
-}
+// 	_, err := keyring.Get(service, *name)
+// 	return err == nil
+// }
 
 // FIX this is for testing purpose only, production backend server handles user registration
 func (a *App) RegisterUser(email string) (*db.User, error) {
@@ -266,6 +271,17 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	return offlineData, nil
 }
 
+func (a *App) LoginUserOnline(email string, password string) (*models.Attendance, error) {
+	attendance, authUser, err := a.AuthService.Login(email, password)
+	if err != nil {
+		return nil, err
+	}
+
+	a.AttendanceID = &attendance.ID
+	a.AuthUser = authUser
+
+	return attendance, nil
+}
 
 // TODO recheck if this will sustain online login method
 func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) (*models.Attendance, error) {
@@ -313,7 +329,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
-	a.SyncService.Backblaze.AuthUser = user
+	// a.SyncService.Backblaze.AuthUser = user
 	a.SyncService.AuthUser = user
 	a.SyncService.IdToken = &user.IDToken
 	a.SyncService.IssuedAt = &now
@@ -361,13 +377,6 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 	}
 
 	return authUser, nil
-}
-
-func strOrEmpty(s *string) string {
-	if s != nil {
-		return *s
-	}
-	return ""
 }
 
 func (a *App) LogoutUser() error {
@@ -430,7 +439,7 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 	if record != nil {
 		a.WorkingTaskID = &record.Record.TaskID
 	}
-	
+
 	return record, nil
 }
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {

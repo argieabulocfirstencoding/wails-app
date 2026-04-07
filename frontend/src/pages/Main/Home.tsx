@@ -52,6 +52,7 @@ const Home = () => {
     setInitializedTask,
     summaries,
   } = useAuthStore();
+  const [isHydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (!EventsOn) return;
@@ -103,10 +104,6 @@ const Home = () => {
     return () => off();
   }, []);
 
-  useEffect(() => {
-    if (searchQuery.length > 0) {
-    }
-  }, []);
 
   useEffect(() => {
     async function fetchUser() {

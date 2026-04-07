@@ -389,7 +389,7 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 }
 
 func FetchUpworkCreds(ctx context.Context, taskID string) {
-	fmt.Print("Fetching Upwork Credentials Pleas wait")
+	fmt.Print("Fetching Upwork Credentials Please wait")
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
 	openFESApp(ctx)

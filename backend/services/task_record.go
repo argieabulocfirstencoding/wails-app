@@ -127,6 +127,7 @@ func StartTaskRecord(userId, taskId string, attendanceId uint, padagan bool) (*d
 
 	return record, err
 }
+
 func StopTaskRecord(userId, taskId string) error {
 	var taskRecord models.TaskRecord
 
