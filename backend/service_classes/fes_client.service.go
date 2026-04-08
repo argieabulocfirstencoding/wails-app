@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fesapp/backend/types"
+	"fesapp/backend/utils"
 	"net/http"
 	"os"
 )
@@ -11,7 +12,7 @@ import (
 type FesClientService struct {
 	baseUrl string
 	client  *http.Client
-	logger  LoggerService
+	logger  *utils.LoggerService
 }
 
 func NewFesClientService() *FesClientService {
@@ -20,7 +21,7 @@ func NewFesClientService() *FesClientService {
 		// baseUrl:     "https://firstencoding.app/api/1.1/wf/",
 		baseUrl: "https://firstencoding.app/version-test/api/1.1/wf/",
 		client:  &http.Client{},
-		logger:  *NewLoggerService(),
+		logger:  utils.NewLoggerService(),
 	}
 }
 

@@ -1,4 +1,4 @@
-package service_classes
+package utils
 
 import "fmt"
 

@@ -3,26 +3,36 @@ package service_classes
 import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/types"
+	"fesapp/backend/utils"
 	"strings"
 )
 
 type AuthService struct {
-	SyncService *SyncService
-	fesClient   *FesClientService
-	logger      *LoggerService
+	SyncService       *SyncService
+	userService       *UserService
+	attendanceService *AttendanceService
+	fesClient         *FesClientService
+	logger            *utils.LoggerService
 }
 
 func NewAuthService() *AuthService {
 	return &AuthService{
-		SyncService: NewFesSyncService(),
-		fesClient:   NewFesClientService(),
-		logger:      NewLoggerService(),
+		SyncService:       NewFesSyncService(),
+		fesClient:         NewFesClientService(),
+		logger:            utils.NewLoggerService(),
+		userService:       NewUserService(),
+		attendanceService: NewAttendanceService(),
 	}
 }
 
 func (a *AuthService) Login(email, password string) (*models.Attendance, *models.AuthUser, error) {
 
-	attendance, err := a.AttemptLogin(email, password)
+	userId, err := a.AttemptLogin(email, password)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	attendance, err := a.attendanceService.LoginAttendance(*userId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -41,10 +51,11 @@ func (a *AuthService) Logout(email string) error {
 
 //  ======================= PRIVATE METHODS ===========================
 
-func (a *AuthService) AttemptLogin(email, password string) (*models.Attendance, error) {
+func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 
-	a.logger.Printlnf("Login Attempt Email: ", email)
-	a.logger.Printlnf("Login Attempt Password: ", a.maskPassword(password))
+	// a.logger.Printlnf("Login Attempt Email: ", email)
+	// a.logger.Printlnf("Login Attempt Password: ", a.maskPassword(password))
+	// now := time.Now()
 
 	resp, err := a.fesClient.Request(types.Request{
 		Pathname: "login",
@@ -52,6 +63,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*models.Attendance, 
 		Body: map[string]any{
 			"email":    email,
 			"password": password,
+			// "timestamp": now.UnixMilli(), // TODO find way to add this
 		},
 	})
 
@@ -62,8 +74,20 @@ func (a *AuthService) AttemptLogin(email, password string) (*models.Attendance, 
 
 	a.logger.Printlnf("Login Response: %v", resp)
 
-	// TODO add attempt login logic to fes app
-	return nil, nil
+	result, ok := resp["response"].(map[string]any)
+	if !ok {
+		a.logger.Println("Error on parsing response")
+		return nil, err
+	}
+
+	userId := result["user_id"].(string)
+
+	_, create_user_err := a.userService.CreateUser(userId, email)
+	if create_user_err != nil {
+		a.logger.Printlnf("Error creating user: %v", create_user_err)
+	}
+
+	return &userId, nil
 }
 
 func (a *AuthService) getAuthUser(email string) (*models.AuthUser, error) {
@@ -82,6 +106,14 @@ func (a *AuthService) getAuthUser(email string) (*models.AuthUser, error) {
 	}
 
 	a.logger.Printlnf("Auth User Response: %v", resp)
+
+	_, ok := resp["response"].(map[string]any)
+	if !ok {
+		a.logger.Println("Error on parsing response")
+		return nil, err
+	}
+
+	// userId := result["user_id"].(string)
 
 	return nil, nil
 }
