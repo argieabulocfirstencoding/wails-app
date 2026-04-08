@@ -49,6 +49,6 @@ func (l *LoggerService) Printf(format string, a ...any) {
 	fmt.Printf(format, a)
 }
 
-func (l *LoggerService) Printlnf(message string) {
-
+func (l *LoggerService) Printlnf(format string, a ...any) {
+	fmt.Println(format+"\n", a)
 }

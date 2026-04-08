@@ -91,7 +91,7 @@ func TestOfflineLoginFlow(t *testing.T) {
 func TestFesOnlineLogin(t *testing.T) {
 	authService := service_classes.NewAuthService()
 
-	_, err := authService.AttemptLogin("johnpaultunacao.firstencoding@gmail.com", "012023choy")
+	_, err := authService.AttemptLogin("test@test.com", "Na7;o2F<")
 
 	assert.NoError(t, err)
 }

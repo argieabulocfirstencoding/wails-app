@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 
 import logo from "@/assets/images/first-encoding_logo.webp";
-import { BackendFirebaseSync } from "@/../wailsjs/go/app/App";
+import { BackendFirebaseSync, LoginUserOnline } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/firebase";
@@ -42,6 +42,11 @@ const Login = () => {
 
     try {
       if (!online) console.log("no internet connection!");
+      console.log("Logging in");
+      const response = await LoginUserOnline(email, password);
+      console.log("Auth Response: ", response);
+
+      return;
 
       const authUser = await signInWithEmailAndPassword(auth, email, password);
       const tokenResult = await authUser.user.getIdTokenResult();
@@ -67,7 +72,7 @@ const Login = () => {
 
       const attendance = await BackendFirebaseSync(
         payload.userId,
-        payload.email,
+        payload.email || "",
         payload.idToken,
         payload.refreshToken,
         payload.expiresIn,

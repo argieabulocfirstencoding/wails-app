@@ -11,8 +11,6 @@ export function BackendFirebaseSync(arg1:string,arg2:string,arg3:string,arg4:str
 
 export function BeforeClose(arg1:context.Context):Promise<boolean>;
 
-export function CheckAuth(arg1:any):Promise<boolean>;
-
 export function ClearScreenshots():Promise<void>;
 
 export function CreateTask(arg1:string,arg2:string):Promise<models.ExpTask>;
@@ -41,6 +39,8 @@ export function GetTotalClientRecords(arg1:string):Promise<Array<types.TaskSumma
 
 export function LoginUser(arg1:string):Promise<models.OfflineLoginProps>;
 
+export function LoginUserOnline(arg1:string,arg2:string):Promise<models.Attendance>;
+
 export function LogoutUser():Promise<void>;
 
 export function OnSecondInstanceLaunch(arg1:options.SecondInstanceData):Promise<void>;
@@ -60,5 +60,3 @@ export function SyncUnsyncedAttendance():Promise<void>;
 export function SyncUnsyncedRecords():Promise<void>;
 
 export function SyncUnsyncedTaskRecord(arg1:number):Promise<void>;
-
-export function TakeScreenshot():Promise<Array<string>>;

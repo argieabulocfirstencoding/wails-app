@@ -14,10 +14,6 @@ export function BeforeClose(arg1) {
   return window['go']['app']['App']['BeforeClose'](arg1);
 }
 
-export function CheckAuth(arg1) {
-  return window['go']['app']['App']['CheckAuth'](arg1);
-}
-
 export function ClearScreenshots() {
   return window['go']['app']['App']['ClearScreenshots']();
 }
@@ -74,6 +70,10 @@ export function LoginUser(arg1) {
   return window['go']['app']['App']['LoginUser'](arg1);
 }
 
+export function LoginUserOnline(arg1, arg2) {
+  return window['go']['app']['App']['LoginUserOnline'](arg1, arg2);
+}
+
 export function LogoutUser() {
   return window['go']['app']['App']['LogoutUser']();
 }
@@ -112,8 +112,4 @@ export function SyncUnsyncedRecords() {
 
 export function SyncUnsyncedTaskRecord(arg1) {
   return window['go']['app']['App']['SyncUnsyncedTaskRecord'](arg1);
-}
-
-export function TakeScreenshot() {
-  return window['go']['app']['App']['TakeScreenshot']();
 }

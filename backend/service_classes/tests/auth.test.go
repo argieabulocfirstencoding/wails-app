@@ -12,7 +12,7 @@ func TestFesOnlineLogin(t *testing.T) {
 	authService := service_classes.NewAuthService()
 
 	// 2. Call the real API
-	_, err := authService.AttemptLogin("johnpaultunacao.firstencoding@gmail.com", "012023choy")
+	_, err := authService.AttemptLogin("test@test.com", "Na7;o2F<")
 
 	// 3. Assertions
 	assert.NoError(t, err, "The API request should not return an error")

@@ -272,13 +272,13 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 }
 
 func (a *App) LoginUserOnline(email string, password string) (*models.Attendance, error) {
-	attendance, authUser, err := a.AuthService.Login(email, password)
+	attendance, _, err := a.AuthService.Login(email, password)
 	if err != nil {
 		return nil, err
 	}
 
-	a.AttendanceID = &attendance.ID
-	a.AuthUser = authUser
+	// a.AttendanceID = &attendance.ID
+	// a.AuthUser = authUser
 
 	return attendance, nil
 }
@@ -442,6 +442,7 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 
 	return record, nil
 }
+
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
 	task, err := services.CreateTask(a.AuthUser.LocalID, title, client, nil)

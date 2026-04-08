@@ -3,13 +3,13 @@ package service_classes
 import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/types"
+	"strings"
 )
 
 type AuthService struct {
-	SyncService *FesSyncService
+	SyncService *SyncService
 	fesClient   *FesClientService
 	logger      *LoggerService
-	baseUrl     string
 }
 
 func NewAuthService() *AuthService {
@@ -17,7 +17,6 @@ func NewAuthService() *AuthService {
 		SyncService: NewFesSyncService(),
 		fesClient:   NewFesClientService(),
 		logger:      NewLoggerService(),
-		baseUrl:     "https://firstencoding.app/api/1.1/wf/",
 	}
 }
 
@@ -44,6 +43,9 @@ func (a *AuthService) Logout(email string) error {
 
 func (a *AuthService) AttemptLogin(email, password string) (*models.Attendance, error) {
 
+	a.logger.Printlnf("Login Attempt Email: ", email)
+	a.logger.Printlnf("Login Attempt Password: ", a.maskPassword(password))
+
 	resp, err := a.fesClient.Request(types.Request{
 		Pathname: "login",
 		ReqType:  "POST",
@@ -52,11 +54,13 @@ func (a *AuthService) AttemptLogin(email, password string) (*models.Attendance, 
 			"password": password,
 		},
 	})
+
 	if err != nil {
+		a.logger.Printlnf("Attempt Login Error: %v", err)
 		return nil, err
 	}
 
-	a.logger.Printf("Login Response: %v", resp)
+	a.logger.Printlnf("Login Response: %v", resp)
 
 	// TODO add attempt login logic to fes app
 	return nil, nil
@@ -73,10 +77,20 @@ func (a *AuthService) getAuthUser(email string) (*models.AuthUser, error) {
 		},
 	})
 	if err != nil {
+		a.logger.Printlnf("Auth User Error: %v", err)
 		return nil, err
 	}
 
-	a.logger.Printf("Auth User Response: %v", resp)
+	a.logger.Printlnf("Auth User Response: %v", resp)
 
 	return nil, nil
+}
+
+func (a *AuthService) maskPassword(p string) string {
+	n := len(p)
+	if n <= 2 {
+		return "****" // Too short to show edges, just mask fully
+	}
+	// Keeps first char, middle is 'x', keeps last char
+	return string(p[0]) + strings.Repeat("x", n-2) + string(p[n-1])
 }

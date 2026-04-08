@@ -4,37 +4,37 @@ import (
 	"bytes"
 	"encoding/json"
 	"fesapp/backend/types"
-	"log"
 	"net/http"
-
-	"github.com/zalando/go-keyring"
+	"os"
 )
 
 type FesClientService struct {
-	baseUrl  string
-	client   *http.Client
-	apiToken string
-	logger   LoggerService
+	baseUrl string
+	client  *http.Client
+	logger  LoggerService
 }
 
 func NewFesClientService() *FesClientService {
+
 	return &FesClientService{
-		baseUrl: "https://firstencoding.app/api/1.1/wf/",
+		// baseUrl:     "https://firstencoding.app/api/1.1/wf/",
+		baseUrl: "https://firstencoding.app/version-test/api/1.1/wf/",
 		client:  &http.Client{},
 		logger:  *NewLoggerService(),
 	}
 }
 
-func (f *FesClientService) Request(request types.Request) (map[string]interface{}, error) {
-	apiToken, err := keyring.Get("credentials", "FES_API")
-	if err != nil {
-		f.logger.Print(err.Error())
+func (f *FesClientService) getApiToken() string {
+	return os.Getenv("FES_API") // FIX this is only for testing purpose,
+}
 
-		return nil, err
-	}
+func (f *FesClientService) Request(request types.Request) (map[string]interface{}, error) {
+	apiToken := f.getApiToken()
 
 	url := f.baseUrl + request.Pathname
 	reqType := request.ReqType
+
+	f.logger.Printlnf("Request: %v", request)
 
 	// Convert bodyData to JSON
 	jsonBody, err := json.Marshal(request.Body)
@@ -59,16 +59,19 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	}
 	defer res.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		f.logger.Printlnf("Error decoding response: %v", err)
 		return nil, err
 	}
 
-	response, ok := result["response"].(map[string]interface{})
-	if !ok {
-		log.Fatalf("Invalid response format")
-		return nil, err
-	}
+	f.logger.Printlnf("Response: %v", result)
 
-	return response, nil
+	// _, ok := result["response"].(map[string]interface{})
+	// if !ok {
+	// 	f.logger.Println("Error on parsing response")
+	// 	return nil, err
+	// }
+
+	return result, nil
 }
