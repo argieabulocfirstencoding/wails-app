@@ -1,4 +1,4 @@
-package serviceclasses
+package service_classes
 
 import (
 	"context"

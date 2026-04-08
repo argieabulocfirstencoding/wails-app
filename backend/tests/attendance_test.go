@@ -3,7 +3,7 @@ package services_test
 import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
-	serviceclasses "fesapp/backend/service_classes"
+	service_classes "fesapp/backend/service_classes"
 	"fesapp/backend/services"
 	"testing"
 	"time"
@@ -89,7 +89,7 @@ func TestOfflineLoginFlow(t *testing.T) {
 }
 
 func TestFesOnlineLogin(t *testing.T) {
-	authService := serviceclasses.NewAuthService()
+	authService := service_classes.NewAuthService()
 
 	_, err := authService.AttemptLogin("johnpaultunacao.firstencoding@gmail.com", "012023choy")
 

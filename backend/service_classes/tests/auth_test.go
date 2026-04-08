@@ -1,7 +1,7 @@
-package serviceclasses_test // Using _test suffix is best practice
+package service_classes_test // Using _test suffix is best practice
 
 import (
-	serviceclasses "fesapp/backend/service_classes"
+	service_classes "fesapp/backend/service_classes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,7 +9,7 @@ import (
 
 func TestFesOnlineLogin(t *testing.T) {
 	// 1. Initialize
-	authService := serviceclasses.NewAuthService()
+	authService := service_classes.NewAuthService()
 
 	// 2. Call the real API
 	_, err := authService.AttemptLogin("johnpaultunacao.firstencoding@gmail.com", "012023choy")

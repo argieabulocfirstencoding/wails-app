@@ -7,7 +7,7 @@ import (
 	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
-	serviceclasses "fesapp/backend/service_classes"
+	"fesapp/backend/service_classes"
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
@@ -27,7 +27,7 @@ type App struct {
 	ctx               context.Context
 	ScreenshotService *services.ScreenshotService
 	SyncService       *services.FirebaseSyncService
-	AuthService       *serviceclasses.AuthService
+	AuthService       *service_classes.AuthService
 	windowOpen        bool
 	AuthUser          *models.AuthUser
 	WorkingTaskID     *string
@@ -38,7 +38,7 @@ type App struct {
 func NewApp() *App {
 	syncService := services.NewFirebaseSyncService()
 	screenshotService := services.NewScreenshotService(syncService)
-	authService := serviceclasses.NewAuthService()
+	authService := service_classes.NewAuthService()
 
 	return &App{
 		ScreenshotService: screenshotService,
