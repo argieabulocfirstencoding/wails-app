@@ -1,6 +1,7 @@
 package service_classes
 
 import (
+	"context"
 	"fesapp/backend/db/models"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
@@ -25,7 +26,7 @@ func NewAuthService() *AuthService {
 	}
 }
 
-func (a *AuthService) Login(email, password string) (*models.Attendance, *models.AuthUser, error) {
+func (a *AuthService) Login(ctx context.Context, email, password string) (*models.Attendance, *models.AuthUser, error) {
 
 	userId, err := a.AttemptLogin(email, password)
 	if err != nil {
@@ -37,9 +38,13 @@ func (a *AuthService) Login(email, password string) (*models.Attendance, *models
 		return nil, nil, err
 	}
 
-	authUser, err := a.getAuthUser(email)
-	if err != nil {
+	if err := a.userService.FetchEmployeeDetails(ctx, *userId); err != nil {
 		return nil, nil, err
+	}
+
+	authUser := &models.AuthUser{
+		LocalID: *userId,
+		Email:   email,
 	}
 
 	return attendance, authUser, nil
@@ -58,8 +63,8 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	// now := time.Now()
 
 	resp, err := a.fesClient.Request(types.Request{
-		Pathname: "login",
-		ReqType:  "POST",
+		Url:    "login",
+		Method: "POST",
 		Body: map[string]any{
 			"email":    email,
 			"password": password,
@@ -88,34 +93,6 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	}
 
 	return &userId, nil
-}
-
-func (a *AuthService) getAuthUser(email string) (*models.AuthUser, error) {
-	// TODO get auth user logic from fes app
-
-	resp, err := a.fesClient.Request(types.Request{
-		Pathname: "employee_details",
-		ReqType:  "POST",
-		Body: map[string]any{
-			"email": email,
-		},
-	})
-	if err != nil {
-		a.logger.Printlnf("Auth User Error: %v", err)
-		return nil, err
-	}
-
-	a.logger.Printlnf("Auth User Response: %v", resp)
-
-	_, ok := resp["response"].(map[string]any)
-	if !ok {
-		a.logger.Println("Error on parsing response")
-		return nil, err
-	}
-
-	// userId := result["user_id"].(string)
-
-	return nil, nil
 }
 
 func (a *AuthService) maskPassword(p string) string {

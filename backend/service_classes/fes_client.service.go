@@ -32,10 +32,8 @@ func (f *FesClientService) getApiToken() string {
 func (f *FesClientService) Request(request types.Request) (map[string]interface{}, error) {
 	apiToken := f.getApiToken()
 
-	url := f.baseUrl + request.Pathname
-	reqType := request.ReqType
-
-	f.logger.Printlnf("Request: %v", request)
+	url := f.baseUrl + request.Url
+	reqType := request.Method
 
 	// Convert bodyData to JSON
 	jsonBody, err := json.Marshal(request.Body)

@@ -272,7 +272,7 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 }
 
 func (a *App) LoginUserOnline(email string, password string) (*models.Attendance, error) {
-	attendance, _, err := a.AuthService.Login(email, password)
+	attendance, _, err := a.AuthService.Login(a.ctx, email, password)
 	if err != nil {
 		return nil, err
 	}

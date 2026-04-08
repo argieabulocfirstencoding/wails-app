@@ -1,9 +1,9 @@
 package types
 
 type Request struct {
-	ReqType  string                 `json:"req_type"`
-	Pathname string                 `json:"pathname"`
-	Body     map[string]interface{} `json:"body"`
+	Method string                 `json:"method"`
+	Url    string                 `json:"url"`
+	Body   map[string]interface{} `json:"body"`
 }
 
 type Response struct {
