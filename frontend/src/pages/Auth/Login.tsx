@@ -83,20 +83,20 @@ const Login = () => {
       }
     } catch (error: any) {
       console.error(error);
-      let message = "Unexpected error, please try again.";
-      switch (error.code) {
-        case "auth/invalid-credential":
-          message = "Invalid email or password. Please try again.";
-          break;
-        case "auth/invalid-email":
-          message = "Please enter a valid email address.";
-          break;
-        case "auth/missing-password":
-        case "auth/weak-password":
-          message = "Please enter a valid password.";
-          break;
-      }
-      setErrorMsg(message);
+      // let message = "Unexpected error, please try again.";
+      // switch (error.code) {
+      //   case "auth/invalid-credential":
+      //     message = "Invalid email or password. Please try again.";
+      //     break;
+      //   case "auth/invalid-email":
+      //     message = "Please enter a valid email address.";
+      //     break;
+      //   case "auth/missing-password":
+      //   case "auth/weak-password":
+      //     message = "Please enter a valid password.";
+      //     break;
+      // }
+      setErrorMsg(error);
     } finally {
       setLoading(false);
     }

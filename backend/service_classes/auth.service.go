@@ -91,8 +91,11 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 
 	result, ok := resp["response"].(map[string]any)
 	if !ok {
-		a.logger.Println("Error on parsing response")
-		return nil, fmt.Errorf("failed to parse login response: unexpected format")
+		errorMessage, ok := resp["message"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse login response: unexpected format")
+		}
+		return nil, fmt.Errorf("%s", errorMessage)
 	}
 
 	userId := result["user_id"].(string)
