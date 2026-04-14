@@ -2,6 +2,7 @@ package service_classes
 
 import (
 	"context"
+	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
@@ -45,8 +46,25 @@ func (t *TaskService) GetTask(id string) (*models.ExpTask, error) {
 	return nil, nil
 }
 
-func (t *TaskService) GetTasks() ([]*models.ExpTask, error) {
-	return nil, nil
+func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
+	if config.OnlineMode && isOnline {
+		if err := t.SyncService.fesClient.SyncClientsAndProjects(); err != nil {
+			utils.Logger.Printf("error fetching tasks from fes: %v", err)
+		}
+	}
+
+	if t.Attendance == nil {
+		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
+	}
+
+	tasks, err := t.TaskRepository.GetTasks()
+	if err != nil {
+		return nil, err
+	}
+
+	// FIX REFACTOR this
+	expTasks := models.ToExpTasks(tasks)
+	return expTasks, nil
 }
 
 func (t *TaskService) UpdateTask(id string, title, client string) (*models.ExpTask, error) {
@@ -133,7 +151,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 }
 
 func (t *TaskService) StopTracking(taskid string) {
-	
+
 }
 
 func (t *TaskService) StopAllActiveRecords() error {

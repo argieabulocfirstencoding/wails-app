@@ -37,13 +37,11 @@ func (u *UserService) CreateUser(id string, email string) (*models.User, error) 
 }
 
 func (u *UserService) FetchEmployeeDetails(ctx context.Context, id string) error {
-	// https://firstencoding.app/version-test/api/1.1/wf/employee_details
 	user, err := u.GetUserFromId(id)
 	if err != nil {
 		return err
 	}
 
-	// FIX development mode only
 	url := "wf/employee_details"
 	method := "POST"
 
@@ -52,75 +50,95 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, id string) error
 		email = "johnpaultunacao.firstencoding@gmail.com"
 	}
 
-	body := map[string]any{
-		"email": email,
-	}
-
 	request := types.Request{
 		Url:    url,
 		Method: method,
-		Body:   body,
+		Body:   map[string]any{"email": email},
 	}
 
-	response, err := u.fesClient.Request(request)
+	responseRaw, err := u.fesClient.Request(request)
 	if err != nil {
 		return err
 	}
 
+	response, ok := responseRaw["response"].(map[string]any)
+	if !ok {
+		u.logger.Println("Error on parsing response")
+		return fmt.Errorf("invalid response format")
+	}
+
 	employeeRaw, exists := response["employee"]
 	if !exists || employeeRaw == nil {
+		u.logger.Println("Employee not found")
 		return nil
 	}
 
+	// --- Helper function to prevent nil-to-string conversion crashes ---
+	safeString := func(m map[string]any, key string) string {
+		val, exists := m[key]
+		if !exists || val == nil {
+			return ""
+		}
+		s, ok := val.(string)
+		if !ok {
+			return ""
+		}
+		return s
+	}
+
+	var employee map[string]any
+
+	// Handle both Map and Slice responses
 	switch v := employeeRaw.(type) {
 	case map[string]any:
-		employee := v
-
-		fesid, _ := response["fesid"].(string)
-		rawBirthdate, _ := employee["BirthDate txt"].(string)
-
-		birthdate := ""
-		if rawBirthdate != "" {
-			slicedBd := strings.Split(rawBirthdate, " ")
-
-			if len(slicedBd) >= 3 {
-				birthdate = fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
-			}
-
-		}
-		u.logger.Println("Birthdate:", rawBirthdate)
-		u.logger.Println("fesid:", fesid)
-
-		if fesid != "" {
-			user.Name = employee["Full Name"].(string)
-			user.FirstName = employee["FirstName"].(string)
-			user.LastName = employee["LastName"].(string)
-			user.MiddleName = employee["MiddleName"].(string)
-			user.FESID = response["fesid"].(string)
-			user.Photo = response["photo"].(string)
-			user.Position = response["position"].(string)
-			user.Phone = employee["Account phone number"].(string)
-			user.Address = employee["Address"].(string)
-			user.Birthdate = birthdate
-			user.SupervisorId = response["immediate_supervisor"].(string)
-			user.EmployeeId = response["employee_unique_id"].(string)
-			user.EmploymentId = response["employeement_unique_id"].(string)
-
-			if err := db.DB.Save(&user).Error; err != nil {
-				u.logger.Println("Failed to save user:", err)
-			}
-
-			runtime.EventsEmit(ctx, "employee_details_fetched")
-		}
-
-		return nil
-		// use employee
+		employee = v
 	case []any:
-		// employee is a list
-		return nil
-	default:
-		// unexpected type
+		if len(v) > 0 {
+			employee, _ = v[0].(map[string]any)
+		}
+	}
+
+	if employee == nil {
+		u.logger.Println("Could not resolve employee map")
 		return nil
 	}
 
+	// 1. Extract and format birthdate safely
+	rawBirthdate := safeString(employee, "BirthDate txt")
+	birthdate := ""
+	if rawBirthdate != "" {
+		slicedBd := strings.Split(rawBirthdate, " ")
+		if len(slicedBd) >= 3 {
+			birthdate = fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
+		}
+	}
+
+	// 2. Map fields safely (This prevents the "interface {} is nil" error)
+	fesid := safeString(response, "fesid")
+	if fesid != "" {
+		user.Name = safeString(employee, "Full Name")
+		user.FirstName = safeString(employee, "FirstName")
+		user.LastName = safeString(employee, "LastName")
+		user.MiddleName = safeString(employee, "MiddleName")
+
+		user.FESID = fesid
+		user.Photo = safeString(response, "photo")
+		user.Position = safeString(response, "position")
+		user.Phone = safeString(employee, "Account phone number")
+		user.Address = safeString(employee, "Address")
+		user.Birthdate = birthdate
+		user.SupervisorId = safeString(response, "immediate_supervisor")
+		user.EmployeeId = safeString(response, "employee_unique_id")
+		user.EmploymentId = safeString(response, "employeement_unique_id")
+
+		if err := db.DB.Save(&user).Error; err != nil {
+			u.logger.Println("Failed to save user:", err)
+			return err
+		}
+
+		runtime.EventsEmit(ctx, "employee_details_fetched")
+		u.logger.Println("Saved employee details successfully for:", user.Name)
+	}
+
+	return nil
 }

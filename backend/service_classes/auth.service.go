@@ -14,6 +14,7 @@ type AuthService struct {
 	attendanceService *AttendanceService
 	fesClient         *FesClientService
 	logger            *utils.LoggerService
+	ctx               context.Context
 }
 
 func NewAuthService() *AuthService {
@@ -27,11 +28,13 @@ func NewAuthService() *AuthService {
 }
 
 func (a *AuthService) Login(ctx context.Context, email, password string) (*models.Attendance, *models.AuthUser, error) {
-
+	a.ctx = ctx
 	userId, err := a.AttemptLogin(email, password)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	a.logger.Printlnf("\n\nUSER: %v\n\n", *userId)
 
 	attendance, err := a.attendanceService.LoginAttendance(*userId)
 	if err != nil {
@@ -41,6 +44,14 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	if err := a.userService.FetchEmployeeDetails(ctx, *userId); err != nil {
 		return nil, nil, err
 	}
+
+	// go func() {
+	// 	a.SyncService.Connect(a.ctx)
+	// 	a.SyncService.SyncUser(*authUser)
+	// 	a.SyncService.SyncCredentials()
+	// 	// a.SyncService.SyncTasks()
+
+	// }()
 
 	authUser := &models.AuthUser{
 		LocalID: *userId,

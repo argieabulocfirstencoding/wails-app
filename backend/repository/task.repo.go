@@ -59,8 +59,10 @@ func (t *TaskRepository) GetTask(id string) (*models.Task, error) {
 
 func (t *TaskRepository) GetTasks() ([]models.Task, error) {
 	var tasks []models.Task
-	if err := db.DB.Find(&tasks).Error; err != nil {
-		return nil, err
+
+	result := db.DB.Preload("Client").Find(&tasks)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
 	return tasks, nil

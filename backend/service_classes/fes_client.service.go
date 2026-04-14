@@ -2,6 +2,7 @@ package service_classes
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
@@ -19,6 +20,7 @@ type FesClientService struct {
 	client         *http.Client
 	logger         *utils.LoggerService
 	TaskRepository *repository.TaskRepository
+	ctx            context.Context
 }
 
 func NewFesClientService() *FesClientService {
@@ -32,6 +34,8 @@ func NewFesClientService() *FesClientService {
 }
 
 // ============== GENERAL METHODS =======================
+
+
 func (f *FesClientService) getApiToken() string {
 	return os.Getenv("FES_API") // FIX this is only for testing purpose,
 }
@@ -73,11 +77,6 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 
 	f.logger.Printlnf("Response: %v", result)
 
-	// _, ok := result["response"].(map[string]interface{})
-	// if !ok {
-	// 	f.logger.Println("Error on parsing response")
-	// 	return nil, err
-	// }
 
 	return result, nil
 }

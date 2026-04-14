@@ -279,13 +279,13 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 }
 
 func (a *App) LoginUserOnline(email string, password string) (*models.Attendance, error) {
-	attendance, _, err := a.AuthService.Login(a.ctx, email, password)
+	attendance, authUser, err := a.AuthService.Login(a.ctx, email, password)
 	if err != nil {
 		return nil, err
 	}
 
-	// a.AttendanceID = &attendance.ID
-	// a.AuthUser = authUser
+	a.AttendanceID = &attendance.ID
+	a.AuthUser = authUser
 
 	return attendance, nil
 }
@@ -462,24 +462,7 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 }
 
 func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
-	// NOTE this needs to be refactor, no logic should be applied here
-	if config.OnlineMode && isOnline {
-		if err := services.SyncClientsAndProjects(); err != nil {
-			utils.Logger.Printf("error fetching tasks from fes: %v", err)
-		}
-	}
-
-	if a.AuthUser == nil {
-		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
-	}
-
-	tasks, err := services.GetTasks()
-	if err != nil {
-		return nil, err
-	}
-
-	expTasks := models.ToExpTasks(tasks)
-	return expTasks, nil
+	return a.TaskService.GetTasks(isOnline)
 }
 
 func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, error) {
