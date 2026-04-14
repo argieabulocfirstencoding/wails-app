@@ -555,19 +555,7 @@ func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error)
 // Tasks Records displayed will be ordered by how recent they are
 func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 	// NOTE this needs to be refactor, no logic should be applied here
-	task_records, err := services.GetAllPreviousTasksRecords(a.AuthUser.LocalID)
-	if err != nil {
-		return nil, err
-	}
-
-	var exp_task_records []models.ExpTaskRecord
-
-	for _, record := range task_records {
-		exp_record := record.ToExp()
-		exp_task_records = append(exp_task_records, exp_record)
-	}
-
-	return exp_task_records, nil
+	return a.TaskService.GetLastTaskRecords()
 }
 
 func (a *App) AddMemo(memo, notes string) {

@@ -5,6 +5,7 @@ import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
+	"fmt"
 	"strings"
 )
 
@@ -33,8 +34,6 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	if err != nil {
 		return nil, nil, err
 	}
-
-	a.logger.Printlnf("\n\nUSER: %v\n\n", *userId)
 
 	attendance, err := a.attendanceService.LoginAttendance(*userId)
 	if err != nil {
@@ -93,7 +92,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	result, ok := resp["response"].(map[string]any)
 	if !ok {
 		a.logger.Println("Error on parsing response")
-		return nil, err
+		return nil, fmt.Errorf("failed to parse login response: unexpected format")
 	}
 
 	userId := result["user_id"].(string)

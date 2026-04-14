@@ -104,7 +104,6 @@ const Home = () => {
     return () => off();
   }, []);
 
-
   useEffect(() => {
     async function fetchUser() {
       const user = useAuthStore.getState().user;

@@ -62,6 +62,8 @@ func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 		return nil, err
 	}
 
+	t.Logger.Printlnf("TASKS: %v", tasks)
+
 	// FIX REFACTOR this
 	expTasks := models.ToExpTasks(tasks)
 	return expTasks, nil
@@ -79,6 +81,26 @@ func (t *TaskService) DeleteTask(id string) error {
 
 func (t *TaskService) GetTaskRecord(id string) (*models.TaskRecord, error) {
 	return t.TaskRepository.GetTaskRecord(id)
+}
+
+func (t *TaskService) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
+	if t.Attendance == nil {
+		return nil, fmt.Errorf("GetLastTaskRecords error: AuthUser is nil")
+	}
+
+	task_records, err := services.GetAllPreviousTasksRecords(t.Attendance.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	var exp_task_records []models.ExpTaskRecord
+
+	for _, record := range task_records {
+		exp_record := record.ToExp()
+		exp_task_records = append(exp_task_records, exp_record)
+	}
+
+	return exp_task_records, nil
 }
 
 // ======================== TASK RECORD ACTIONS ====================================
