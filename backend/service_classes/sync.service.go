@@ -22,7 +22,7 @@ type SyncService struct {
 	mu         sync.Mutex
 }
 
-func NewFesSyncService() *SyncService {
+func NewSyncService() *SyncService {
 	backblaze := services.NewBackblazeSync()
 	return &SyncService{
 		Backblaze: backblaze,

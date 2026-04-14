@@ -3,28 +3,35 @@ package service_classes
 import (
 	"bytes"
 	"encoding/json"
+	"fesapp/backend/db/models"
+	"fesapp/backend/repository"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
+	"fmt"
 	"net/http"
 	"os"
+
+	"github.com/zalando/go-keyring"
 )
 
 type FesClientService struct {
-	baseUrl string
-	client  *http.Client
-	logger  *utils.LoggerService
+	baseUrl        string
+	client         *http.Client
+	logger         *utils.LoggerService
+	TaskRepository *repository.TaskRepository
 }
 
 func NewFesClientService() *FesClientService {
-
 	return &FesClientService{
 		// baseUrl:     "https://firstencoding.app/api/1.1/wf/",
-		baseUrl: "https://firstencoding.app/version-test/api/1.1/wf/",
-		client:  &http.Client{},
-		logger:  utils.NewLoggerService(),
+		baseUrl:        "https://firstencoding.app/version-test/api/1.1/",
+		client:         &http.Client{},
+		logger:         utils.NewLoggerService(),
+		TaskRepository: repository.NewTaskRepository(),
 	}
 }
 
+// ============== GENERAL METHODS =======================
 func (f *FesClientService) getApiToken() string {
 	return os.Getenv("FES_API") // FIX this is only for testing purpose,
 }
@@ -73,4 +80,191 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	// }
 
 	return result, nil
+}
+
+// ========================== CLIENTS & PROJECTS ===============================
+func (f *FesClientService) SyncClientsAndProjects() error {
+	if err := f.fetchClients(); err != nil {
+		return err
+	}
+
+	if err := f.fetchProjects(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// FetchClients retrieves clients in bubble and store them directly in the database
+func (f *FesClientService) fetchClients() error {
+	apiToken, err := keyring.Get("credentials", "FES_API")
+	if err != nil {
+		return err
+	}
+	fmt.Println("Fetching FES Client Lists")
+	targetUrl := f.baseUrl + "obj/clients?cursor="
+	cursor := 0
+
+	var clients []models.Client
+
+	for {
+		url := fmt.Sprintf("%s%d", targetUrl, cursor)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		res, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("error when on request :%w", err)
+		}
+		defer res.Body.Close()
+
+		var result map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+			return fmt.Errorf("error on decoding response body: %w", err)
+		}
+
+		response, ok := result["response"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("error on getting response value")
+		}
+
+		results, ok := response["results"].([]interface{})
+		if !ok || len(response) == 0 {
+			return fmt.Errorf("error on getting results value")
+		}
+
+		remaining, ok := response["remaining"].(float64)
+		if !ok {
+			return fmt.Errorf("error no remaining value was found")
+		}
+
+		clients = make([]models.Client, 0)
+		for _, item := range results {
+
+			record, ok := item.(map[string]interface{})
+
+			if !ok {
+				continue
+			}
+
+			id, _ := record["_id"].(string)
+			fullName, _ := record["Full name"].(string)
+			companyName, _ := record["Company Name"].(string)
+
+			clients = append(clients, models.Client{
+				ID:          id,
+				CompanyName: companyName,
+				Fullname:    fullName,
+			})
+		}
+
+		// Creating the current loop batch of clients
+		if err := f.TaskRepository.BulkCreateClients(clients); err != nil {
+			return fmt.Errorf("error on creating clients: %w", err)
+		}
+
+		// Increment search cursor to another 100 since bubble data api limit is 100 only
+		cursor = cursor + 100
+
+		// If there is no remaining records then stop the loop
+		if remaining == 0 {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (f *FesClientService) fetchProjects() error {
+	apiToken := f.getApiToken()
+
+	fmt.Printf("Fetching FES Projects")
+	targetUrl := f.baseUrl + "obj//projects-projects?limit=100&cursor="
+	cursor := 0
+	var tasks []models.Task
+
+	for {
+		url := fmt.Sprintf("%s%d", targetUrl, cursor)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+apiToken)
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{}
+		res, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send request: %w", err)
+		}
+		defer res.Body.Close()
+
+		var result map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+			return fmt.Errorf("failed to decode response %w", err)
+		}
+
+		response, ok := result["response"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("invalid response format")
+		}
+
+		results, ok := response["results"].([]interface{})
+		if !ok || len(results) == 0 {
+			return fmt.Errorf("no results found")
+		}
+
+		remaining, ok := response["remaining"].(float64)
+		if !ok {
+			return fmt.Errorf("no remaining value indicated")
+		}
+
+		tasks = make([]models.Task, 0, len(results))
+
+		for _, item := range results {
+			record, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			status, _ := record["Status"].(string)
+
+			// Checks if the project is not available then skip it
+			if status == "End of contract" {
+				continue
+			}
+
+			id, _ := record["_id"].(string)
+			clientId, _ := record["Client"].(string)
+			account, _ := record["Account"].(string)
+			projectName, _ := record["Project name"].(string)
+
+			tasks = append(tasks, models.Task{
+				TaskID:      id,
+				Title:       account,
+				ClientID:    clientId,
+				ProjectName: projectName,
+			})
+		}
+
+		// Creating the current loop batch of tasks
+		if err := f.TaskRepository.BulkCreateTasks(tasks); err != nil {
+			utils.Logger.Printf("error on bulk task create %v", err)
+			return err
+		}
+
+		// Increment search cursor to another 100 since bubble data api limit is 100 only
+		cursor = cursor + 100
+
+		// If there is no remaining records then stop the loop
+		if remaining == 0 {
+			break
+		}
+	}
+
+	return nil
 }

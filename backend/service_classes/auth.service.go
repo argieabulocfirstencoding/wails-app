@@ -18,7 +18,7 @@ type AuthService struct {
 
 func NewAuthService() *AuthService {
 	return &AuthService{
-		SyncService:       NewFesSyncService(),
+		SyncService:       NewSyncService(),
 		fesClient:         NewFesClientService(),
 		logger:            utils.NewLoggerService(),
 		userService:       NewUserService(),
@@ -63,7 +63,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	// now := time.Now()
 
 	resp, err := a.fesClient.Request(types.Request{
-		Url:    "login",
+		Url:    "wf/login",
 		Method: "POST",
 		Body: map[string]any{
 			"email":    email,
@@ -73,7 +73,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	})
 
 	if err != nil {
-		a.logger.Printlnf("Attempt Login Error: %v", err)
+		a.logger.Printlnf("Attempt Login Error	: %v", err)
 		return nil, err
 	}
 

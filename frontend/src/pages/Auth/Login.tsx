@@ -43,22 +43,20 @@ const Login = () => {
     try {
       if (!online) console.log("no internet connection!");
       console.log("Logging in");
-      const response = await LoginUserOnline(email, password);
-      console.log("Auth Response: ", response);
+      const attendance = await LoginUserOnline(email, password);
+      console.log("Auth Response: ", attendance);
 
-      return;
+      // const authUser = await signInWithEmailAndPassword(auth, email, password);
+      // const tokenResult = await authUser.user.getIdTokenResult();
 
-      const authUser = await signInWithEmailAndPassword(auth, email, password);
-      const tokenResult = await authUser.user.getIdTokenResult();
-
-      if (!authUser.user.email) return;
+      // if (!authUser.user.email) return;
 
       const payload = {
-        idToken: tokenResult.token,
-        refreshToken: authUser.user.refreshToken,
+        idToken: "THIS IS NO LONGER NEEDED",
+        refreshToken: "THIS IS NO LONGER NEEDED",
         expiresIn: "3000", // assumes 50 minutes to expire
-        userId: authUser.user.uid,
-        email: authUser.user.email,
+        userId: attendance.UserID,
+        email: email,
       };
 
       if (cancelRef.current) {
@@ -70,17 +68,9 @@ const Login = () => {
       setLoadingMsg("Syncing account…");
       showCancel(false);
 
-      const attendance = await BackendFirebaseSync(
-        payload.userId,
-        payload.email || "",
-        payload.idToken,
-        payload.refreshToken,
-        payload.expiresIn,
-      );
-
       useAuthStore.getState().setUser({
-        uid: authUser.user.uid,
-        email: authUser.user.email,
+        uid: attendance.UserID,
+        email: email,
         offline: !online,
       });
 

@@ -44,7 +44,7 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, id string) error
 	}
 
 	// FIX development mode only
-	url := "employee_details"
+	url := "wf/employee_details"
 	method := "POST"
 
 	email := user.Email

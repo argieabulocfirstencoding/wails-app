@@ -50,5 +50,5 @@ func (l *LoggerService) Printf(format string, a ...any) {
 }
 
 func (l *LoggerService) Printlnf(format string, a ...any) {
-	fmt.Println(format+"\n", a)
+	fmt.Printf(format+"\n", a)
 }

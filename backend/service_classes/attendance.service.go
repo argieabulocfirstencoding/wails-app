@@ -16,9 +16,9 @@ func NewAttendanceService() *AttendanceService {
 }
 
 func (a *AttendanceService) LoginAttendance(userId string) (*models.Attendance, error) {
-	return a.LoginAttendance(userId)
+	return a.attendanceRepo.CreateAttendance(userId)
 }
 
 func (a *AttendanceService) LogoutAttendance(attendance *models.Attendance) error {
-	return a.LogoutAttendance(attendance)
+	return a.attendanceRepo.LogoutAttendance(attendance)
 }

@@ -1,21 +1,40 @@
 package service_classes
 
 import (
+	"context"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
 	"fesapp/backend/services"
+	"fesapp/backend/utils"
+	"fmt"
 	"time"
 )
 
 type TaskService struct {
-	TaskRepository *repository.TaskRepository
+	TaskRepository    *repository.TaskRepository
+	ScreenshotService *ScreenshotService
+	SyncService       *SyncService
+	Logger            *utils.LoggerService
+	WorkingTaskID     *string
+	Attendance        *models.Attendance
+	ctx               context.Context
 }
 
 func NewTaskService() *TaskService {
 	return &TaskService{
-		TaskRepository: repository.NewTaskRepository(),
+		TaskRepository:    repository.NewTaskRepository(),
+		ScreenshotService: NewScreenshotService(),
+		SyncService:       NewSyncService(),
 	}
+}
+
+func (t *TaskService) AddContext(ctx context.Context) {
+	t.ctx = ctx
+}
+
+func (t *TaskService) SetAttendance(attendance *models.Attendance) {
+	t.Attendance = attendance
 }
 
 func (t *TaskService) CreateTask(title, client string) (*models.ExpTask, error) {
@@ -38,7 +57,17 @@ func (t *TaskService) DeleteTask(id string) error {
 	return nil
 }
 
-func (t *TaskService) StartTaskRecord(userId, taskId string, attendanceId uint, padagan bool) (*db.TaskRecord, error) {
+// ======================== TASK RECORD METHODS ====================================
+
+func (t *TaskService) GetTaskRecord(id string) (*models.TaskRecord, error) {
+	return t.TaskRepository.GetTaskRecord(id)
+}
+
+// ======================== TASK RECORD ACTIONS ====================================
+
+func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskRecord, error) {
+	userId := t.Attendance.UserID
+	attendanceId := t.Attendance.ID
 
 	if taskRecord, err := t.TaskRepository.CheckTaskRecord(userId, taskId); err == nil {
 		return nil, err
@@ -55,6 +84,66 @@ func (t *TaskService) StartTaskRecord(userId, taskId string, attendanceId uint, 
 
 func (t *TaskService) StopTaskRecord(userId, taskId string) error {
 	return nil
+}
+
+func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bool) {
+	userId := t.Attendance.UserID
+	attendanceId := t.Attendance.ID
+
+	if t.ScreenshotService.Running {
+		t.ScreenshotService.Stop()
+	}
+
+	if err := services.StopAllActiveRecords(userId); err != nil {
+		fmt.Printf("Error stoping active task record: %s", err)
+	}
+
+	if t.ScreenshotService.TaskRecordID != nil {
+		record, err := services.GetTaskRecordFromID(*t.ScreenshotService.TaskRecordID)
+
+		if err != nil {
+			fmt.Printf("Error on syncing record: %s", err)
+		} else {
+			t.SyncService.SyncTaskRecord(record)
+		}
+
+	}
+
+	t.ScreenshotService.FolderName = localStorageValue
+	t.WorkingTaskID = &taskId
+	record, err := services.StartTaskRecord(userId, taskId, attendanceId, padagan)
+
+	if err != nil {
+		t.Logger.Printf("error starting task record: %v", err)
+	}
+	t.ScreenshotService.TaskID = t.WorkingTaskID
+	t.ScreenshotService.TaskRecordID = &record.ID
+
+	task, err := services.GetTaskFromID(taskId)
+	if err != nil {
+		return
+	}
+
+	if task.ProjectName == "Break" {
+		t.SyncService.SyncTaskRecord(record)
+		return
+	}
+
+	t.ScreenshotService.Start(t.ctx)
+}
+
+func (t *TaskService) StopTracking(taskid string) {
+	
+}
+
+func (t *TaskService) StopAllActiveRecords() error {
+	attendance := t.Attendance
+
+	return t.TaskRepository.StopAllActiveRecords(attendance)
+}
+
+func (t *TaskService) GetLastTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
+	return nil, nil
 }
 
 //  ============= PRIVATE METHODS =========================

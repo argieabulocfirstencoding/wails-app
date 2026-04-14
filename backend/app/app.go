@@ -28,8 +28,11 @@ type App struct {
 	ScreenshotService *services.ScreenshotService
 	SyncService       *services.FirebaseSyncService
 	AuthService       *service_classes.AuthService
+	TaskService       *service_classes.TaskService
 	windowOpen        bool
 	AuthUser          *models.AuthUser
+	WorkingTask       *models.Task
+	Attendance        *models.Attendance
 	WorkingTaskID     *string
 	AttendanceID      *uint
 }
@@ -39,11 +42,13 @@ func NewApp() *App {
 	syncService := services.NewFirebaseSyncService()
 	screenshotService := services.NewScreenshotService(syncService)
 	authService := service_classes.NewAuthService()
+	taskService := service_classes.NewTaskService()
 
 	return &App{
 		ScreenshotService: screenshotService,
 		SyncService:       syncService,
 		AuthService:       authService,
+		TaskService:       taskService,
 	}
 }
 
@@ -54,6 +59,8 @@ var trayIcon []byte
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	a.TaskService.AddContext(ctx)
+
 	db.Init(ctx)
 	db.DB.Exec("PRAGMA journal_mode = WAL;")
 	db.DB.Exec("PRAGMA busy_timeout = 5000;")
