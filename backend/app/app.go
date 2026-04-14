@@ -284,6 +284,7 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 		return nil, err
 	}
 
+	a.TaskService.SetAttendance(attendance)
 	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
 
@@ -554,7 +555,6 @@ func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error)
 // This is used to get the tasks that have recently used so that it can be quickly seen.
 // Tasks Records displayed will be ordered by how recent they are
 func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
-	// NOTE this needs to be refactor, no logic should be applied here
 	return a.TaskService.GetLastTaskRecords()
 }
 
