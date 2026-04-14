@@ -38,17 +38,17 @@ func (l *LoggerService) Panic(message string) {
 }
 
 func (l *LoggerService) Print(a ...any) {
-	fmt.Print(a)
+	fmt.Print(a...)
 }
 
 func (l *LoggerService) Println(a ...any) {
-	fmt.Println(a)
+	fmt.Println(a...)
 }
 
 func (l *LoggerService) Printf(format string, a ...any) {
-	fmt.Printf(format, a)
+	fmt.Printf(format, a...)
 }
 
 func (l *LoggerService) Printlnf(format string, a ...any) {
-	fmt.Printf(format+"\n", a)
+	fmt.Printf(format+"\n", a...)
 }

@@ -5,7 +5,6 @@ import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
-	"fmt"
 	"strings"
 )
 
@@ -88,17 +87,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	}
 
 	a.logger.Printlnf("Login Response: %v", resp)
-
-	result, ok := resp["response"].(map[string]any)
-	if !ok {
-		errorMessage, ok := resp["message"].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to parse login response: unexpected format")
-		}
-		return nil, fmt.Errorf("%s", errorMessage)
-	}
-
-	userId := result["user_id"].(string)
+	userId := resp["user_id"].(string)
 
 	_, create_user_err := a.userService.CreateUser(userId, email)
 	if create_user_err != nil {

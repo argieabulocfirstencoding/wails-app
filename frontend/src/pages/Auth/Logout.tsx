@@ -35,12 +35,12 @@ const Logout = () => {
       });
     } catch {}
 
-    try {
-      // firebase sign out (best-effort)
-      await signOut(auth).catch((e) => {
-        console.warn("Firebase signOut failed:", e);
-      });
-    } catch {}
+    // try {
+    //   // firebase sign out (best-effort)
+    //   await signOut(auth).catch((e) => {
+    //     console.warn("Firebase signOut failed:", e);
+    //   });
+    // } catch {}
 
     try {
       // clear local client state BEFORE navigation

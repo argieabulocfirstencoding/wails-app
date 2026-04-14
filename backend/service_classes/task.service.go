@@ -62,8 +62,6 @@ func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 		return nil, err
 	}
 
-	t.Logger.Printlnf("TASKS: %v", tasks)
-
 	// FIX REFACTOR this
 	expTasks := models.ToExpTasks(tasks)
 	return expTasks, nil

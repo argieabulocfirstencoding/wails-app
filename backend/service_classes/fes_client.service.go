@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-
-	"github.com/zalando/go-keyring"
 )
 
 type FesClientService struct {
@@ -25,7 +23,7 @@ type FesClientService struct {
 
 func NewFesClientService() *FesClientService {
 	return &FesClientService{
-		// baseUrl:     "https://firstencoding.app/api/1.1/wf/",
+		// baseUrl: "https://firstencoding.app/api/1.1/",
 		baseUrl:        "https://firstencoding.app/version-test/api/1.1/",
 		client:         &http.Client{},
 		logger:         utils.NewLoggerService(),
@@ -34,7 +32,6 @@ func NewFesClientService() *FesClientService {
 }
 
 // ============== GENERAL METHODS =======================
-
 
 func (f *FesClientService) getApiToken() string {
 	return os.Getenv("FES_API") // FIX this is only for testing purpose,
@@ -75,10 +72,16 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 		return nil, err
 	}
 
-	f.logger.Printlnf("Response: %v", result)
+	response, ok := result["response"].(map[string]any)
+	if !ok {
+		errorMessage, ok := result["message"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse login response: unexpected format")
+		}
+		return nil, fmt.Errorf("%s", errorMessage)
+	}
 
-
-	return result, nil
+	return response, nil
 }
 
 // ========================== CLIENTS & PROJECTS ===============================
@@ -96,10 +99,8 @@ func (f *FesClientService) SyncClientsAndProjects() error {
 
 // FetchClients retrieves clients in bubble and store them directly in the database
 func (f *FesClientService) fetchClients() error {
-	apiToken, err := keyring.Get("credentials", "FES_API")
-	if err != nil {
-		return err
-	}
+	apiToken := f.getApiToken()
+
 	fmt.Println("Fetching FES Client Lists")
 	targetUrl := f.baseUrl + "obj/clients?cursor="
 	cursor := 0
@@ -136,6 +137,7 @@ func (f *FesClientService) fetchClients() error {
 		if !ok || len(response) == 0 {
 			return fmt.Errorf("error on getting results value")
 		}
+
 
 		remaining, ok := response["remaining"].(float64)
 		if !ok {
@@ -183,7 +185,7 @@ func (f *FesClientService) fetchProjects() error {
 	apiToken := f.getApiToken()
 
 	fmt.Printf("Fetching FES Projects")
-	targetUrl := f.baseUrl + "obj//projects-projects?limit=100&cursor="
+	targetUrl := f.baseUrl + "obj/projects-projects?limit=100&cursor="
 	cursor := 0
 	var tasks []models.Task
 

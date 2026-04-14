@@ -56,15 +56,9 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, id string) error
 		Body:   map[string]any{"email": email},
 	}
 
-	responseRaw, err := u.fesClient.Request(request)
+	response, err := u.fesClient.Request(request)
 	if err != nil {
 		return err
-	}
-
-	response, ok := responseRaw["response"].(map[string]any)
-	if !ok {
-		u.logger.Println("Error on parsing response")
-		return fmt.Errorf("invalid response format")
 	}
 
 	employeeRaw, exists := response["employee"]

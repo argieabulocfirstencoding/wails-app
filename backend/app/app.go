@@ -286,7 +286,8 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 
 	a.TaskService.SetAttendance(attendance)
 	a.AttendanceID = &attendance.ID
-	a.AuthUser = authUser
+	a.AuthUser = authUser	
+	config.OnlineMode = true
 
 	return attendance, nil
 }
