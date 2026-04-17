@@ -35,6 +35,7 @@ type App struct {
 	Attendance        *models.Attendance
 	WorkingTaskID     *string
 	AttendanceID      *uint
+	Logger            *utils.LoggerService
 }
 
 // NewApp creates a new App application struct
@@ -43,12 +44,14 @@ func NewApp() *App {
 	screenshotService := services.NewScreenshotService(syncService)
 	authService := service_classes.NewAuthService()
 	taskService := service_classes.NewTaskService()
+	logger := utils.NewLoggerService()
 
 	return &App{
 		ScreenshotService: screenshotService,
 		SyncService:       syncService,
 		AuthService:       authService,
 		TaskService:       taskService,
+		Logger:            logger,
 	}
 }
 
@@ -140,95 +143,100 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	// NOTE this needs to be refactor, no logic should be applied here
 	// FIX https://chatgpt.com/c/69b2df18-4fd0-8321-a821-12d5b92e3b2e
 
-	if a.AttendanceID == nil {
-		return
-	}
+	// FIX ISSUES ON SCREENSHOT SO DISABLE IT FIRST AND PRIORITIZE WORKING TASK IN TASK OUT LOCAL THEN SYNC THEN SCREENSHOT LAST
+	a.TaskService.StartTracking(taskId, localStorageValue, padagan)
 
-	if a.ScreenshotService.Running {
-		a.ScreenshotService.Stop()
-	}
+	// if a.AttendanceID == nil {
+	// 	return
+	// }
 
-	if err := services.StopAllActiveRecords(a.AuthUser.LocalID); err != nil {
-		fmt.Printf("Error stoping active task record: %s", err)
-	}
+	// if a.ScreenshotService.Running {
+	// 	a.ScreenshotService.Stop()
+	// }
 
-	if a.ScreenshotService.TaskRecordID != nil {
-		record, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
-		if err == nil {
-			a.ScreenshotService.SyncRecord(record)
-		}
-		if err != nil {
-			fmt.Printf("Error on syncing record: %s", err)
-		}
+	// if err := services.StopAllActiveRecords(a.AuthUser.LocalID); err != nil {
+	// 	fmt.Printf("Error stoping active task record: %s", err)
+	// }
 
-	}
+	// if a.ScreenshotService.TaskRecordID != nil {
+	// 	record, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
+	// 	if err == nil {
+	// 		a.ScreenshotService.SyncRecord(record)
+	// 	}
+	// 	if err != nil {
+	// 		fmt.Printf("Error on syncing record: %s", err)
+	// 	}
 
-	a.ScreenshotService.FolderName = localStorageValue
-	a.WorkingTaskID = &taskId
-	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID, padagan)
+	// }
 
-	if err != nil {
-		utils.Logger.Printf("error starting task record: %v", err)
-	}
-	a.ScreenshotService.TaskID = a.WorkingTaskID
-	a.ScreenshotService.TaskRecordID = &record.ID
+	// a.ScreenshotService.FolderName = localStorageValue
+	// a.WorkingTaskID = &taskId
+	// record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID, padagan)
 
-	task, err := services.GetTaskFromID(taskId)
-	if err != nil {
-		return
-	}
+	// if err != nil {
+	// 	utils.Logger.Printf("error starting task record: %v", err)
+	// }
+	// a.ScreenshotService.TaskID = a.WorkingTaskID
+	// a.ScreenshotService.TaskRecordID = &record.ID
 
-	if task.ProjectName == "Break" {
-		a.ScreenshotService.SyncRecord(record)
-		return
-	}
+	// task, err := services.GetTaskFromID(taskId)
+	// if err != nil {
+	// 	return
+	// }
 
-	a.ScreenshotService.Start(a.ctx)
+	// if task.ProjectName == "Break" {
+	// 	a.ScreenshotService.SyncRecord(record)
+	// 	return
+	// }
+
+	// a.ScreenshotService.Start(a.ctx)
 }
 
 func (a *App) StopTracking(taskId string) {
 	// NOTE this needs to be refactor, no logic should be applied here
-	if a.AuthUser == nil {
-		utils.Logger.Println("StopTracking error: AuthUser is nil")
-		return
-	}
 
-	a.ScreenshotService.Stop()
-	err := services.StopTaskRecord(
-		a.AuthUser.LocalID,
-		taskId,
-	)
-	if err != nil {
-		utils.Logger.Println("StopTaskRecord error:", err)
-		return
-	}
+	a.TaskService.StopTracking(taskId)
+	// if a.AuthUser == nil {
+	// 	utils.Logger.Println("StopTracking error: AuthUser is nil")
+	// 	return
+	// }
 
-	// Check before dereferencing
-	if a.ScreenshotService.TaskRecordID == nil {
-		log.Println("No TaskRecordID available to sync, skipping Firebase sync.")
-		return
-	}
+	// a.ScreenshotService.Stop()
+	// err := services.StopTaskRecord(
+	// 	a.AuthUser.LocalID,
+	// 	taskId,
+	// )
+	// if err != nil {
+	// 	utils.Logger.Println("StopTaskRecord error:", err)
+	// 	return
+	// }
 
-	// Syncing TaskRecord to Firebase
-	if config.OnlineMode {
-		// Retrieving TaskRecord from TaskRecordID
-		log.Print("Attempting to sync record")
-		taskRecord, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
-		if err != nil {
-			log.Printf("error retrieving task record: %v\n", err)
-		}
-		log.Printf("Syncing record: %v\n", taskRecord)
+	// // Check before dereferencing
+	// if a.ScreenshotService.TaskRecordID == nil {
+	// 	log.Println("No TaskRecordID available to sync, skipping Firebase sync.")
+	// 	return
+	// }
 
-		attendance, _ := services.GetUserAttendance(a.AuthUser.LocalID)
-		db.DB.Model(&taskRecord).Update("sync_status", "pending")
-		db.DB.Model(&attendance).Update("sync_status", "pending")
+	// // Syncing TaskRecord to Firebase
+	// if config.OnlineMode {
+	// 	// Retrieving TaskRecord from TaskRecordID
+	// 	log.Print("Attempting to sync record")
+	// 	taskRecord, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
+	// 	if err != nil {
+	// 		log.Printf("error retrieving task record: %v\n", err)
+	// 	}
+	// 	log.Printf("Syncing record: %v\n", taskRecord)
 
-		if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
-			log.Printf("error syncing task_record: %v", err)
-		}
-	}
+	// 	attendance, _ := services.GetUserAttendance(a.AuthUser.LocalID)
+	// 	db.DB.Model(&taskRecord).Update("sync_status", "pending")
+	// 	db.DB.Model(&attendance).Update("sync_status", "pending")
 
-	a.ScreenshotService.TaskRecordID = nil
+	// 	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
+	// 		log.Printf("error syncing task_record: %v", err)
+	// 	}
+	// }
+
+	// a.ScreenshotService.TaskRecordID = nil
 }
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
@@ -286,7 +294,7 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 
 	a.TaskService.SetAttendance(attendance)
 	a.AttendanceID = &attendance.ID
-	a.AuthUser = authUser	
+	a.AuthUser = authUser
 	config.OnlineMode = true
 
 	return attendance, nil
@@ -391,30 +399,7 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
 
-	if a.WorkingTaskID != nil {
-		a.StopTracking(*a.WorkingTaskID)
-		log.Printf("WorkingTaskID: %s", *a.WorkingTaskID)
-	}
-
-	if a.AttendanceID != nil {
-		attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
-		if err != nil {
-			return err
-		}
-
-		log.Printf("Attendance ID: %d", *a.AttendanceID)
-		if err := services.LogoutAttendance(attendance); err != nil {
-			return err
-		}
-
-		if err := a.SyncService.SyncAttendance(attendance); err != nil {
-			utils.Logger.Printf("error syncing attendance on logout")
-		}
-	} else {
-		log.Println("No active AttendanceID")
-	}
-
-	return nil
+	return a.AuthService.Logout(a.TaskService.WorkingTaskID, a.AuthService.TaskService.Attendance)
 }
 
 func (a *App) GetActiveTaskRecord() *string {

@@ -22,3 +22,7 @@ func (a *AttendanceService) LoginAttendance(userId string) (*models.Attendance, 
 func (a *AttendanceService) LogoutAttendance(attendance *models.Attendance) error {
 	return a.attendanceRepo.LogoutAttendance(attendance)
 }
+
+func (a *AttendanceService) GetAttendanceFromID(id uint) (*models.Attendance, error) {
+	return a.attendanceRepo.GetAttendanceFromID(id)
+}

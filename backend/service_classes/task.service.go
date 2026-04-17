@@ -9,6 +9,7 @@ import (
 	"fesapp/backend/services"
 	"fesapp/backend/utils"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -49,7 +50,7 @@ func (t *TaskService) GetTask(id string) (*models.ExpTask, error) {
 func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 	if config.OnlineMode && isOnline {
 		if err := t.SyncService.fesClient.SyncClientsAndProjects(); err != nil {
-			utils.Logger.Printf("error fetching tasks from fes: %v", err)
+			t.Logger.Printf("error fetching tasks from fes: %v", err)
 		}
 	}
 
@@ -170,8 +171,50 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	t.ScreenshotService.Start(t.ctx)
 }
 
-func (t *TaskService) StopTracking(taskid string) {
+func (t *TaskService) StopTracking(taskId string) {
+	userId := t.Attendance.UserID
 
+	if t.Attendance == nil {
+		t.Logger.Println("StopTracking error: AuthUser is nil")
+		return
+	}
+
+	t.ScreenshotService.Stop()
+	err := services.StopTaskRecord(
+		userId,
+		taskId,
+	)
+	if err != nil {
+		t.Logger.Println("StopTaskRecord error:", err)
+		return
+	}
+
+	// Check before dereferencing
+	if t.ScreenshotService.TaskRecordID == nil {
+		log.Println("No TaskRecordID available to sync, skipping Firebase sync.")
+		return
+	}
+
+	// Syncing TaskRecord to Firebase
+	if config.OnlineMode {
+		// Retrieving TaskRecord from TaskRecordID
+		log.Print("Attempting to sync record")
+		taskRecord, err := services.GetTaskRecordFromID(*t.ScreenshotService.TaskRecordID)
+		if err != nil {
+			log.Printf("error retrieving task record: %v\n", err)
+		}
+		log.Printf("Syncing record: %v\n", taskRecord)
+
+		attendance, _ := services.GetUserAttendance(userId)
+		db.DB.Model(&taskRecord).Update("sync_status", "pending")
+		db.DB.Model(&attendance).Update("sync_status", "pending")
+
+		if err := t.SyncService.SyncTaskRecord(taskRecord); err != nil {
+			log.Printf("error syncing task_record: %v", err)
+		}
+	}
+
+	t.ScreenshotService.TaskRecordID = nil
 }
 
 func (t *TaskService) StopAllActiveRecords() error {

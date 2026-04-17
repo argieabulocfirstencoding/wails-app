@@ -3,6 +3,7 @@ package service_classes
 import (
 	"context"
 	"fesapp/backend/db/models"
+	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"strings"
@@ -10,21 +11,27 @@ import (
 
 type AuthService struct {
 	SyncService       *SyncService
-	userService       *UserService
-	attendanceService *AttendanceService
-	fesClient         *FesClientService
-	logger            *utils.LoggerService
+	UserService       *UserService
+	AttendanceService *AttendanceService
+	TaskService       *TaskService
+	FesClientService  *FesClientService
+	Logger            *utils.LoggerService
 	ctx               context.Context
 }
 
 func NewAuthService() *AuthService {
 	return &AuthService{
 		SyncService:       NewSyncService(),
-		fesClient:         NewFesClientService(),
-		logger:            utils.NewLoggerService(),
-		userService:       NewUserService(),
-		attendanceService: NewAttendanceService(),
+		FesClientService:  NewFesClientService(),
+		Logger:            utils.NewLoggerService(),
+		UserService:       NewUserService(),
+		AttendanceService: NewAttendanceService(),
+		TaskService:       NewTaskService(),
 	}
+}
+
+func (a *AuthService) AddTaskService(taskService *TaskService) {
+	a.TaskService = taskService
 }
 
 func (a *AuthService) Login(ctx context.Context, email, password string) (*models.Attendance, *models.AuthUser, error) {
@@ -34,12 +41,12 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 		return nil, nil, err
 	}
 
-	attendance, err := a.attendanceService.LoginAttendance(*userId)
+	attendance, err := a.AttendanceService.LoginAttendance(*userId)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if err := a.userService.FetchEmployeeDetails(ctx, *userId); err != nil {
+	if err := a.UserService.FetchEmployeeDetails(ctx, *userId); err != nil {
 		return nil, nil, err
 	}
 
@@ -59,7 +66,25 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	return attendance, authUser, nil
 }
 
-func (a *AuthService) Logout(email string) error {
+func (a *AuthService) Logout(workingTaskID *string, attendance *models.Attendance) error {
+
+	if workingTaskID != nil {
+		a.TaskService.StopTracking(*workingTaskID)
+		a.Logger.Printf("WorkingTaskID: %s", *workingTaskID)
+	}
+
+	if attendance != nil {
+		if err := services.LogoutAttendance(attendance); err != nil {
+			return err
+		}
+
+		if err := a.SyncService.SyncAttendance(attendance); err != nil {
+			a.Logger.Printf("error syncing attendance on logout")
+		}
+	} else {
+		a.Logger.Println("No active AttendanceID")
+	}
+
 	return nil
 }
 
@@ -71,7 +96,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	// a.logger.Printlnf("Login Attempt Password: ", a.maskPassword(password))
 	// now := time.Now()
 
-	resp, err := a.fesClient.Request(types.Request{
+	resp, err := a.FesClientService.Request(types.Request{
 		Url:    "wf/login",
 		Method: "POST",
 		Body: map[string]any{
@@ -82,16 +107,16 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	})
 
 	if err != nil {
-		a.logger.Printlnf("Attempt Login Error	: %v", err)
+		a.Logger.Printlnf("Attempt Login Error	: %v", err)
 		return nil, err
 	}
 
-	a.logger.Printlnf("Login Response: %v", resp)
+	a.Logger.Printlnf("Login Response: %v", resp)
 	userId := resp["user_id"].(string)
 
-	_, create_user_err := a.userService.CreateUser(userId, email)
+	_, create_user_err := a.UserService.CreateUser(userId, email)
 	if create_user_err != nil {
-		a.logger.Printlnf("Error creating user: %v", create_user_err)
+		a.Logger.Printlnf("Error creating user: %v", create_user_err)
 	}
 
 	return &userId, nil
