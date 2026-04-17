@@ -25,10 +25,9 @@ import (
 // App struct
 type App struct {
 	ctx               context.Context
-	ScreenshotService *services.ScreenshotService
+	ScreenshotService *service_classes.ScreenshotService
 	SyncService       *services.FirebaseSyncService
 	AuthService       *service_classes.AuthService
-	TaskService       *service_classes.TaskService
 	windowOpen        bool
 	AuthUser          *models.AuthUser
 	WorkingTask       *models.Task
@@ -41,16 +40,14 @@ type App struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	syncService := services.NewFirebaseSyncService()
-	screenshotService := services.NewScreenshotService(syncService)
+	screenshotService := service_classes.NewScreenshotService()
 	authService := service_classes.NewAuthService()
-	taskService := service_classes.NewTaskService()
 	logger := utils.NewLoggerService()
 
 	return &App{
 		ScreenshotService: screenshotService,
 		SyncService:       syncService,
 		AuthService:       authService,
-		TaskService:       taskService,
 		Logger:            logger,
 	}
 }
@@ -62,7 +59,7 @@ var trayIcon []byte
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-	a.TaskService.AddContext(ctx)
+	a.AuthService.TaskService.AddContext(ctx)
 
 	db.Init(ctx)
 	db.DB.Exec("PRAGMA journal_mode = WAL;")
@@ -144,7 +141,7 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	// FIX https://chatgpt.com/c/69b2df18-4fd0-8321-a821-12d5b92e3b2e
 
 	// FIX ISSUES ON SCREENSHOT SO DISABLE IT FIRST AND PRIORITIZE WORKING TASK IN TASK OUT LOCAL THEN SYNC THEN SCREENSHOT LAST
-	a.TaskService.StartTracking(taskId, localStorageValue, padagan)
+	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
 
 	// if a.AttendanceID == nil {
 	// 	return
@@ -195,7 +192,7 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 func (a *App) StopTracking(taskId string) {
 	// NOTE this needs to be refactor, no logic should be applied here
 
-	a.TaskService.StopTracking(taskId)
+	a.AuthService.TaskService.StopTracking(taskId)
 	// if a.AuthUser == nil {
 	// 	utils.Logger.Println("StopTracking error: AuthUser is nil")
 	// 	return
@@ -291,8 +288,6 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	if err != nil {
 		return nil, err
 	}
-
-	a.TaskService.SetAttendance(attendance)
 	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
 	config.OnlineMode = true
@@ -398,8 +393,7 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
-
-	return a.AuthService.Logout(a.TaskService.WorkingTaskID, a.AuthService.TaskService.Attendance)
+	return a.AuthService.Logout()
 }
 
 func (a *App) GetActiveTaskRecord() *string {
@@ -449,7 +443,7 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 }
 
 func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
-	return a.TaskService.GetTasks(isOnline)
+	return a.AuthService.TaskService.GetTasks(isOnline)
 }
 
 func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, error) {
@@ -501,7 +495,7 @@ func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
 	}
 
 	// FIX change to attempt sync record
-	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
+	if err := a.AuthService.TaskService.SyncService.SyncTaskRecord(taskRecord); err != nil {
 		return err
 	}
 
@@ -516,7 +510,7 @@ func (a *App) SyncUnsyncedAttendance() error {
 	}
 
 	// FIX change to attempt sync attendance
-	if err := a.SyncService.SyncAttendance(attendance); err != nil {
+	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		return err
 	}
 
@@ -541,7 +535,7 @@ func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error)
 // This is used to get the tasks that have recently used so that it can be quickly seen.
 // Tasks Records displayed will be ordered by how recent they are
 func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
-	return a.TaskService.GetLastTaskRecords()
+	return a.AuthService.TaskService.GetLastTaskRecords()
 }
 
 func (a *App) AddMemo(memo, notes string) {

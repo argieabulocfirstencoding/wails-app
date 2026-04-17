@@ -13,6 +13,10 @@ func (l *LoggerService) Error(a ...any) error {
 	return fmt.Errorf("%s", a...)
 }
 
+func (l *LoggerService) Errorf(format string, a ...any) error {
+	return fmt.Errorf(format, a...)
+}
+
 func (l *LoggerService) Warn(message string) {
 
 }

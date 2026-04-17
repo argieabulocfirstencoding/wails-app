@@ -58,7 +58,6 @@ func (f *FesClientService) SetApiToken(token string) {
 func (f *FesClientService) Request(request types.Request) (map[string]interface{}, error) {
 	apiToken := f.getApiToken()
 
-
 	url := f.baseUrl + request.Url
 	reqType := request.Method
 
@@ -91,13 +90,14 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 		return nil, err
 	}
 
+	f.logger.Printlnf("RESULT: %v", result)
 	response, ok := result["response"].(map[string]any)
 	if !ok {
 		errorMessage, ok := result["message"].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to parse login response: unexpected format")
+			return nil, f.logger.Error("failed to parse login response: unexpected format")
 		}
-		return nil, fmt.Errorf("%s", errorMessage)
+		return nil, f.logger.Errorf("%s", errorMessage)
 	}
 
 	return response, nil

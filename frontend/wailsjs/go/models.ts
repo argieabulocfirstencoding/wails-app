@@ -143,6 +143,7 @@ export namespace models {
 	    Duration: number;
 	    // Go type: time
 	    SyncedAt?: any;
+	    Productivity?: number[];
 	    SyncStatus: string;
 	    Gap: number;
 	    Screenshots: Screenshot[];
@@ -165,6 +166,7 @@ export namespace models {
 	        this.EndedAt = this.convertValues(source["EndedAt"], null);
 	        this.Duration = source["Duration"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
+	        this.Productivity = source["Productivity"];
 	        this.SyncStatus = source["SyncStatus"];
 	        this.Gap = source["Gap"];
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
@@ -264,6 +266,7 @@ export namespace models {
 	    TimeIn: any;
 	    // Go type: time
 	    TimeOut?: any;
+	    LoginLogoutID?: string;
 	    // Go type: time
 	    SyncedAt?: any;
 	    SyncStatus: string;
@@ -284,6 +287,7 @@ export namespace models {
 	        this.TotalGap = source["TotalGap"];
 	        this.TimeIn = this.convertValues(source["TimeIn"], null);
 	        this.TimeOut = this.convertValues(source["TimeOut"], null);
+	        this.LoginLogoutID = source["LoginLogoutID"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
 	        this.SyncStatus = source["SyncStatus"];
 	    }

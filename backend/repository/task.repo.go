@@ -1,19 +1,24 @@
 package repository
 
 import (
+	"errors"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
 	"time"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 type TaskRepository struct {
+	AttendanceRepository *AttendanceRepository
 }
 
 func NewTaskRepository() *TaskRepository {
-	return &TaskRepository{}
+	return &TaskRepository{
+		AttendanceRepository: NewAttendanceRepository(),
+	}
 }
 
 func (t *TaskRepository) CreateTask(title, client string) (*models.Task, error) {
@@ -97,7 +102,7 @@ func (t *TaskRepository) CheckTaskRecord(userId, taskId string) (*models.TaskRec
 
 // ==================== TASK RECORD ===========================
 
-func (t *TaskRepository) GetTaskRecord(id string) (*models.TaskRecord, error) {
+func (t *TaskRepository) GetTaskRecord(id uint) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 
 	if err := db.DB.Find(&taskRecord, id).Error; err != nil {
@@ -123,4 +128,57 @@ func (t *TaskRepository) StopAllActiveRecords(attendance *models.Attendance) err
 	}
 
 	return nil
+}
+
+func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
+	// TODO add fetch on firebase
+	var taskRecord models.TaskRecord
+	if err := db.DB.Where("user_id = ? AND task_id = ?", userId, taskId).Last(&taskRecord).Error; err != nil {
+		fmt.Println("DB error:", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	taskRecordExp := taskRecord.ToExp()
+	return &taskRecordExp, nil
+}
+
+func (t *TaskRepository) UpdateRecord(tr *models.TaskRecord) error {
+
+	now := time.Now()
+	tr.EndedAt = &now
+
+	if !tr.StartedAt.IsZero() {
+		duration := int32(now.Sub(tr.StartedAt).Seconds())
+		tr.Duration = duration
+	}
+
+	// This part updates the database
+	return db.DB.Model(tr).Updates(models.TaskRecord{
+		EndedAt:  tr.EndedAt,
+		Duration: tr.Duration,
+	}).Error
+}
+
+func (t *TaskRepository) GetAllPreviousTasksRecords(userID string) ([]models.TaskRecord, error) {
+	sub := db.DB.
+		Model(&models.TaskRecord{}).
+		Select("task_id, MAX(started_at) as started_at").
+		Where("user_id = ?", userID).
+		Group("task_id")
+
+	var taskRecords []models.TaskRecord
+	err := db.DB.
+		Joins("JOIN (?) AS t ON t.task_id = task_records.task_id AND t.started_at = task_records.started_at", sub).
+		Find(&taskRecords).Error
+
+	if err != nil {
+		fmt.Println("DB error:", err)
+		return nil, err
+	}
+
+	return taskRecords, nil
 }

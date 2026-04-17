@@ -10,10 +10,10 @@ type AttendanceService struct {
 	SyncService    *SyncService
 }
 
-func NewAttendanceService() *AttendanceService {
+func NewAttendanceService(SyncService *SyncService) *AttendanceService {
 	return &AttendanceService{
 		AttendanceRepo: &repository.AttendanceRepository{},
-		SyncService:    NewSyncService(),
+		SyncService:    SyncService,
 	}
 }
 

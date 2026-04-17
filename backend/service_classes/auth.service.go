@@ -20,13 +20,15 @@ type AuthService struct {
 }
 
 func NewAuthService() *AuthService {
+	SyncService := NewSyncService()
 	return &AuthService{
-		SyncService:       NewSyncService(),
-		FesClientService:  NewFesClientService(),
-		Logger:            utils.NewLoggerService(),
-		UserService:       NewUserService(),
-		AttendanceService: NewAttendanceService(),
-		TaskService:       NewTaskService(),
+		FesClientService: NewFesClientService(),
+		Logger:           utils.NewLoggerService(),
+		UserService:      NewUserService(),
+
+		SyncService:       SyncService,
+		AttendanceService: NewAttendanceService(SyncService),
+		TaskService:       NewTaskService(SyncService),
 	}
 }
 
@@ -45,8 +47,9 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	if err != nil {
 		return nil, nil, err
 	}
+	a.TaskService.SetAttendance(attendance)
 
-	if err := a.SyncService.SyncAttendance(attendance); err != nil {
+	if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		a.Logger.Printf("error syncing attendance on login")
 	}
 
@@ -70,7 +73,9 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	return attendance, authUser, nil
 }
 
-func (a *AuthService) Logout(workingTaskID *string, attendance *models.Attendance) error {
+func (a *AuthService) Logout() error {
+	attendance := a.TaskService.Attendance
+	workingTaskID := a.TaskService.WorkingTaskID
 
 	if workingTaskID != nil {
 		a.TaskService.StopTracking(*workingTaskID)
@@ -82,7 +87,7 @@ func (a *AuthService) Logout(workingTaskID *string, attendance *models.Attendanc
 			return err
 		}
 
-		if err := a.SyncService.SyncAttendance(attendance); err != nil {
+		if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 			a.Logger.Printf("error syncing attendance on logout")
 		}
 	} else {
@@ -115,11 +120,10 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 		return nil, err
 	}
 
-	a.Logger.Printlnf("Login Response: %v", resp)
 	userId := resp["user_id"].(string)
 	token := resp["token"].(string)
 
-	a.SyncService.FesClientService.SetApiToken(token)
+	a.TaskService.SyncService.FesClientService.SetApiToken(token)
 
 	_, create_user_err := a.UserService.CreateUser(userId, email)
 	if create_user_err != nil {

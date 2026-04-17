@@ -2,6 +2,7 @@ package service_classes
 
 import (
 	"context"
+	"errors"
 	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
@@ -11,6 +12,8 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type TaskService struct {
@@ -23,16 +26,18 @@ type TaskService struct {
 	ctx               context.Context
 }
 
-func NewTaskService() *TaskService {
+func NewTaskService(SyncService *SyncService) *TaskService {
 	return &TaskService{
 		TaskRepository:    repository.NewTaskRepository(),
 		ScreenshotService: NewScreenshotService(),
-		SyncService:       NewSyncService(),
+		SyncService:       SyncService,
+		Logger:            utils.NewLoggerService(),
 	}
 }
 
 func (t *TaskService) AddContext(ctx context.Context) {
 	t.ctx = ctx
+	t.SyncService.Connect(ctx)
 }
 
 func (t *TaskService) SetAttendance(attendance *models.Attendance) {
@@ -78,7 +83,7 @@ func (t *TaskService) DeleteTask(id string) error {
 
 // ======================== TASK RECORD METHODS ====================================
 
-func (t *TaskService) GetTaskRecord(id string) (*models.TaskRecord, error) {
+func (t *TaskService) GetTaskRecord(id uint) (*models.TaskRecord, error) {
 	return t.TaskRepository.GetTaskRecord(id)
 }
 
@@ -87,7 +92,7 @@ func (t *TaskService) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 		return nil, fmt.Errorf("GetLastTaskRecords error: AuthUser is nil")
 	}
 
-	task_records, err := services.GetAllPreviousTasksRecords(t.Attendance.UserID)
+	task_records, err := t.TaskRepository.GetAllPreviousTasksRecords(t.Attendance.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +114,7 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	attendanceId := t.Attendance.ID
 
 	if taskRecord, err := t.TaskRepository.CheckTaskRecord(userId, taskId); err == nil {
-		return nil, err
+		t.Logger.Println(err) // TODO remove if not used
 	} else {
 		if err := t.updateRecord(taskRecord); err != nil {
 			return nil, err
@@ -117,40 +122,63 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	}
 
 	record, err := t.newTaskRecord(userId, taskId, attendanceId, padagan)
+	if err := t.SyncService.SyncTaskRecord(record); err != nil {
+		t.Logger.Printlnf("error syncing task_record: %v", err)
+	}
 
 	return record, err
 }
 
 func (t *TaskService) StopTaskRecord(userId, taskId string) error {
+	var taskRecord models.TaskRecord
+
+	err := db.DB.Where("user_id = ? AND task_id = ? AND ended_at IS NULL", userId, taskId).
+		First(&taskRecord).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		fmt.Printf("no active task found for user %s task %s", userId, taskId)
+	}
+	if err != nil {
+		return err
+	}
+
+	// ✅ only call UpdateRecord if we really have a record
+	if taskRecord.ID == 0 {
+		return fmt.Errorf("invalid taskRecord, no ID")
+	}
+
+	if err := t.TaskRepository.UpdateRecord(&taskRecord); err != nil {
+		return fmt.Errorf("failed to update record: %w", err)
+	}
+
+	fmt.Println("STOPPED TASK RECORD")
 	return nil
 }
 
 func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bool) {
-	userId := t.Attendance.UserID
-	attendanceId := t.Attendance.ID
 
 	if t.ScreenshotService.Running {
 		t.ScreenshotService.Stop()
 	}
-
-	if err := services.StopAllActiveRecords(userId); err != nil {
+	if err := t.TaskRepository.StopAllActiveRecords(t.Attendance); err != nil {
 		fmt.Printf("Error stoping active task record: %s", err)
 	}
 
 	if t.ScreenshotService.TaskRecordID != nil {
-		record, err := services.GetTaskRecordFromID(*t.ScreenshotService.TaskRecordID)
+		record, err := t.GetTaskRecord(*t.ScreenshotService.TaskRecordID)
 
 		if err != nil {
 			fmt.Printf("Error on syncing record: %s", err)
 		} else {
-			t.SyncService.SyncTaskRecord(record)
+			if err := t.SyncService.SyncTaskRecord(record); err != nil {
+				t.Logger.Printlnf("error syncing task_record: %v", err)
+			}
 		}
 
 	}
 
 	t.ScreenshotService.FolderName = localStorageValue
-	t.WorkingTaskID = &taskId
-	record, err := services.StartTaskRecord(userId, taskId, attendanceId, padagan)
+	t.ScreenshotService.TaskID = &taskId
+	record, err := t.StartTaskRecord(taskId, padagan)
 
 	if err != nil {
 		t.Logger.Printf("error starting task record: %v", err)
@@ -158,7 +186,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	t.ScreenshotService.TaskID = t.WorkingTaskID
 	t.ScreenshotService.TaskRecordID = &record.ID
 
-	task, err := services.GetTaskFromID(taskId)
+	task, err := t.TaskRepository.GetTask(taskId)
 	if err != nil {
 		return
 	}
@@ -180,7 +208,7 @@ func (t *TaskService) StopTracking(taskId string) {
 	}
 
 	t.ScreenshotService.Stop()
-	err := services.StopTaskRecord(
+	err := t.StopTaskRecord(
 		userId,
 		taskId,
 	)
@@ -199,15 +227,14 @@ func (t *TaskService) StopTracking(taskId string) {
 	if config.OnlineMode {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
-		taskRecord, err := services.GetTaskRecordFromID(*t.ScreenshotService.TaskRecordID)
+		taskRecord, err := t.TaskRepository.GetTaskRecord(*t.ScreenshotService.TaskRecordID)
 		if err != nil {
 			log.Printf("error retrieving task record: %v\n", err)
 		}
 		log.Printf("Syncing record: %v\n", taskRecord)
-
-		attendance, _ := services.GetUserAttendance(userId)
-		db.DB.Model(&taskRecord).Update("sync_status", "pending")
-		db.DB.Model(&attendance).Update("sync_status", "pending")
+		attendance, _ := t.TaskRepository.AttendanceRepository.GetAttendanceFromUserID(userId)
+		db.DB.Model(taskRecord).Update("sync_status", "pending")
+		db.DB.Model(attendance).Update("sync_status", "pending")
 
 		if err := t.SyncService.SyncTaskRecord(taskRecord); err != nil {
 			log.Printf("error syncing task_record: %v", err)

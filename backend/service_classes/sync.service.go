@@ -2,6 +2,7 @@ package service_classes
 
 import (
 	"context"
+	"encoding/json"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
@@ -9,6 +10,8 @@ import (
 	"fesapp/backend/utils"
 	"sync"
 	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type SyncService struct {
@@ -49,21 +52,44 @@ func (s *SyncService) SyncTasks() {
 
 }
 
-func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
+func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) {
 
-	Save := func(taskRecord *models.TaskRecord) {
-		if err := db.DB.Save(&taskRecord).Error; err != nil {
-			s.Logger.Println("Failed to save user:", err)
+	defer func() {
+		if err != nil {
+			s.Logger.Println("Failed to sync task record:", err)
+			runtime.EventsEmit(s.ctx, "record-synced", false)
+		} else {
+			runtime.EventsEmit(s.ctx, "record-synced", true)
 		}
+	}()
+
+	Save := func() error {
+		if err := db.DB.Save(taskRecord).Error; err != nil {
+			s.Logger.Println("Failed to save user:", err)
+			return err
+		}
+		return nil
 	}
 
-	if taskRecord.EndedAt != nil && taskRecord.ProductivityID != nil {
+	SaveStatus := func() error {
+		now := time.Now()
+		taskRecord.SyncedAt = &now
+		taskRecord.SyncStatus = "synced"
+		taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
 
+		return Save()
+	}
+
+	taskRecord.SyncStatus = "pending"
+	Save()
+
+	if taskRecord.EndedAt != nil {
+		s.Logger.Printlnf("Syncing TASK OUT")
 		if resp, err := s.FesClientService.Request(types.Request{
 			Url:    "wf/task_out",
 			Method: "POST",
 			Body: map[string]any{
-				"productivity":    taskRecord.ProductivityID,
+				"productivity":    taskRecord.Productivity,
 				"total_task_time": taskRecord.Duration,
 				"task_out":        taskRecord.EndedAt.UnixMilli(),
 			},
@@ -72,10 +98,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		} else {
 			s.Logger.Printlnf("Sync Task Record Response: %v", resp)
 
-			now := time.Now()
-			taskRecord.SyncedAt = &now
-			Save(taskRecord)
-			return nil
+			return SaveStatus()
 		}
 	}
 
@@ -84,6 +107,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 		padagan = "Padagan"
 	}
 
+	s.Logger.Printlnf("Syncing TASK IN")
 	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/task_in",
 		Method: "POST",
@@ -94,43 +118,87 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) error {
 			"employee_ID":       taskRecord.User.EmployeeId,
 			"padagan":           padagan,
 			"projects_projects": taskRecord.TaskID,
+			"task_time":         taskRecord.Duration,
+			"login_logout":      *taskRecord.Attendance.LoginLogoutID,
 		},
 	}); err != nil {
 		return err
 	} else {
 		s.Logger.Printlnf("Sync Task Record Response: %v", resp)
-		productivity_id, ok := resp["Productivty_ID"].(uint)
-		if ok {
-			now := time.Now()
-			taskRecord.ProductivityID = &productivity_id
-			taskRecord.SyncedAt = &now
-			Save(taskRecord)
+
+		s.Logger.Printlnf("PRODUCTIVITY ID: %v", resp["productivity"])
+
+		if productivity, ok := resp["productivity"]; ok {
+			jsonData, err := json.Marshal(productivity)
+			if err != nil {
+				return err
+			}
+			// Cast to RawMessage so it stays as valid JSON
+			p := json.RawMessage(jsonData)
+			taskRecord.Productivity = &p
 		}
 
-	}
+		return SaveStatus()
 
-	return nil
+	}
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 
-	resp, err := s.FesClientService.Request(types.Request{
+	Save := func() {
+		if err := db.DB.Save(attendance).Error; err != nil {
+			s.Logger.Println("Failed to save user:", err)
+		}
+	}
+
+	SaveStatus := func() {
+		now := time.Now()
+		attendance.SyncedAt = &now
+		attendance.SyncStatus = "synced"
+		Save()
+
+	}
+
+	attendance.SyncStatus = "pending"
+	Save()
+
+	if attendance.TimeOut != nil && attendance.LoginLogoutID != nil {
+		if resp, err := s.FesClientService.Request(types.Request{
+			Url:    "wf/logout",
+			Method: "POST",
+			Body: map[string]any{
+				"login": attendance.TimeIn.UnixMilli()},
+		}); err != nil {
+			return err
+		} else {
+			s.Logger.Printlnf("Sync Attendance Response: %v", resp)
+			SaveStatus()
+			return nil
+		}
+
+	}
+
+	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/login_attendance",
 		Method: "POST",
 		Body: map[string]any{
 			"login": attendance.TimeIn.UnixMilli()},
-	})
-
-	if err != nil {
+	}); err != nil {
 		s.Logger.Println("Attempt sync attendance error:", err)
 		return err
-	}
+	} else {
+		s.Logger.Println("Sync Attendance Response:", resp)
 
-	s.Logger.Println("Sync Attendance Response:", resp)
+		_, ok := resp["user_id"].(string)
+		if !ok {
+			return s.Logger.Error("Something went wrong when syncing attendance!")
+		}
 
-	_, ok := resp["user_id"].(string)
-	if !ok {
-		return s.Logger.Error("Something went wrong when syncing attendance!")
+		if loginLogout, ok := resp["login_logout"].(string); ok {
+			s.Logger.Println("LOGIN ID: ", loginLogout)
+			attendance.LoginLogoutID = &loginLogout
+			SaveStatus()
+		}
 	}
 
 	return nil
