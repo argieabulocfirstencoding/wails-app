@@ -46,6 +46,10 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 		return nil, nil, err
 	}
 
+	if err := a.SyncService.SyncAttendance(attendance); err != nil {
+		a.Logger.Printf("error syncing attendance on login")
+	}
+
 	if err := a.UserService.FetchEmployeeDetails(ctx, *userId); err != nil {
 		return nil, nil, err
 	}
@@ -113,6 +117,9 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 
 	a.Logger.Printlnf("Login Response: %v", resp)
 	userId := resp["user_id"].(string)
+	token := resp["token"].(string)
+
+	a.SyncService.FesClientService.SetApiToken(token)
 
 	_, create_user_err := a.UserService.CreateUser(userId, email)
 	if create_user_err != nil {

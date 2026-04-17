@@ -49,7 +49,7 @@ func (t *TaskService) GetTask(id string) (*models.ExpTask, error) {
 
 func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 	if config.OnlineMode && isOnline {
-		if err := t.SyncService.fesClient.SyncClientsAndProjects(); err != nil {
+		if err := t.SyncService.FesClientService.SyncClientsAndProjects(); err != nil {
 			t.Logger.Printf("error fetching tasks from fes: %v", err)
 		}
 	}

@@ -9,8 +9,8 @@ func NewLoggerService() *LoggerService {
 	return &LoggerService{}
 }
 
-func (l *LoggerService) Error(message string) {
-
+func (l *LoggerService) Error(a ...any) error {
+	return fmt.Errorf("%s", a...)
 }
 
 func (l *LoggerService) Warn(message string) {

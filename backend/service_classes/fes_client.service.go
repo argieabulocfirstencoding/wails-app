@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fesapp/backend/db/models"
+	db "fesapp/backend/db/models"
 	"fesapp/backend/repository"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
 	"net/http"
-	"os"
+
+	"github.com/zalando/go-keyring"
 )
 
 type FesClientService struct {
@@ -19,9 +20,11 @@ type FesClientService struct {
 	logger         *utils.LoggerService
 	TaskRepository *repository.TaskRepository
 	ctx            context.Context
+	apiToken       string
 }
 
 func NewFesClientService() *FesClientService {
+
 	return &FesClientService{
 		// baseUrl: "https://firstencoding.app/api/1.1/",
 		baseUrl:        "https://firstencoding.app/version-test/api/1.1/",
@@ -29,16 +32,32 @@ func NewFesClientService() *FesClientService {
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
 	}
+
 }
 
 // ============== GENERAL METHODS =======================
 
 func (f *FesClientService) getApiToken() string {
-	return os.Getenv("FES_API") // FIX this is only for testing purpose,
+	if f.apiToken != "" {
+		return f.apiToken
+	}
+
+	if apiToken, err := keyring.Get("credentials", "fes_api_token"); err == nil {
+		f.apiToken = apiToken
+		return apiToken
+	}
+
+	return ""
+}
+
+func (f *FesClientService) SetApiToken(token string) {
+	f.apiToken = token
+	keyring.Set("credentials", "fes_api_token", token)
 }
 
 func (f *FesClientService) Request(request types.Request) (map[string]interface{}, error) {
 	apiToken := f.getApiToken()
+
 
 	url := f.baseUrl + request.Url
 	reqType := request.Method
@@ -105,7 +124,7 @@ func (f *FesClientService) fetchClients() error {
 	targetUrl := f.baseUrl + "obj/clients?cursor="
 	cursor := 0
 
-	var clients []models.Client
+	var clients []db.Client
 
 	for {
 		url := fmt.Sprintf("%s%d", targetUrl, cursor)
@@ -138,13 +157,12 @@ func (f *FesClientService) fetchClients() error {
 			return fmt.Errorf("error on getting results value")
 		}
 
-
 		remaining, ok := response["remaining"].(float64)
 		if !ok {
 			return fmt.Errorf("error no remaining value was found")
 		}
 
-		clients = make([]models.Client, 0)
+		clients = make([]db.Client, 0)
 		for _, item := range results {
 
 			record, ok := item.(map[string]interface{})
@@ -157,7 +175,7 @@ func (f *FesClientService) fetchClients() error {
 			fullName, _ := record["Full name"].(string)
 			companyName, _ := record["Company Name"].(string)
 
-			clients = append(clients, models.Client{
+			clients = append(clients, db.Client{
 				ID:          id,
 				CompanyName: companyName,
 				Fullname:    fullName,
@@ -187,7 +205,7 @@ func (f *FesClientService) fetchProjects() error {
 	fmt.Printf("Fetching FES Projects")
 	targetUrl := f.baseUrl + "obj/projects-projects?limit=100&cursor="
 	cursor := 0
-	var tasks []models.Task
+	var tasks []db.Task
 
 	for {
 		url := fmt.Sprintf("%s%d", targetUrl, cursor)
@@ -225,7 +243,7 @@ func (f *FesClientService) fetchProjects() error {
 			return fmt.Errorf("no remaining value indicated")
 		}
 
-		tasks = make([]models.Task, 0, len(results))
+		tasks = make([]db.Task, 0, len(results))
 
 		for _, item := range results {
 			record, ok := item.(map[string]interface{})
@@ -244,7 +262,7 @@ func (f *FesClientService) fetchProjects() error {
 			account, _ := record["Account"].(string)
 			projectName, _ := record["Project name"].(string)
 
-			tasks = append(tasks, models.Task{
+			tasks = append(tasks, db.Task{
 				TaskID:      id,
 				Title:       account,
 				ClientID:    clientId,

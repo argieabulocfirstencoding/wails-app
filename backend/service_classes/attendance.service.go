@@ -6,23 +6,26 @@ import (
 )
 
 type AttendanceService struct {
-	attendanceRepo *repository.AttendanceRepository
+	AttendanceRepo *repository.AttendanceRepository
+	SyncService    *SyncService
 }
 
 func NewAttendanceService() *AttendanceService {
 	return &AttendanceService{
-		attendanceRepo: &repository.AttendanceRepository{},
+		AttendanceRepo: &repository.AttendanceRepository{},
+		SyncService:    NewSyncService(),
 	}
 }
 
 func (a *AttendanceService) LoginAttendance(userId string) (*models.Attendance, error) {
-	return a.attendanceRepo.CreateAttendance(userId)
+	return a.AttendanceRepo.CreateAttendance(userId)
+
 }
 
 func (a *AttendanceService) LogoutAttendance(attendance *models.Attendance) error {
-	return a.attendanceRepo.LogoutAttendance(attendance)
+	return a.AttendanceRepo.LogoutAttendance(attendance)
 }
 
 func (a *AttendanceService) GetAttendanceFromID(id uint) (*models.Attendance, error) {
-	return a.attendanceRepo.GetAttendanceFromID(id)
+	return a.AttendanceRepo.GetAttendanceFromID(id)
 }
