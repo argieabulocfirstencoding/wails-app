@@ -38,6 +38,8 @@ func (a *AuthService) AddTaskService(taskService *TaskService) {
 
 func (a *AuthService) Login(ctx context.Context, email, password string) (*models.Attendance, *models.AuthUser, error) {
 	a.ctx = ctx
+	a.TaskService.AddContext(ctx)
+
 	userId, err := a.AttemptLogin(email, password)
 	if err != nil {
 		return nil, nil, err
@@ -47,7 +49,6 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	if err != nil {
 		return nil, nil, err
 	}
-	a.TaskService.SetAttendance(attendance)
 
 	if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		a.Logger.Printf("error syncing attendance on login")
@@ -69,6 +70,8 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 		LocalID: *userId,
 		Email:   email,
 	}
+
+	a.TaskService.Attendance = attendance
 
 	return attendance, authUser, nil
 }

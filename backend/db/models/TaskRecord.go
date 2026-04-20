@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -18,7 +17,7 @@ type TaskRecord struct {
 	EndedAt      *time.Time
 	Duration     int32
 	SyncedAt     *time.Time
-	Productivity *json.RawMessage
+	Productivity *string
 	SyncStatus   string `gorm:"not null;default:'pending'"`
 	Gap          int32  `gorm:"not null;default:0"`
 	Screenshots  []Screenshot

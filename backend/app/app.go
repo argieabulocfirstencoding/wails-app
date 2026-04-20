@@ -59,7 +59,6 @@ var trayIcon []byte
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-	a.AuthService.TaskService.AddContext(ctx)
 
 	db.Init(ctx)
 	db.DB.Exec("PRAGMA journal_mode = WAL;")
@@ -142,7 +141,8 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 
 	// FIX ISSUES ON SCREENSHOT SO DISABLE IT FIRST AND PRIORITIZE WORKING TASK IN TASK OUT LOCAL THEN SYNC THEN SCREENSHOT LAST
 	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
-
+	a.WorkingTaskID = a.AuthService.TaskService.WorkingTaskID
+	
 	// if a.AttendanceID == nil {
 	// 	return
 	// }
@@ -289,7 +289,9 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 		return nil, err
 	}
 	a.AttendanceID = &attendance.ID
+	a.Attendance = attendance
 	a.AuthUser = authUser
+
 	config.OnlineMode = true
 
 	return attendance, nil

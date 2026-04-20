@@ -2,7 +2,6 @@ package service_classes
 
 import (
 	"context"
-	"encoding/json"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
@@ -128,14 +127,16 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 
 		s.Logger.Printlnf("PRODUCTIVITY ID: %v", resp["productivity"])
 
-		if productivity, ok := resp["productivity"]; ok {
-			jsonData, err := json.Marshal(productivity)
-			if err != nil {
-				return err
-			}
-			// Cast to RawMessage so it stays as valid JSON
-			p := json.RawMessage(jsonData)
-			taskRecord.Productivity = &p
+		if productivity, ok := resp["productivity"].(string); ok {
+			// jsonData, err := json.Marshal(productivity)
+			// if err != nil {
+			// 	return err
+			// }
+			// // Cast to RawMessage so it stays as valid JSON
+			// p := json.RawMessage(jsonData)
+			// taskRecord.Productivity = &p
+
+			taskRecord.Productivity = &productivity
 		}
 
 		return SaveStatus()

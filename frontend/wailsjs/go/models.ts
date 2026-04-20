@@ -143,7 +143,7 @@ export namespace models {
 	    Duration: number;
 	    // Go type: time
 	    SyncedAt?: any;
-	    Productivity?: number[];
+	    Productivity?: string;
 	    SyncStatus: string;
 	    Gap: number;
 	    Screenshots: Screenshot[];

@@ -40,10 +40,6 @@ func (t *TaskService) AddContext(ctx context.Context) {
 	t.SyncService.Connect(ctx)
 }
 
-func (t *TaskService) SetAttendance(attendance *models.Attendance) {
-	t.Attendance = attendance
-}
-
 func (t *TaskService) CreateTask(title, client string) (*models.ExpTask, error) {
 	return nil, nil
 }
@@ -122,6 +118,8 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	}
 
 	record, err := t.newTaskRecord(userId, taskId, attendanceId, padagan)
+	record.Attendance = *t.Attendance
+
 	if err := t.SyncService.SyncTaskRecord(record); err != nil {
 		t.Logger.Printlnf("error syncing task_record: %v", err)
 	}
@@ -163,7 +161,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 		fmt.Printf("Error stoping active task record: %s", err)
 	}
 
-	if t.ScreenshotService.TaskRecordID != nil {
+	if t.ScreenshotService.TaskRecordID != nil && t.WorkingTaskID != nil {
 		record, err := t.GetTaskRecord(*t.ScreenshotService.TaskRecordID)
 
 		if err != nil {
@@ -178,6 +176,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 
 	t.ScreenshotService.FolderName = localStorageValue
 	t.ScreenshotService.TaskID = &taskId
+	t.WorkingTaskID = &taskId
 	record, err := t.StartTaskRecord(taskId, padagan)
 
 	if err != nil {
