@@ -72,6 +72,7 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	}
 
 	a.TaskService.Attendance = attendance
+	a.TaskService.SyncService.AuthUser = authUser
 
 	return attendance, authUser, nil
 }

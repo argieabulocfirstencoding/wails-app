@@ -16,7 +16,7 @@ import (
 type SyncService struct {
 	ctx              context.Context
 	isConnected      bool
-	AuthUser         *models.FirebaseLoginResponse
+	AuthUser         *models.AuthUser
 	IdToken          *string
 	IssuedAt         *time.Time
 	Backblaze        *services.BackblazeSync
@@ -168,7 +168,11 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 			Url:    "wf/logout",
 			Method: "POST",
 			Body: map[string]any{
-				"login": attendance.TimeIn.UnixMilli()},
+				"email":        s.AuthUser.Email,
+				"login_logout": *attendance.LoginLogoutID,
+				"date_logout":  attendance.TimeOut.UnixMilli(),
+				"duration": int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),
+			},
 		}); err != nil {
 			return err
 		} else {
