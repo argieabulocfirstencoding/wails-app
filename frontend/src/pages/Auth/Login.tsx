@@ -13,10 +13,8 @@ import {
 } from "@/components/ui/card";
 
 import logo from "@/assets/images/first-encoding_logo.webp";
-import { BackendFirebaseSync, LoginUserOnline } from "@/../wailsjs/go/app/App";
+import {  LoginUserOnline } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/firebase";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import { Eye, EyeOff } from "lucide-react";
@@ -46,18 +44,6 @@ const Login = () => {
       const attendance = await LoginUserOnline(email, password);
       console.log("Auth Response: ", attendance);
 
-      // const authUser = await signInWithEmailAndPassword(auth, email, password);
-      // const tokenResult = await authUser.user.getIdTokenResult();
-
-      // if (!authUser.user.email) return;
-
-      const payload = {
-        idToken: "THIS IS NO LONGER NEEDED",
-        refreshToken: "THIS IS NO LONGER NEEDED",
-        expiresIn: "3000", // assumes 50 minutes to expire
-        userId: attendance.UserID,
-        email: email,
-      };
 
       if (cancelRef.current) {
         setErrorMsg("Login cancelled.");
@@ -83,19 +69,6 @@ const Login = () => {
       }
     } catch (error: any) {
       console.error(error);
-      // let message = "Unexpected error, please try again.";
-      // switch (error.code) {
-      //   case "auth/invalid-credential":
-      //     message = "Invalid email or password. Please try again.";
-      //     break;
-      //   case "auth/invalid-email":
-      //     message = "Please enter a valid email address.";
-      //     break;
-      //   case "auth/missing-password":
-      //   case "auth/weak-password":
-      //     message = "Please enter a valid password.";
-      //     break;
-      // }
       setErrorMsg(error);
     } finally {
       setLoading(false);

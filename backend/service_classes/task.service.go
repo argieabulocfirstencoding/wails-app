@@ -231,9 +231,7 @@ func (t *TaskService) StopTracking(taskId string) {
 			log.Printf("error retrieving task record: %v\n", err)
 		}
 		log.Printf("Syncing record: %v\n", taskRecord)
-		attendance, _ := t.TaskRepository.AttendanceRepository.GetAttendanceFromUserID(userId)
 		db.DB.Model(taskRecord).Update("sync_status", "pending")
-		db.DB.Model(attendance).Update("sync_status", "pending")
 
 		if err := t.SyncService.SyncTaskRecord(taskRecord); err != nil {
 			log.Printf("error syncing task_record: %v", err)

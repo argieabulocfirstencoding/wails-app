@@ -12,7 +12,6 @@ import Logout from "./pages/Auth/Logout";
 
 import { StopTracking } from "../wailsjs/go/app/App";
 import { EventsOn } from "../wailsjs/runtime";
-import Signup from "./pages/Auth/Signup";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useAuthStore } from "./store/AuthContext";
@@ -60,7 +59,6 @@ function App() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/activity-logs" element={<ActivityLogs />} />
         <Route path="/logout" element={<Logout />} />
-        <Route path="/signup" element={<Signup />} />
 
         {/* Not Found */}
         <Route path="*" element={<Login />} />

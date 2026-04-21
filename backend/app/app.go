@@ -175,6 +175,7 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	return attendance, nil
 }
 
+// REFACTOR this is not used anymore, was used on firebase integration
 // TODO recheck if this will sustain online login method
 func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) (*models.Attendance, error) {
 	// NOTE this needs to be refactor, no logic should be applied here
@@ -361,7 +362,8 @@ func (a *App) SyncAttendance() error {
 
 // Not used yet
 func (a *App) SyncUnsyncedRecords() error {
-	return a.SyncService.SyncUnsyncedRecords()
+
+	return a.AuthService.SyncService.SyncUnsyncedRecords()
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {

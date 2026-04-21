@@ -290,8 +290,6 @@ func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
 }
 
 func (s *ScreenshotService) SyncRecord(taskRecord *models.TaskRecord) {
-	attendance, _ := GetUserAttendance(s.SyncService.AuthUser.LocalID)
-	db.DB.Model(&attendance).Update("sync_status", "pending")
 	db.DB.Model(&taskRecord).Update("sync_status", "pending")
 
 	go func() {
