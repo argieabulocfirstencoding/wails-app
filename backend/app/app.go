@@ -121,119 +121,17 @@ func (a *App) Shutdown(ctx context.Context) {
 	runtime.LogPrint(ctx, "App is shutdown")
 }
 
-// DEPRECATED this was only used for testing
-// func (a *App) TakeScreenshot() []string {
-// 	screenshots, err := a.ScreenshotService.Screenshot()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	return screenshots
-// }
-
 func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
 }
 
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
-	// NOTE this needs to be refactor, no logic should be applied here
-	// FIX https://chatgpt.com/c/69b2df18-4fd0-8321-a821-12d5b92e3b2e
-
-	// FIX ISSUES ON SCREENSHOT SO DISABLE IT FIRST AND PRIORITIZE WORKING TASK IN TASK OUT LOCAL THEN SYNC THEN SCREENSHOT LAST
 	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
 	a.WorkingTaskID = a.AuthService.TaskService.WorkingTaskID
-	
-	// if a.AttendanceID == nil {
-	// 	return
-	// }
-
-	// if a.ScreenshotService.Running {
-	// 	a.ScreenshotService.Stop()
-	// }
-
-	// if err := services.StopAllActiveRecords(a.AuthUser.LocalID); err != nil {
-	// 	fmt.Printf("Error stoping active task record: %s", err)
-	// }
-
-	// if a.ScreenshotService.TaskRecordID != nil {
-	// 	record, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
-	// 	if err == nil {
-	// 		a.ScreenshotService.SyncRecord(record)
-	// 	}
-	// 	if err != nil {
-	// 		fmt.Printf("Error on syncing record: %s", err)
-	// 	}
-
-	// }
-
-	// a.ScreenshotService.FolderName = localStorageValue
-	// a.WorkingTaskID = &taskId
-	// record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID, padagan)
-
-	// if err != nil {
-	// 	utils.Logger.Printf("error starting task record: %v", err)
-	// }
-	// a.ScreenshotService.TaskID = a.WorkingTaskID
-	// a.ScreenshotService.TaskRecordID = &record.ID
-
-	// task, err := services.GetTaskFromID(taskId)
-	// if err != nil {
-	// 	return
-	// }
-
-	// if task.ProjectName == "Break" {
-	// 	a.ScreenshotService.SyncRecord(record)
-	// 	return
-	// }
-
-	// a.ScreenshotService.Start(a.ctx)
 }
 
 func (a *App) StopTracking(taskId string) {
-	// NOTE this needs to be refactor, no logic should be applied here
-
 	a.AuthService.TaskService.StopTracking(taskId)
-	// if a.AuthUser == nil {
-	// 	utils.Logger.Println("StopTracking error: AuthUser is nil")
-	// 	return
-	// }
-
-	// a.ScreenshotService.Stop()
-	// err := services.StopTaskRecord(
-	// 	a.AuthUser.LocalID,
-	// 	taskId,
-	// )
-	// if err != nil {
-	// 	utils.Logger.Println("StopTaskRecord error:", err)
-	// 	return
-	// }
-
-	// // Check before dereferencing
-	// if a.ScreenshotService.TaskRecordID == nil {
-	// 	log.Println("No TaskRecordID available to sync, skipping Firebase sync.")
-	// 	return
-	// }
-
-	// // Syncing TaskRecord to Firebase
-	// if config.OnlineMode {
-	// 	// Retrieving TaskRecord from TaskRecordID
-	// 	log.Print("Attempting to sync record")
-	// 	taskRecord, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
-	// 	if err != nil {
-	// 		log.Printf("error retrieving task record: %v\n", err)
-	// 	}
-	// 	log.Printf("Syncing record: %v\n", taskRecord)
-
-	// 	attendance, _ := services.GetUserAttendance(a.AuthUser.LocalID)
-	// 	db.DB.Model(&taskRecord).Update("sync_status", "pending")
-	// 	db.DB.Model(&attendance).Update("sync_status", "pending")
-
-	// 	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
-	// 		log.Printf("error syncing task_record: %v", err)
-	// 	}
-	// }
-
-	// a.ScreenshotService.TaskRecordID = nil
 }
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
@@ -248,26 +146,6 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 		return false
 	}
 	return dialog != "Yes"
-}
-
-// Deprecated testing purpose only
-// func (a *App) CheckAuth(name *string) bool {
-// 	service := "fesapp"
-// 	if name == nil || *name == "" {
-// 		return false
-// 	}
-
-// 	_, err := keyring.Get(service, *name)
-// 	return err == nil
-// }
-
-// FIX this is for testing purpose only, production backend server handles user registration
-func (a *App) RegisterUser(email string) (*db.User, error) {
-	user, err := services.CreateUser("123", email)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
 }
 
 // NOTE this is offline login
@@ -483,11 +361,7 @@ func (a *App) SyncAttendance() error {
 
 // Not used yet
 func (a *App) SyncUnsyncedRecords() error {
-	if err := a.SyncService.SyncUnsyncedRecords(); err != nil {
-		return err
-	}
-
-	return nil
+	return a.SyncService.SyncUnsyncedRecords()
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {

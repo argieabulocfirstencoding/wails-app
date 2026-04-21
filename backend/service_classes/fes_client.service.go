@@ -10,6 +10,7 @@ import (
 	"fesapp/backend/utils"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/zalando/go-keyring"
 )
@@ -25,9 +26,15 @@ type FesClientService struct {
 
 func NewFesClientService() *FesClientService {
 
+	baseUrl := "https://firstencoding.app/api/1.1/"
+	_, exists := os.LookupEnv("DEVELOPMENT")
+	if exists {
+		baseUrl = "https://firstencoding.app/version-test/api/1.1/"
+	}
+
 	return &FesClientService{
 		// baseUrl: "https://firstencoding.app/api/1.1/",
-		baseUrl:        "https://firstencoding.app/version-test/api/1.1/",
+		baseUrl:        baseUrl,
 		client:         &http.Client{},
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
