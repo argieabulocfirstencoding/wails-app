@@ -77,7 +77,7 @@ var GetUserAttendance = func(userId string) (*models.Attendance, error) {
 	return &attendance, nil
 }
 
-var LoginUser = func(email string) (*models.OfflineLoginProps, *uint, *models.AuthUser, error) {
+var LoginUser = func(email string) (*models.OfflineLoginProps, *models.Attendance, *models.AuthUser, error) {
 	user, err := OfflineLogin(email)
 	if err != nil {
 		return nil, nil, nil, err
@@ -100,5 +100,5 @@ var LoginUser = func(email string) (*models.OfflineLoginProps, *uint, *models.Au
 		Attendance: *attendance,
 	}
 
-	return offlineData, &attendance.ID, authUser, nil
+	return offlineData, attendance, authUser, nil
 }

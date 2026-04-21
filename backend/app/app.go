@@ -150,14 +150,15 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 
 // NOTE this is offline login
 func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
-	offlineData, attendanceID, authUser, err := services.LoginUser(email)
+	offlineData, attendance, authUser, err := services.LoginUser(email)
 	if err != nil {
 		return nil, err
 	}
 
-	a.AttendanceID = attendanceID
+	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
 	a.AuthService.TaskService.SyncService.AuthUser = authUser
+	a.AuthService.TaskService.Attendance = attendance
 
 	return offlineData, nil
 }
@@ -333,7 +334,7 @@ func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, 
 }
 
 func (a *App) OpenUpwork(taskID string) error {
-	services.FetchUpworkCreds(a.ctx, taskID)
+	a.AuthService.TaskService.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID)
 
 	return nil
 }
