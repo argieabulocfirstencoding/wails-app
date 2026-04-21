@@ -144,7 +144,16 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 	}
 }
 
-func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
+func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
+
+	defer func() {
+		if err != nil {
+			s.Logger.Println("Failed to sync task record:", err)
+			runtime.EventsEmit(s.ctx, "attendance-synced", false)
+		} else {
+			runtime.EventsEmit(s.ctx, "attendance-synced", true)
+		}
+	}()
 
 	Save := func() {
 		if err := db.DB.Save(attendance).Error; err != nil {
@@ -157,7 +166,6 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 		attendance.SyncedAt = &now
 		attendance.SyncStatus = "synced"
 		Save()
-
 	}
 
 	attendance.SyncStatus = "pending"
@@ -171,7 +179,7 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 				"email":        s.AuthUser.Email,
 				"login_logout": *attendance.LoginLogoutID,
 				"date_logout":  attendance.TimeOut.UnixMilli(),
-				"duration": int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),
+				"duration":     int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),
 			},
 		}); err != nil {
 			return err
@@ -183,22 +191,22 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) error {
 
 	}
 
+	body := map[string]any{
+		"login": attendance.TimeIn.UnixMilli()}
+
+	if attendance.LoginLogoutID != nil {
+		body["login_logout_id"] = *attendance.LoginLogoutID
+	}
+
 	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/login_attendance",
 		Method: "POST",
-		Body: map[string]any{
-			"login": attendance.TimeIn.UnixMilli()},
+		Body:   body,
 	}); err != nil {
 		s.Logger.Println("Attempt sync attendance error:", err)
 		return err
 	} else {
 		s.Logger.Println("Sync Attendance Response:", resp)
-
-		_, ok := resp["user_id"].(string)
-		if !ok {
-			return s.Logger.Error("Something went wrong when syncing attendance!")
-		}
-
 		if loginLogout, ok := resp["login_logout"].(string); ok {
 			s.Logger.Println("LOGIN ID: ", loginLogout)
 			attendance.LoginLogoutID = &loginLogout
