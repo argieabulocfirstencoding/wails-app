@@ -18,10 +18,12 @@ import { useAuthStore } from "@/store/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  GetTasks,
   LoginUserOnline,
   LogoutUser,
   SyncUnsyncedRecords,
 } from "@/../wailsjs/go/app/App";
+const { setTasks } = useAuthStore();
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
 
 interface SyncUser {
@@ -148,7 +150,6 @@ const ProfileBar = () => {
       );
       console.log("Auth Response: ", attendance);
 
-
       useAuthStore.getState().setUser({
         uid: attendance.UserID,
         email: syncUser.email || "",
@@ -161,6 +162,9 @@ const ProfileBar = () => {
         await SyncUnsyncedRecords();
         setSynced(true);
       }
+
+      const fetchedTasks: any = await GetTasks(false);
+      if (fetchedTasks) setTasks(fetchedTasks);
     } catch (error: any) {
       console.error(error);
       setOpenSyncDialog(true);

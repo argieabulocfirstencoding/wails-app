@@ -157,6 +157,7 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
+	a.AuthService.TaskService.SyncService.AuthUser = authUser
 
 	return offlineData, nil
 }

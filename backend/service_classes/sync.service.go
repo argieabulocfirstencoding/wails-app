@@ -115,7 +115,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 			"date":              taskRecord.Attendance.TimeIn.UnixMilli(),
 			"edited_by":         taskRecord.UserID,
 			"employee_ID":       taskRecord.User.EmployeeId,
-			"padaganan":           padagan,
+			"padaganan":         padagan,
 			"projects_projects": taskRecord.TaskID,
 			"task_time":         taskRecord.Duration,
 			"login_logout":      *taskRecord.Attendance.LoginLogoutID,
@@ -210,6 +210,18 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 		if loginLogout, ok := resp["login_logout"].(string); ok {
 			s.Logger.Println("LOGIN ID: ", loginLogout)
 			attendance.LoginLogoutID = &loginLogout
+
+			if timeInRaw, ok := resp["login"].(float64); ok {
+				// 1. Convert the float64 to an int64 (milliseconds)
+				milli := int64(timeInRaw)
+
+				// 2. Create the time.Time object using UnixMilli
+				timeIn := time.UnixMilli(milli)
+
+				s.Logger.Println("TIME IN: ", timeIn)
+				attendance.TimeIn = timeIn
+			}
+
 			SaveStatus()
 		}
 	}

@@ -52,8 +52,7 @@ const Home = () => {
     setInitializedTask,
     summaries,
   } = useAuthStore();
-  const [isHydrated, setHydrated] = useState(false);
-
+  
   useEffect(() => {
     if (!EventsOn) return;
 
