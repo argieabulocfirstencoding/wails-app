@@ -115,7 +115,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 			"date":              taskRecord.Attendance.TimeIn.UnixMilli(),
 			"edited_by":         taskRecord.UserID,
 			"employee_ID":       taskRecord.User.EmployeeId,
-			"padagan":           padagan,
+			"padaganan":           padagan,
 			"projects_projects": taskRecord.TaskID,
 			"task_time":         taskRecord.Duration,
 			"login_logout":      *taskRecord.Attendance.LoginLogoutID,
