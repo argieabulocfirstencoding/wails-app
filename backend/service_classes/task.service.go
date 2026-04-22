@@ -119,6 +119,7 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 
 	record, err := t.newTaskRecord(userId, taskId, attendanceId, padagan)
 	record.Attendance = *t.Attendance
+	record.User = t.Attendance.User
 
 	if err := t.SyncService.SyncTaskRecord(record); err != nil {
 		t.Logger.Printlnf("error syncing task_record: %v", err)

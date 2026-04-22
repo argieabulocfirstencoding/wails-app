@@ -36,10 +36,10 @@ func (u *UserService) CreateUser(id string, email string) (*models.User, error) 
 	return u.userRepo.CreateUser(id, email)
 }
 
-func (u *UserService) FetchEmployeeDetails(ctx context.Context, id string) error {
-	user, err := u.GetUserFromId(id)
-	if err != nil {
-		return err
+func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.User) error {
+
+	if user == nil {
+		return u.logger.Error("no user specified for fetching empoyee details")
 	}
 
 	url := "wf/employee_details"

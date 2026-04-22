@@ -2,11 +2,13 @@ package service_classes
 
 import (
 	"context"
+	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
+	"fmt"
 	"sync"
 	"time"
 
@@ -52,7 +54,6 @@ func (s *SyncService) SyncTasks() {
 }
 
 func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) {
-
 	defer func() {
 		if err != nil {
 			s.Logger.Println("Failed to sync task record:", err)
@@ -61,6 +62,10 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 			runtime.EventsEmit(s.ctx, "record-synced", true)
 		}
 	}()
+
+	if !config.OnlineMode {
+		return fmt.Errorf("not currently synced")
+	}
 
 	Save := func() error {
 		if err := db.DB.Save(taskRecord).Error; err != nil {
@@ -101,9 +106,9 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 		}
 	}
 
-	padagan := "Not Padagan"
+	padagan := "No"
 	if taskRecord.Padagan {
-		padagan = "Padagan"
+		padagan = "Yes"
 	}
 
 	s.Logger.Printlnf("Syncing TASK IN")
@@ -145,6 +150,10 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
+	if !config.OnlineMode {
+		runtime.EventsEmit(s.ctx, "attendance-synced", false)
+		return nil
+	}
 
 	defer func() {
 		if err != nil {

@@ -159,6 +159,7 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.AuthUser = authUser
 	a.AuthService.TaskService.SyncService.AuthUser = authUser
 	a.AuthService.TaskService.Attendance = attendance
+	a.AuthService.TaskService.AddContext(a.ctx)
 
 	return offlineData, nil
 }
@@ -369,9 +370,15 @@ func (a *App) SyncUnsyncedRecords() error {
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
+
 	taskRecord, err := services.GetTaskRecordFromID(taskrecordId)
 	if err != nil {
 		return err
+	}
+
+	if a.Attendance != nil {
+		taskRecord.User = a.Attendance.User
+		taskRecord.Attendance = *a.Attendance
 	}
 
 	// FIX change to attempt sync record

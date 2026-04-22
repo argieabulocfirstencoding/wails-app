@@ -54,7 +54,10 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 		a.Logger.Printf("error syncing attendance on login")
 	}
 
-	if err := a.UserService.FetchEmployeeDetails(ctx, *userId); err != nil {
+	attendance.User.ID = *userId
+	attendance.User.Email = email
+
+	if err := a.UserService.FetchEmployeeDetails(ctx, &attendance.User); err != nil {
 		return nil, nil, err
 	}
 
