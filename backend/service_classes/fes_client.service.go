@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	config "fesapp/backend"
 	db "fesapp/backend/db/models"
 	"fesapp/backend/repository"
 	"fesapp/backend/types"
@@ -17,6 +18,7 @@ import (
 	"github.com/micmonay/keybd_event"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
+	"golang.org/x/sys/windows"
 )
 
 type FesClientService struct {
@@ -300,14 +302,18 @@ func (f *FesClientService) fetchProjects() error {
 }
 
 func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) {
+	if !config.OnlineMode {
+		return
+	}
+
 	fmt.Print("Fetching Upwork Credentials Please wait")
 	time.Sleep(1000 * time.Millisecond)
 	f.logger.Print("Opening upwork..")
-	openFESApp(ctx)
+	// openFESApp(ctx)
 
 	runtime.EventsEmit(ctx, "upwork-button", true)
 
-	task, err := f.TaskRepository.GetTask(taskID)
+	task, err := f.TaskRepository.GetTaskFromTaskID(taskID)
 	if err != nil {
 		log.Printf("error on getting task: %v", err)
 	}
@@ -322,44 +328,68 @@ func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) 
 		Body:   body,
 	})
 
-	copyToClipboard := func(key string) {
+	copyToClipboard := func(key string) error {
 		if valueInterface, ok := response[key]; ok {
 			if value, ok := valueInterface.(string); ok {
+				if value == "" {
+					return fmt.Errorf("error copy")
+				}
 				clipboard.WriteAll(value)
 			} else {
 				// Handle the case where the value is not a string
 				fmt.Println(key + " is not a string")
 				clipboard.WriteAll("")
-				return
+				return fmt.Errorf("error copy")
 			}
 		} else {
 			fmt.Println(key + " key not found")
 			clipboard.WriteAll("")
-			return
+			return fmt.Errorf("error copy")
 		}
+		return nil
 	}
 
 	go func() {
 		kb, _ := keybd_event.NewKeyBonding()
 
 		// Copy email
-		copyToClipboard("password")
+		if err := copyToClipboard("password"); err != nil {
+			return
+		}
 		time.Sleep(1000 * time.Millisecond)
 
 		// Press Ctrl + V
 		kb.SetKeys(keybd_event.VK_V)
 		kb.HasCTRL(true)
 		// Copy password
-		copyToClipboard("username")
+		if err := copyToClipboard("username"); err != nil {
+			return
+		}
 		kb.HasCTRL(false)
 
 		time.Sleep(1000 * time.Millisecond)
 
-		openFESApp(ctx)
+		openFESApp()
 		runtime.EventsEmit(ctx, "upwork-button", true)
 	}()
 }
 
-func openFESApp(ctx context.Context) {
-	runtime.EventsEmit(ctx, "open_fesapp")
+func openFESApp() {
+	verb := "open"
+	file := "fesapp://"
+
+	// 1. Convert strings to UTF16 pointers and handle the potential error
+	verbPtr, err := windows.UTF16PtrFromString(verb)
+	if err != nil {
+		return // or log the error
+	}
+
+	filePtr, err := windows.UTF16PtrFromString(file)
+	if err != nil {
+		return // or log the error
+	}
+
+	// 2. Pass the pointers directly to ShellExecute
+	// We don't need [0] anymore because we have the actual pointer variable
+	_ = windows.ShellExecute(0, verbPtr, filePtr, nil, nil, windows.SW_SHOWNORMAL)
 }

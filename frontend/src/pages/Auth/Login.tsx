@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 
 import logo from "@/assets/images/first-encoding_logo.webp";
-import {  LoginUserOnline } from "@/../wailsjs/go/app/App";
+import { LoginUserOnline } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
@@ -44,7 +44,6 @@ const Login = () => {
       const attendance = await LoginUserOnline(email, password);
       console.log("Auth Response: ", attendance);
 
-
       if (cancelRef.current) {
         setErrorMsg("Login cancelled.");
         setLoading(false);
@@ -65,6 +64,7 @@ const Login = () => {
         localStorage.setItem("user", JSON.stringify(user));
         setSynced(true);
         setAttendance(attendance);
+      
         navigate("/home");
       }
     } catch (error: any) {

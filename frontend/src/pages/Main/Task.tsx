@@ -25,7 +25,7 @@ import {
   OpenUpwork,
   SyncUnsyncedTaskRecord,
 } from "@/../wailsjs/go/app/App";
-import { EventsOn } from "@/../wailsjs/runtime";
+import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
 import { useAuthStore } from "@/store/AuthContext";
 import { models } from "wailsjs/go/models";
@@ -76,7 +76,7 @@ const Task = () => {
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
 
-  const { setTaskID, tasks } = useAuthStore();
+  const { setTaskID, tasks, online, synced } = useAuthStore();
 
   async function startTime() {
     if (!id) return;
@@ -153,9 +153,10 @@ const Task = () => {
   async function LaunchUpwork() {
     // Open upwork on that account
 
-    if (isLaunching) return;
+    if (isLaunching || !online) return;
 
     if (taskDetails?.taskId) {
+
       setLaunching(true);
       await OpenUpwork(taskDetails.taskId);
     }
@@ -342,7 +343,7 @@ const Task = () => {
         shadow-sm
       "
       >
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-3xl h-[60px] mx-auto px-4 py-3 flex items-center justify-between">
           <button
             onClick={() => navigate("/home")}
             className="
@@ -356,7 +357,8 @@ const Task = () => {
             <span>Back</span>
           </button>
 
-          {titleLower.includes("upwork") &&
+          {synced &&
+            titleLower.includes("upwork") &&
             !titleLower.includes("training") && (
               <img
                 onClick={LaunchUpwork}

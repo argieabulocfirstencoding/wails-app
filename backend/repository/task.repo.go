@@ -62,6 +62,15 @@ func (t *TaskRepository) GetTask(id string) (*models.Task, error) {
 	return &task, nil
 }
 
+func (t *TaskRepository) GetTaskFromTaskID(id string) (*models.Task, error) {
+	var task models.Task
+	if err := db.DB.Where("task_id = ?", id).First(&task).Error; err != nil {
+		return nil, err
+	}
+
+	return &task, nil
+}
+
 func (t *TaskRepository) GetTasks() ([]models.Task, error) {
 	var tasks []models.Task
 

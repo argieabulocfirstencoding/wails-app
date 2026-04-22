@@ -23,7 +23,6 @@ import {
   LogoutUser,
   SyncUnsyncedRecords,
 } from "@/../wailsjs/go/app/App";
-const { setTasks } = useAuthStore();
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
 
 interface SyncUser {
@@ -34,11 +33,11 @@ interface SyncUser {
 const ProfileBar = () => {
   const [open, setOpen] = useState(false);
   const [logoutDialog, setLogoutDialog] = useState(false);
+  const { user, setTasks } = useAuthStore();
   const [syncUser, setSyncUser] = useState<SyncUser>({
     email: useAuthStore.getState().user?.email,
     password: undefined,
   });
-  const { user } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
