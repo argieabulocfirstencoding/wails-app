@@ -39,4 +39,11 @@ jobs:
         run: |
           $VERSION = "${{ github.ref_name }}"
           # Added --clobber so it overwrites if you run it multiple times for the same tag
-          gh release upload $VERSION "build/bin/FesApp Tracker.exe" --repo FES-Paul/FES-APP-TRACKER --clobber
+          gh release create $VERSION "build/bin/FesApp Tracker.exe" `
+            --repo FES-Paul/FES-APP-TRACKER `
+            --title "FESAPP TRACKER $VERSION" `
+            --generate-notes `
+            --verify-tag `
+            --clobber
+
+      
