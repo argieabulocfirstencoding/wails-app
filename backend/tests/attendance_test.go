@@ -3,6 +3,7 @@ package services_test
 import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
+	service_classes "fesapp/backend/service_classes"
 	"fesapp/backend/services"
 	"testing"
 	"time"
@@ -85,4 +86,12 @@ func TestOfflineLoginFlow(t *testing.T) {
 	assert.Equal(t, email, offlineData.AuthUser.Email)
 	assert.Equal(t, uint(1), *attendanceID)
 	assert.Equal(t, "mock-id", authUser.LocalID)
+}
+
+func TestFesOnlineLogin(t *testing.T) {
+	authService := service_classes.NewAuthService()
+
+	_, err := authService.AttemptLogin("test@test.com", "Na7;o2F<")
+
+	assert.NoError(t, err)
 }

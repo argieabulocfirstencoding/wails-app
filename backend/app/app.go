@@ -3,15 +3,21 @@ package app
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
+	"fesapp/backend/service_classes"
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -19,27 +25,122 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 	"gorm.io/gorm"
+
+	"github.com/blang/semver"
 )
 
 // App struct
 type App struct {
 	ctx               context.Context
-	ScreenshotService *services.ScreenshotService
-	SyncService       *services.SyncService
+	ScreenshotService *service_classes.ScreenshotService
+	SyncService       *services.FirebaseSyncService
+	AuthService       *service_classes.AuthService
 	windowOpen        bool
 	AuthUser          *models.AuthUser
+	WorkingTask       *models.Task
+	Attendance        *models.Attendance
 	WorkingTaskID     *string
 	AttendanceID      *uint
+	Logger            *utils.LoggerService
+}
+
+// CurrentVersion will be injected from wails.json or ldflags
+var CurrentVersion = "2.1.0"
+
+type UpdateInfo struct {
+	Exists      bool   `json:"exists"`
+	Version     string `json:"version"`
+	DownloadUrl string `json:"downloadUrl"`
+}
+
+func (a *App) CheckForUpdates() UpdateInfo {
+	// FIX: Added /releases/latest to the end of the URL
+	url := "https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest"
+
+	res, err := http.Get(url)
+	if err != nil || res.StatusCode != 200 {
+		return UpdateInfo{Exists: false}
+	}
+	defer res.Body.Close()
+
+	var target struct {
+		TagName string `json:"tag_name"`
+		Assets  []struct {
+			BrowserDownloadURL string `json:"browser_download_url"`
+			Name               string `json:"name"`
+		} `json:"assets"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&target); err != nil {
+		return UpdateInfo{Exists: false}
+	}
+
+	vCurrent := semver.MustParse(CurrentVersion)
+	// Handle cases where TagName might not have 'v' prefix
+	remoteTag := target.TagName
+	if remoteTag[0] == 'v' {
+		remoteTag = remoteTag[1:]
+	}
+
+	vRemote, err := semver.Parse(remoteTag)
+
+	if err == nil && vRemote.GT(vCurrent) && len(target.Assets) > 0 {
+		return UpdateInfo{
+			Exists:      true,
+			Version:     target.TagName,
+			DownloadUrl: target.Assets[0].BrowserDownloadURL,
+		}
+	}
+
+	return UpdateInfo{Exists: false}
+}
+
+func (a *App) DownloadAndInstall(url string) error {
+	// 1. Create a path for the temporary installer
+	tempPath := os.TempDir() + "\\fes_installer.exe"
+	out, err := os.Create(tempPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// 2. Download the file
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// 3. Launch the installer
+	// We use /S for a silent install so it's "Automatic"
+	cmd := exec.Command(tempPath, "/S")
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	// 4. Exit the app so the installer can replace the files
+	os.Exit(0)
+	return nil
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
-	syncService := services.NewSyncService()
-	screenshotService := services.NewScreenshotService(syncService)
+	syncService := services.NewFirebaseSyncService()
+	screenshotService := service_classes.NewScreenshotService()
+	authService := service_classes.NewAuthService()
+	logger := utils.NewLoggerService()
 
 	return &App{
 		ScreenshotService: screenshotService,
 		SyncService:       syncService,
+		AuthService:       authService,
+		Logger:            logger,
 	}
 }
 
@@ -50,6 +151,7 @@ var trayIcon []byte
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+
 	db.Init(ctx)
 	db.DB.Exec("PRAGMA journal_mode = WAL;")
 	db.DB.Exec("PRAGMA busy_timeout = 5000;")
@@ -95,7 +197,7 @@ func (a *App) Startup(ctx context.Context) {
 		}, func() {})
 	}()
 
-	a.SyncService.Backblaze.Connect(a.ctx)
+	// a.SyncService.Backblaze.Connect(a.ctx)
 }
 
 func (a *App) Shutdown(ctx context.Context) {
@@ -111,112 +213,17 @@ func (a *App) Shutdown(ctx context.Context) {
 	runtime.LogPrint(ctx, "App is shutdown")
 }
 
-func (a *App) TakeScreenshot() []string {
-	screenshots, err := a.ScreenshotService.Screenshot()
-	if err != nil {
-		panic(err)
-	}
-
-	return screenshots
-}
-
 func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
 }
 
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
-	// NOTE this needs to be refactor, no logic should be applied here
-	// FIX https://chatgpt.com/c/69b2df18-4fd0-8321-a821-12d5b92e3b2e
-
-	if a.AttendanceID == nil {
-		return
-	}
-
-	if a.ScreenshotService.Running {
-		a.ScreenshotService.Stop()
-	}
-
-	if err := services.StopAllActiveRecords(a.AuthUser.LocalID); err != nil {
-		fmt.Printf("Error stoping active task record: %s", err)
-	}
-
-	if a.ScreenshotService.TaskRecordID != nil {
-		record, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
-		if err == nil {
-			a.ScreenshotService.SyncRecord(record)
-		}
-		if err != nil {
-			fmt.Printf("Error on syncing record: %s", err)
-		}
-
-	}
-
-	a.ScreenshotService.FolderName = localStorageValue
-	a.WorkingTaskID = &taskId
-	record, err := services.StartTaskRecord(a.AuthUser.LocalID, taskId, *a.AttendanceID, padagan)
-
-	if err != nil {
-		utils.Logger.Printf("error starting task record: %v", err)
-	}
-	a.ScreenshotService.TaskID = a.WorkingTaskID
-	a.ScreenshotService.TaskRecordID = &record.ID
-
-	task, err := services.GetTaskFromID(taskId)
-	if err != nil {
-		return
-	}
-
-	if task.ProjectName == "Break" {
-		a.ScreenshotService.SyncRecord(record)
-		return
-	}
-
-	a.ScreenshotService.Start(a.ctx)
+	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
+	a.WorkingTaskID = a.AuthService.TaskService.WorkingTaskID
 }
 
 func (a *App) StopTracking(taskId string) {
-	// NOTE this needs to be refactor, no logic should be applied here
-	if a.AuthUser == nil {
-		utils.Logger.Println("StopTracking error: AuthUser is nil")
-		return
-	}
-
-	a.ScreenshotService.Stop()
-	err := services.StopTaskRecord(
-		a.AuthUser.LocalID,
-		taskId,
-	)
-	if err != nil {
-		utils.Logger.Println("StopTaskRecord error:", err)
-		return
-	}
-
-	// Check before dereferencing
-	if a.ScreenshotService.TaskRecordID == nil {
-		log.Println("No TaskRecordID available to sync, skipping Firebase sync.")
-		return
-	}
-
-	// Syncing TaskRecord to Firebase
-	if config.OnlineMode {
-		// Retrieving TaskRecord from TaskRecordID
-		log.Print("Attempting to sync record")
-		taskRecord, err := services.GetTaskRecordFromID(*a.ScreenshotService.TaskRecordID)
-		if err != nil {
-			log.Printf("error retrieving task record: %v\n", err)
-		}
-		log.Printf("Syncing record: %v\n", taskRecord)
-
-		attendance, _ := services.GetUserAttendance(a.AuthUser.LocalID)
-		db.DB.Model(&taskRecord).Update("sync_status", "pending")
-		db.DB.Model(&attendance).Update("sync_status", "pending")
-
-		if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
-			log.Printf("error syncing task_record: %v", err)
-		}
-	}
-
-	a.ScreenshotService.TaskRecordID = nil
+	a.AuthService.TaskService.StopTracking(taskId)
 }
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
@@ -233,40 +240,37 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	return dialog != "Yes"
 }
 
-// Deprecated testing purpose only
-func (a *App) CheckAuth(name *string) bool {
-	service := "fesapp"
-	if name == nil || *name == "" {
-		return false
-	}
-
-	_, err := keyring.Get(service, *name)
-	return err == nil
-}
-
-// FIX this is for testing purpose only, production backend server handles user registration
-func (a *App) RegisterUser(email string) (*db.User, error) {
-	user, err := services.CreateUser("123", email)
-	if err != nil {
-		return nil, err
-	}
-	return user, nil
-}
-
 // NOTE this is offline login
 func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
-	offlineData, attendanceID, authUser, err := services.LoginUser(email)
+	offlineData, attendance, authUser, err := services.LoginUser(email)
 	if err != nil {
 		return nil, err
 	}
 
-	a.AttendanceID = attendanceID
+	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
+	a.AuthService.TaskService.SyncService.AuthUser = authUser
+	a.AuthService.TaskService.Attendance = attendance
+	a.AuthService.TaskService.AddContext(a.ctx)
 
 	return offlineData, nil
 }
 
+func (a *App) LoginUserOnline(email string, password string) (*models.Attendance, error) {
+	attendance, authUser, err := a.AuthService.Login(a.ctx, email, password)
+	if err != nil {
+		return nil, err
+	}
+	a.AttendanceID = &attendance.ID
+	a.Attendance = attendance
+	a.AuthUser = authUser
 
+	config.OnlineMode = true
+
+	return attendance, nil
+}
+
+// REFACTOR this is not used anymore, was used on firebase integration
 // TODO recheck if this will sustain online login method
 func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) (*models.Attendance, error) {
 	// NOTE this needs to be refactor, no logic should be applied here
@@ -313,7 +317,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
-	a.SyncService.Backblaze.AuthUser = user
+	// a.SyncService.Backblaze.AuthUser = user
 	a.SyncService.AuthUser = user
 	a.SyncService.IdToken = &user.IDToken
 	a.SyncService.IssuedAt = &now
@@ -363,40 +367,9 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 	return authUser, nil
 }
 
-func strOrEmpty(s *string) string {
-	if s != nil {
-		return *s
-	}
-	return ""
-}
-
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
-
-	if a.WorkingTaskID != nil {
-		a.StopTracking(*a.WorkingTaskID)
-		log.Printf("WorkingTaskID: %s", *a.WorkingTaskID)
-	}
-
-	if a.AttendanceID != nil {
-		attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
-		if err != nil {
-			return err
-		}
-
-		log.Printf("Attendance ID: %d", *a.AttendanceID)
-		if err := services.LogoutAttendance(attendance); err != nil {
-			return err
-		}
-
-		if err := a.SyncService.SyncAttendance(attendance); err != nil {
-			utils.Logger.Printf("error syncing attendance on logout")
-		}
-	} else {
-		log.Println("No active AttendanceID")
-	}
-
-	return nil
+	return a.AuthService.Logout()
 }
 
 func (a *App) GetActiveTaskRecord() *string {
@@ -430,9 +403,10 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 	if record != nil {
 		a.WorkingTaskID = &record.Record.TaskID
 	}
-	
+
 	return record, nil
 }
+
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
 	task, err := services.CreateTask(a.AuthUser.LocalID, title, client, nil)
@@ -445,24 +419,7 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 }
 
 func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
-	// NOTE this needs to be refactor, no logic should be applied here
-	if config.OnlineMode && isOnline {
-		if err := services.SyncClientsAndProjects(); err != nil {
-			utils.Logger.Printf("error fetching tasks from fes: %v", err)
-		}
-	}
-
-	if a.AuthUser == nil {
-		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
-	}
-
-	tasks, err := services.GetTasks()
-	if err != nil {
-		return nil, err
-	}
-
-	expTasks := models.ToExpTasks(tasks)
-	return expTasks, nil
+	return a.AuthService.TaskService.GetTasks(isOnline)
 }
 
 func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, error) {
@@ -470,7 +427,7 @@ func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, 
 }
 
 func (a *App) OpenUpwork(taskID string) error {
-	services.FetchUpworkCreds(a.ctx, taskID)
+	a.AuthService.TaskService.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID)
 
 	return nil
 }
@@ -500,21 +457,24 @@ func (a *App) SyncAttendance() error {
 
 // Not used yet
 func (a *App) SyncUnsyncedRecords() error {
-	if err := a.SyncService.SyncUnsyncedRecords(); err != nil {
-		return err
-	}
 
-	return nil
+	return a.AuthService.SyncService.SyncUnsyncedRecords()
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
+
 	taskRecord, err := services.GetTaskRecordFromID(taskrecordId)
 	if err != nil {
 		return err
 	}
 
+	if a.Attendance != nil {
+		taskRecord.User = a.Attendance.User
+		taskRecord.Attendance = *a.Attendance
+	}
+
 	// FIX change to attempt sync record
-	if err := a.SyncService.SyncTaskRecord(taskRecord); err != nil {
+	if err := a.AuthService.TaskService.SyncService.SyncTaskRecord(taskRecord); err != nil {
 		return err
 	}
 
@@ -529,7 +489,7 @@ func (a *App) SyncUnsyncedAttendance() error {
 	}
 
 	// FIX change to attempt sync attendance
-	if err := a.SyncService.SyncAttendance(attendance); err != nil {
+	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		return err
 	}
 
@@ -554,20 +514,7 @@ func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error)
 // This is used to get the tasks that have recently used so that it can be quickly seen.
 // Tasks Records displayed will be ordered by how recent they are
 func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
-	// NOTE this needs to be refactor, no logic should be applied here
-	task_records, err := services.GetAllPreviousTasksRecords(a.AuthUser.LocalID)
-	if err != nil {
-		return nil, err
-	}
-
-	var exp_task_records []models.ExpTaskRecord
-
-	for _, record := range task_records {
-		exp_record := record.ToExp()
-		exp_task_records = append(exp_task_records, exp_record)
-	}
-
-	return exp_task_records, nil
+	return a.AuthService.TaskService.GetLastTaskRecords()
 }
 
 func (a *App) AddMemo(memo, notes string) {

@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/Tryanks/gorm-sqlite v1.2.0
+	github.com/blang/semver v2.2.0+incompatible
 	github.com/chai2010/webp v1.4.0
 	github.com/getlantern/systray v1.2.2
 	github.com/go-playground/validator/v10 v10.27.0
@@ -16,6 +17,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/wailsapp/wails/v2 v2.10.2
 	github.com/zalando/go-keyring v0.2.6
+	golang.org/x/sys v0.38.0
 	gorm.io/gorm v1.31.0
 )
 
@@ -69,7 +71,6 @@ require (
 	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
 	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.66.9 // indirect

@@ -6,7 +6,7 @@ interface AppFooterInfoProps {
 }
 
 const AppFooterInfo: React.FC<AppFooterInfoProps> = ({
-  version = "v1.0.0",
+  version = "v2.1.0",
   className = "",
 }) => {
   return (

@@ -18,12 +18,11 @@ import { useAuthStore } from "@/store/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  BackendFirebaseSync,
+  GetTasks,
+  LoginUserOnline,
   LogoutUser,
   SyncUnsyncedRecords,
 } from "@/../wailsjs/go/app/App";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { auth } from "@/firebase";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
 
 interface SyncUser {
@@ -34,11 +33,11 @@ interface SyncUser {
 const ProfileBar = () => {
   const [open, setOpen] = useState(false);
   const [logoutDialog, setLogoutDialog] = useState(false);
+  const { user, setTasks } = useAuthStore();
   const [syncUser, setSyncUser] = useState<SyncUser>({
     email: useAuthStore.getState().user?.email,
     password: undefined,
   });
-  const { user } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
@@ -98,13 +97,6 @@ const ProfileBar = () => {
       } catch {}
 
       try {
-        // firebase sign out (best-effort)
-        await signOut(auth).catch((e) => {
-          console.warn("Firebase signOut failed:", e);
-        });
-      } catch {}
-
-      try {
         // clear local client state BEFORE navigation
         localStorage.removeItem("user");
         localStorage.removeItem("authToken");
@@ -149,34 +141,17 @@ const ProfileBar = () => {
     setOpenSyncDialog(false);
 
     try {
-      const authUser = await signInWithEmailAndPassword(
-        auth,
+      if (!online) console.log("no internet connection!");
+      console.log("Logging in");
+      const attendance = await LoginUserOnline(
         syncUser.email || "",
         syncUser.password || "",
       );
-      const tokenResult = await authUser.user.getIdTokenResult();
-
-      if (!authUser.user.email) return;
-
-      const payload = {
-        idToken: tokenResult.token,
-        refreshToken: authUser.user.refreshToken,
-        expiresIn: "3000",
-        userId: authUser.user.uid,
-        email: authUser.user.email,
-      };
-
-      await BackendFirebaseSync(
-        payload.userId,
-        payload.email,
-        payload.idToken,
-        payload.refreshToken,
-        payload.expiresIn,
-      );
+      console.log("Auth Response: ", attendance);
 
       useAuthStore.getState().setUser({
-        uid: authUser.user.uid,
-        email: authUser.user.email,
+        uid: attendance.UserID,
+        email: syncUser.email || "",
         offline: !online,
       });
 
@@ -186,24 +161,13 @@ const ProfileBar = () => {
         await SyncUnsyncedRecords();
         setSynced(true);
       }
+
+      const fetchedTasks: any = await GetTasks(false);
+      if (fetchedTasks) setTasks(fetchedTasks);
     } catch (error: any) {
       console.error(error);
       setOpenSyncDialog(true);
-      switch (error.code) {
-        case "auth/invalid-credential":
-          setSyncErrorMsg("Invalid email or password. Please try again.");
-          break;
-        case "auth/invalid-email":
-          setSyncErrorMsg("Please enter a valid email address.");
-          break;
-        case "auth/missing-password":
-        case "auth/weak-password":
-          setSyncErrorMsg("Please enter a valid password.");
-          break;
-        default:
-          setSyncErrorMsg("Unexpected error: " + error.message);
-          break;
-      }
+      setSyncErrorMsg(error);
     } finally {
       setSyncLoading(false);
     }

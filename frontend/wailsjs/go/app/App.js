@@ -14,8 +14,8 @@ export function BeforeClose(arg1) {
   return window['go']['app']['App']['BeforeClose'](arg1);
 }
 
-export function CheckAuth(arg1) {
-  return window['go']['app']['App']['CheckAuth'](arg1);
+export function CheckForUpdates() {
+  return window['go']['app']['App']['CheckForUpdates']();
 }
 
 export function ClearScreenshots() {
@@ -24,6 +24,10 @@ export function ClearScreenshots() {
 
 export function CreateTask(arg1, arg2) {
   return window['go']['app']['App']['CreateTask'](arg1, arg2);
+}
+
+export function DownloadAndInstall(arg1) {
+  return window['go']['app']['App']['DownloadAndInstall'](arg1);
 }
 
 export function FetchUserDetails() {
@@ -74,6 +78,10 @@ export function LoginUser(arg1) {
   return window['go']['app']['App']['LoginUser'](arg1);
 }
 
+export function LoginUserOnline(arg1, arg2) {
+  return window['go']['app']['App']['LoginUserOnline'](arg1, arg2);
+}
+
 export function LogoutUser() {
   return window['go']['app']['App']['LogoutUser']();
 }
@@ -84,10 +92,6 @@ export function OnSecondInstanceLaunch(arg1) {
 
 export function OpenUpwork(arg1) {
   return window['go']['app']['App']['OpenUpwork'](arg1);
-}
-
-export function RegisterUser(arg1) {
-  return window['go']['app']['App']['RegisterUser'](arg1);
 }
 
 export function StartTracking(arg1, arg2, arg3) {
@@ -112,8 +116,4 @@ export function SyncUnsyncedRecords() {
 
 export function SyncUnsyncedTaskRecord(arg1) {
   return window['go']['app']['App']['SyncUnsyncedTaskRecord'](arg1);
-}
-
-export function TakeScreenshot() {
-  return window['go']['app']['App']['TakeScreenshot']();
 }

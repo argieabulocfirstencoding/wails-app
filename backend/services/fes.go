@@ -389,7 +389,7 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 }
 
 func FetchUpworkCreds(ctx context.Context, taskID string) {
-	fmt.Print("Fetching Upwork Credentials Pleas wait")
+	fmt.Print("Fetching Upwork Credentials Please wait")
 	time.Sleep(1000 * time.Millisecond)
 	fmt.Print("Opening upwork..")
 	openFESApp(ctx)
@@ -424,25 +424,25 @@ func FetchUpworkCreds(ctx context.Context, taskID string) {
 		}
 	}
 
-	kb, _ := keybd_event.NewKeyBonding()
+	go func() {
+		kb, _ := keybd_event.NewKeyBonding()
 
-	// Copy email
-	copyToClipboard("password")
-	time.Sleep(1000 * time.Millisecond)
+		// Copy email
+		copyToClipboard("password")
+		time.Sleep(1000 * time.Millisecond)
 
-	// Press Ctrl + V
-	kb.SetKeys(keybd_event.VK_V)
-	kb.HasCTRL(true)
-	// Copy password
-	copyToClipboard("username")
-	fmt.Print("Fetching Upwork Credentials Successful")
-	kb.HasCTRL(false)
+		// Press Ctrl + V
+		kb.SetKeys(keybd_event.VK_V)
+		kb.HasCTRL(true)
+		// Copy password
+		copyToClipboard("username")
+		kb.HasCTRL(false)
 
-	time.Sleep(1000 * time.Millisecond)
-	fmt.Print("Opening upwork..")
+		time.Sleep(1000 * time.Millisecond)
 
-	openFESApp(ctx)
-	runtime.EventsEmit(ctx, "upwork-button", true)
+		openFESApp(ctx)
+		runtime.EventsEmit(ctx, "upwork-button", true)
+	}()
 }
 
 func openFESApp(ctx context.Context) {

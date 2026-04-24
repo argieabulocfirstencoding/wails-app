@@ -10,9 +10,8 @@ import Notifications from "./pages/Main/Notifications";
 import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
 
-import { StopTracking } from "../wailsjs/go/app/App";
+import { CheckForUpdates, DownloadAndInstall, StopTracking } from "../wailsjs/go/app/App";
 import { EventsOn } from "../wailsjs/runtime";
-import Signup from "./pages/Auth/Signup";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useAuthStore } from "./store/AuthContext";
@@ -24,6 +23,12 @@ interface ScreenshotProps {
   pictures: string[];
 }
 
+interface UpdateInfo {
+  exists: boolean;
+  version: string;
+  downloadUrl: string;
+}
+
 function App() {
   useFirebaseAuth();
   useOnlineStatus();
@@ -31,8 +36,32 @@ function App() {
   const { taskID } = useAuthStore();
 
   useEffect(() => {
-     if (!EventsOn) return
-     
+    const handleUpdateCheck = async () => {
+      try {
+        const info: UpdateInfo = await CheckForUpdates();
+
+        if (info.exists) {
+          // You could replace this with a nice Tailwind/Radix UI Modal
+          const userConfirmed = window.confirm(
+            `A new version (${info.version}) is available. Would you like to update now?`,
+          );
+
+          if (userConfirmed) {
+            console.log("Starting download...");
+            await DownloadAndInstall(info.downloadUrl);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check for updates:", err);
+      }
+    };
+
+    handleUpdateCheck();
+  }, []); // Empty dependency array ensures this runs once on startup
+
+  useEffect(() => {
+    if (!EventsOn) return;
+
     console.log("SHUTDOWN EVENT HANDLER LOADED");
     // TODO this is just temporary measures to ensure logging out of account means task end
     const off = EventsOn("app_shutdown", async () => {
@@ -60,7 +89,6 @@ function App() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/activity-logs" element={<ActivityLogs />} />
         <Route path="/logout" element={<Logout />} />
-        <Route path="/signup" element={<Signup />} />
 
         {/* Not Found */}
         <Route path="*" element={<Login />} />

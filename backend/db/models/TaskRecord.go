@@ -17,6 +17,7 @@ type TaskRecord struct {
 	EndedAt      *time.Time
 	Duration     int32
 	SyncedAt     *time.Time
+	Productivity *string
 	SyncStatus   string `gorm:"not null;default:'pending'"`
 	Gap          int32  `gorm:"not null;default:0"`
 	Screenshots  []Screenshot
@@ -27,7 +28,7 @@ type ExpTaskRecord struct {
 	TaskID     string     `json:"task_id"`
 	StartedAt  time.Time  `json:"started_at"`
 	EndedAt    *time.Time `json:"ended_at"`
-	Duration   int32     `json:"duration"`
+	Duration   int32      `json:"duration"`
 	Padagan    bool       `json:"padagan"`
 	SyncStatus string     `json:"sync_status"`
 }

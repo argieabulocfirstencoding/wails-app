@@ -37,7 +37,6 @@ const OfflineLogin = () => {
 
     try {
       const authUser = await LoginUser(email);
-
       useAuthStore.getState().setUser({
         uid: authUser.AuthUser.localId,
         email: authUser.AuthUser.email,

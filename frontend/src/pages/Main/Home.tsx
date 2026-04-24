@@ -52,7 +52,7 @@ const Home = () => {
     setInitializedTask,
     summaries,
   } = useAuthStore();
-
+  
   useEffect(() => {
     if (!EventsOn) return;
 
@@ -104,11 +104,6 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    if (searchQuery.length > 0) {
-    }
-  }, []);
-
-  useEffect(() => {
     async function fetchUser() {
       const user = useAuthStore.getState().user;
       if (!user) {
@@ -135,7 +130,7 @@ const Home = () => {
         );
       } else {
         // pass required boolean argument (e.g. includeArchived = true)
-        const fetchedTasks: any = await GetTasks(true);
+        const fetchedTasks: any = await GetTasks(false);
         if (fetchedTasks) setTasks(fetchedTasks);
       }
       await fetchActiveRecord();

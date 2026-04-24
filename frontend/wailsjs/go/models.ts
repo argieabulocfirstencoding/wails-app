@@ -1,3 +1,24 @@
+export namespace app {
+	
+	export class UpdateInfo {
+	    exists: boolean;
+	    version: string;
+	    downloadUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.exists = source["exists"];
+	        this.version = source["version"];
+	        this.downloadUrl = source["downloadUrl"];
+	    }
+	}
+
+}
+
 export namespace models {
 	
 	export class Screenshot {
@@ -143,6 +164,7 @@ export namespace models {
 	    Duration: number;
 	    // Go type: time
 	    SyncedAt?: any;
+	    Productivity?: string;
 	    SyncStatus: string;
 	    Gap: number;
 	    Screenshots: Screenshot[];
@@ -165,6 +187,7 @@ export namespace models {
 	        this.EndedAt = this.convertValues(source["EndedAt"], null);
 	        this.Duration = source["Duration"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
+	        this.Productivity = source["Productivity"];
 	        this.SyncStatus = source["SyncStatus"];
 	        this.Gap = source["Gap"];
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
@@ -264,6 +287,7 @@ export namespace models {
 	    TimeIn: any;
 	    // Go type: time
 	    TimeOut?: any;
+	    LoginLogoutID?: string;
 	    // Go type: time
 	    SyncedAt?: any;
 	    SyncStatus: string;
@@ -284,6 +308,7 @@ export namespace models {
 	        this.TotalGap = source["TotalGap"];
 	        this.TimeIn = this.convertValues(source["TimeIn"], null);
 	        this.TimeOut = this.convertValues(source["TimeOut"], null);
+	        this.LoginLogoutID = source["LoginLogoutID"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
 	        this.SyncStatus = source["SyncStatus"];
 	    }
