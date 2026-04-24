@@ -46,6 +46,10 @@ export function GetActivityLogRecord(arg1) {
   return window['go']['app']['App']['GetActivityLogRecord'](arg1);
 }
 
+export function GetAppCurrentVersion() {
+  return window['go']['app']['App']['GetAppCurrentVersion']();
+}
+
 export function GetCurrentAttendance() {
   return window['go']['app']['App']['GetCurrentAttendance']();
 }
