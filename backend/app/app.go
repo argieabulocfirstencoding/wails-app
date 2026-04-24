@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	config "fesapp/backend"
 	"fesapp/backend/db"
@@ -12,7 +13,11 @@ import (
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -20,6 +25,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 	"gorm.io/gorm"
+
+	"github.com/blang/semver"
 )
 
 // App struct
@@ -35,6 +42,91 @@ type App struct {
 	WorkingTaskID     *string
 	AttendanceID      *uint
 	Logger            *utils.LoggerService
+}
+
+// CurrentVersion will be injected from wails.json or ldflags
+var CurrentVersion = "2.1.0"
+
+type UpdateInfo struct {
+	Exists      bool   `json:"exists"`
+	Version     string `json:"version"`
+	DownloadUrl string `json:"downloadUrl"`
+}
+
+func (a *App) CheckForUpdates() UpdateInfo {
+	// FIX: Added /releases/latest to the end of the URL
+	url := "https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest"
+
+	res, err := http.Get(url)
+	if err != nil || res.StatusCode != 200 {
+		return UpdateInfo{Exists: false}
+	}
+	defer res.Body.Close()
+
+	var target struct {
+		TagName string `json:"tag_name"`
+		Assets  []struct {
+			BrowserDownloadURL string `json:"browser_download_url"`
+			Name               string `json:"name"`
+		} `json:"assets"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&target); err != nil {
+		return UpdateInfo{Exists: false}
+	}
+
+	vCurrent := semver.MustParse(CurrentVersion)
+	// Handle cases where TagName might not have 'v' prefix
+	remoteTag := target.TagName
+	if remoteTag[0] == 'v' {
+		remoteTag = remoteTag[1:]
+	}
+
+	vRemote, err := semver.Parse(remoteTag)
+
+	if err == nil && vRemote.GT(vCurrent) && len(target.Assets) > 0 {
+		return UpdateInfo{
+			Exists:      true,
+			Version:     target.TagName,
+			DownloadUrl: target.Assets[0].BrowserDownloadURL,
+		}
+	}
+
+	return UpdateInfo{Exists: false}
+}
+
+func (a *App) DownloadAndInstall(url string) error {
+	// 1. Create a path for the temporary installer
+	tempPath := os.TempDir() + "\\fes_installer.exe"
+	out, err := os.Create(tempPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// 2. Download the file
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// 3. Launch the installer
+	// We use /S for a silent install so it's "Automatic"
+	cmd := exec.Command(tempPath, "/S")
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	// 4. Exit the app so the installer can replace the files
+	os.Exit(0)
+	return nil
 }
 
 // NewApp creates a new App application struct

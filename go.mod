@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/Tryanks/gorm-sqlite v1.2.0
+	github.com/blang/semver v2.2.0+incompatible
 	github.com/chai2010/webp v1.4.0
 	github.com/getlantern/systray v1.2.2
 	github.com/go-playground/validator/v10 v10.27.0

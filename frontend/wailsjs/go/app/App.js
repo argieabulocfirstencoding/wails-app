@@ -14,12 +14,20 @@ export function BeforeClose(arg1) {
   return window['go']['app']['App']['BeforeClose'](arg1);
 }
 
+export function CheckForUpdates() {
+  return window['go']['app']['App']['CheckForUpdates']();
+}
+
 export function ClearScreenshots() {
   return window['go']['app']['App']['ClearScreenshots']();
 }
 
 export function CreateTask(arg1, arg2) {
   return window['go']['app']['App']['CreateTask'](arg1, arg2);
+}
+
+export function DownloadAndInstall(arg1) {
+  return window['go']['app']['App']['DownloadAndInstall'](arg1);
 }
 
 export function FetchUserDetails() {
