@@ -64,7 +64,7 @@ const Login = () => {
         localStorage.setItem("user", JSON.stringify(user));
         setSynced(true);
         setAttendance(attendance);
-      
+
         navigate("/home");
       }
     } catch (error: any) {
@@ -158,12 +158,13 @@ const Login = () => {
                   >
                     Password
                   </Label>
-                  <button
+                  {/* <button
                     type="button"
+                    tabIndex={-1}
                     className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
                   >
                     Forgot password?
-                  </button>
+                  </button> */}
                 </div>
 
                 <div className="relative">

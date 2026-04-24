@@ -9,7 +9,10 @@ import {
 } from "lucide-react";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import { models } from "@/../wailsjs/go/models";
-import { GetTotalClientRecords } from "@/../wailsjs/go/app/App";
+import {
+  GetActivityLogRecord,
+  GetTotalClientRecords,
+} from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
 import { fetchTodayClientSummary, secondsToHHMM } from "@/lib/utils";
@@ -20,7 +23,23 @@ const ActivityLogs = () => {
   const [date, setDate] = useState<Date>(new Date());
 
   useEffect(() => {
-    fetchTodayClientSummary(date);
+    // fetchTodayClientSummary(date);
+
+    async function fetchActivity() {
+      try {
+        const dateOnly = date.toLocaleDateString("en-CA", {
+          timeZone: "Asia/Manila",
+        });
+
+        let a = await GetActivityLogRecord(dateOnly);
+        // console.log("Activities: ", a);
+        setActivities(a);
+      } catch (e) {
+        console.log("Error fetching activities: ", e);
+      }
+    }
+
+    fetchActivity();
   }, [date]);
 
   useEffect(() => {
@@ -40,8 +59,6 @@ const ActivityLogs = () => {
 
     fetchTodayClientSummary();
   }, [date]);
-
-  
 
   console.log(secondsToHHMM(3661)); // "01:01"
   console.log(secondsToHHMM(5400)); // "01:30"
