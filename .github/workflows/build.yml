@@ -15,7 +15,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5 # Updated to v5
         with:
-          go-version: "1.22" # Matches current Go standards for Wails
+          go-version: "1.24" # Matches current Go standards for Wails
 
       - name: Setup Node
         uses: actions/setup-node@v4
