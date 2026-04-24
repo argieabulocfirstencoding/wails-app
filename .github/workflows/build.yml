@@ -31,7 +31,7 @@ jobs:
 
       - name: Upload to Release Repo
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         shell: pwsh # Explicitly use PowerShell for variable consistency
         run: |
           $VERSION = "${{ github.ref_name }}"

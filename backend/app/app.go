@@ -45,7 +45,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.1.0"
+var CurrentVersion = "2.1.2"
 
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
@@ -552,4 +552,8 @@ func (a *App) OnSecondInstanceLaunch(data options.SecondInstanceData) {
 	// You could optionally send the arguments to the frontend
 	// to open a specific file/view, e.g.:
 	// runtime.EventsEmit(a.ctx, "secondInstanceArgs", data.Args)
+}
+
+func (a *App) GetAppCurrentVersion() string {
+	return CurrentVersion
 }
