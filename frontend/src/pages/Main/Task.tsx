@@ -24,6 +24,7 @@ import {
   AddMemo,
   OpenUpwork,
   SyncUnsyncedTaskRecord,
+  SetTaskRecordNotes,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
@@ -90,6 +91,7 @@ const Task = () => {
 
       if (lastTaskRecord) {
         lastTaskRecord.padagan = isPadagan;
+        await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
       }
 
       setStart(true);
@@ -105,13 +107,31 @@ const Task = () => {
     setElapsedTime(0);
   }
 
+  function getMemoTagFromNotes(note: string) {
+    if (!note) return;
+
+    let notes = note.split("||");
+
+    for (let i = 0; i < notes.length; i++) {
+      notes[i] = notes[i].trim();
+    }
+    setMemo(notes[0]);
+    setTag(notes[1]);
+  }
+
   async function stopTime() {
     setSyncing(true);
-    if (id) await StopTracking(id);
+    if (id) {
+      if (lastTaskRecord)
+        await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
+
+      await StopTracking(id);
+    }
 
     setTaskID(null);
     const timeStop = Date.now();
     setStart(false);
+
     setEndTime(timeStop);
   }
 
@@ -156,7 +176,6 @@ const Task = () => {
     if (isLaunching || !online) return;
 
     if (taskDetails?.taskId) {
-
       setLaunching(true);
       await OpenUpwork(taskDetails.taskId);
     }
@@ -248,6 +267,7 @@ const Task = () => {
           setStartTime(started);
           setEndTime(ended ?? undefined);
           setSynced(record.sync_status === "synced");
+          getMemoTagFromNotes(record.notes);
 
           const isActive = !record.ended_at;
           setStart(isActive);
@@ -595,8 +615,15 @@ const Task = () => {
                     async function updateMemo() {
                       setMemo(newMemo);
                       setTag(newTag);
-                      localStorage.setItem("memo", newMemo);
-                      localStorage.setItem("tag", newTag);
+                      // localStorage.setItem("memo", newMemo);
+                      // localStorage.setItem("tag", newTag);
+
+                      if (lastTaskRecord && isStarted) {
+                        await SetTaskRecordNotes(
+                          lastTaskRecord.id,
+                          memo + " || " + tag,
+                        );
+                      }
 
                       await AddMemo(newMemo || "", newTag || "");
                     }

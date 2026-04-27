@@ -54,6 +54,8 @@ export function OnSecondInstanceLaunch(arg1:options.SecondInstanceData):Promise<
 
 export function OpenUpwork(arg1:string):Promise<void>;
 
+export function SetTaskRecordNotes(arg1:number,arg2:string):Promise<void>;
+
 export function StartTracking(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function StopTracking(arg1:string):Promise<void>;

@@ -140,6 +140,9 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	return &userId, nil
 }
 
+
+
+
 func (a *AuthService) maskPassword(p string) string {
 	n := len(p)
 	if n <= 2 {

@@ -407,6 +407,10 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 	return record, nil
 }
 
+func (a *App) SetTaskRecordNotes(taskRecordId uint, notes string) {
+	a.AuthService.TaskService.SetTaskRecordNotes(taskRecordId, notes)
+}
+
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
 	task, err := services.CreateTask(a.AuthUser.LocalID, title, client, nil)

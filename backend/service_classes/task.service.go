@@ -24,6 +24,7 @@ type TaskService struct {
 	WorkingTaskID     *string
 	Attendance        *models.Attendance
 	ctx               context.Context
+	TaskRecord        *models.TaskRecord
 }
 
 func NewTaskService(SyncService *SyncService) *TaskService {
@@ -180,6 +181,8 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	t.WorkingTaskID = &taskId
 	record, err := t.StartTaskRecord(taskId, padagan)
 
+	t.TaskRecord = record
+
 	if err != nil {
 		t.Logger.Printf("error starting task record: %v", err)
 	}
@@ -228,6 +231,8 @@ func (t *TaskService) StopTracking(taskId string) {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
 		taskRecord, err := t.TaskRepository.GetTaskRecord(*t.ScreenshotService.TaskRecordID)
+		t.TaskRecord = taskRecord
+
 		if err != nil {
 			log.Printf("error retrieving task record: %v\n", err)
 		}
@@ -250,6 +255,17 @@ func (t *TaskService) StopAllActiveRecords() error {
 
 func (t *TaskService) GetLastTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
 	return nil, nil
+}
+
+func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
+	t.TaskRecord.Notes = notes
+
+	if taskRecord, err := t.GetTaskRecord(taskRecordId); err != nil {
+		t.Logger.Println(err)
+	} else {
+		taskRecord.Notes = notes
+		t.TaskRepository.UpdateTaskRecord(taskRecord, taskRecord)
+	}
 }
 
 //  ============= PRIVATE METHODS =========================

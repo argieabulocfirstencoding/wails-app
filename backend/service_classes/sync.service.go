@@ -93,9 +93,10 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 			Url:    "wf/task_out",
 			Method: "POST",
 			Body: map[string]any{
-				"productivity":    taskRecord.Productivity,
-				"total_task_time": taskRecord.Duration,
-				"task_out":        taskRecord.EndedAt.UnixMilli(),
+				"activity_description": taskRecord.Notes,
+				"productivity":         taskRecord.Productivity,
+				"total_task_time":      taskRecord.Duration,
+				"task_out":             taskRecord.EndedAt.UnixMilli(),
 			},
 		}); err != nil {
 			return err
@@ -116,14 +117,15 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 		Url:    "wf/task_in",
 		Method: "POST",
 		Body: map[string]any{
-			"task_in":           taskRecord.StartedAt.UnixMilli(),
-			"date":              taskRecord.Attendance.TimeIn.UnixMilli(),
-			"edited_by":         taskRecord.UserID,
-			"employee_ID":       taskRecord.User.EmployeeId,
-			"padaganan":         padagan,
-			"projects_projects": taskRecord.TaskID,
-			"task_time":         taskRecord.Duration,
-			"login_logout":      *taskRecord.Attendance.LoginLogoutID,
+			"task_in":              taskRecord.StartedAt.UnixMilli(),
+			"date":                 taskRecord.Attendance.TimeIn.UnixMilli(),
+			"edited_by":            taskRecord.UserID,
+			"employee_ID":          taskRecord.User.EmployeeId,
+			"padaganan":            padagan,
+			"projects_projects":    taskRecord.TaskID,
+			"task_time":            taskRecord.Duration,
+			"login_logout":         *taskRecord.Attendance.LoginLogoutID,
+			"activity_description": taskRecord.Notes,
 		},
 	}); err != nil {
 		return err

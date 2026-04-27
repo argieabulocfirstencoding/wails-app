@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-vgo/robotgo/clipboard"
@@ -32,15 +33,15 @@ type FesClientService struct {
 
 func NewFesClientService() *FesClientService {
 
-	// baseUrl := "https://firstencoding.app/api/1.1/"
-	// _, exists := os.LookupEnv("DEVELOPMENT")
-	// if exists {
-	// 	baseUrl = "https://firstencoding.app/version-test/api/1.1/"
-	// }
+	baseUrl := "https://firstencoding.app/api/1.1/"
+	_, exists := os.LookupEnv("DEVELOPMENT")
+	if exists {
+		baseUrl = "https://firstencoding.app/version-test/api/1.1/"
+	}
 
 	return &FesClientService{
-		baseUrl: "https://firstencoding.app/version-test/api/1.1/",
-		// baseUrl:        baseUrl,
+		// baseUrl: "https://firstencoding.app/version-test/api/1.1/",
+		baseUrl:        baseUrl,
 		client:         &http.Client{},
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
@@ -307,6 +308,7 @@ func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) 
 	}
 
 	fmt.Print("Fetching Upwork Credentials Please wait")
+	openFESApp()
 	time.Sleep(1000 * time.Millisecond)
 	f.logger.Print("Opening upwork..")
 	// openFESApp(ctx)
