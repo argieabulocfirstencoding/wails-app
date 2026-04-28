@@ -9,6 +9,7 @@ import (
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,9 @@ type SyncService struct {
 	Backblaze        *services.BackblazeSync
 	FesClientService *FesClientService
 	Logger           *utils.LoggerService
+
+	Attendance **models.Attendance
+	TaskRecord **models.TaskRecord
 
 	connecting bool
 	queue      []func()
@@ -79,8 +83,6 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 		now := time.Now()
 		taskRecord.SyncedAt = &now
 		taskRecord.SyncStatus = "synced"
-		taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
-
 		return Save()
 	}
 
@@ -93,7 +95,7 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 			Url:    "wf/task_out",
 			Method: "POST",
 			Body: map[string]any{
-				"activity_description": taskRecord.Notes,
+				"activity_description": strings.ReplaceAll(taskRecord.Notes, "||", "-"),
 				"productivity":         taskRecord.Productivity,
 				"total_task_time":      taskRecord.Duration,
 				"task_out":             taskRecord.EndedAt.UnixMilli(),
@@ -118,13 +120,13 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 		Method: "POST",
 		Body: map[string]any{
 			"task_in":              taskRecord.StartedAt.UnixMilli(),
-			"date":                 taskRecord.Attendance.TimeIn.UnixMilli(),
+			"date":                 (*s.Attendance).TimeIn.UnixMilli(),
 			"edited_by":            taskRecord.UserID,
 			"employee_ID":          taskRecord.User.EmployeeId,
 			"padaganan":            padagan,
 			"projects_projects":    taskRecord.TaskID,
 			"task_time":            taskRecord.Duration,
-			"login_logout":         *taskRecord.Attendance.LoginLogoutID,
+			"login_logout":         *(*s.Attendance).LoginLogoutID,
 			"activity_description": taskRecord.Notes,
 		},
 	}); err != nil {

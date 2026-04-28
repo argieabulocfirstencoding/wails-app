@@ -132,14 +132,17 @@ func (t *TaskRepository) StopAllActiveRecords(attendance *models.Attendance) err
 	}
 
 	for _, taskRecord := range taskRecords {
+		taskRecord.SyncStatus = "pending"
+		taskRecord.EndedAt = &now
+		taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
 
-		db.DB.Model(&taskRecord).Update("ended_at", now)
+		db.DB.Save(&taskRecord)
 	}
 
 	return nil
 }
 
-func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.ExpTaskRecord, error) {
+func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
 	// TODO add fetch on firebase
 	var taskRecord models.TaskRecord
 	if err := db.DB.Where("user_id = ? AND task_id = ?", userId, taskId).Last(&taskRecord).Error; err != nil {
@@ -151,8 +154,8 @@ func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.ExpTa
 		return nil, err
 	}
 
-	taskRecordExp := taskRecord.ToExp()
-	return &taskRecordExp, nil
+	// taskRecordExp := taskRecord.ToExp()
+	return &taskRecord, nil
 }
 
 func (t *TaskRepository) UpdateRecord(tr *models.TaskRecord) error {

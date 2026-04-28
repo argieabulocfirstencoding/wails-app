@@ -50,15 +50,16 @@ func (s *ScreenshotService) AddMemo(memo, notes string) {
 func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId string) (*models.TaskRecordWithScreenshots, error) {
 	trws := &models.TaskRecordWithScreenshots{}
 
-	expTaskRecord, err := s.TaskRepo.GetLastTaskRecord(userId, taskId)
-	if expTaskRecord == nil {
+	taskRecord, err := s.TaskRepo.GetLastTaskRecord(userId, taskId)
+	if taskRecord == nil {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	trws.Record = expTaskRecord
+	expTaskRecord := taskRecord.ToExp()
+	trws.Record = &expTaskRecord
 
 	var screenshot models.Screenshot
 	if err := db.DB.Where("task_id = ?", expTaskRecord.TaskID).Last(&screenshot).Error; err != nil {
