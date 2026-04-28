@@ -52,7 +52,7 @@ const Home = () => {
     setInitializedTask,
     summaries,
   } = useAuthStore();
-  
+
   useEffect(() => {
     if (!EventsOn) return;
 
@@ -212,7 +212,26 @@ const Home = () => {
 
   const sortedTasks = useMemo(() => {
     if (!tasks) return []; // only check tasks
+
     const recordsByTask: Record<string, models.ExpTaskRecord[]> = {};
+
+    // 1. Pre-process summaries to combine TotalDuration by TaskID
+    const combinedSummaries = (summaries ?? []).reduce(
+      (acc, curr) => {
+        const id = curr.TaskID;
+        if (!acc[id]) {
+          // Create a copy so we don't mutate the original summary object
+          acc[id] = { ...curr };
+        } else {
+          // If ID exists, just add the duration
+          acc[id].TotalDuration += curr.TotalDuration;
+          // Optional: If Padagan is true in any record, keep it true for the summary
+          if (curr.Padagan) acc[id].Padagan = true;
+        }
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
 
     (taskRecords ?? []).forEach((record) => {
       if (!recordsByTask[record.task_id]) recordsByTask[record.task_id] = [];
@@ -233,7 +252,8 @@ const Home = () => {
             ),
           )
         : 0;
-      const recordSummary = summaries.find((s) => s.TaskID === task.taskId);
+
+      const recordSummary = combinedSummaries[task.taskId] || null;
 
       return {
         ...task,

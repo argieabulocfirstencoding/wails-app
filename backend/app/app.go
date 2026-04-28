@@ -45,7 +45,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.1.2"
+var CurrentVersion = "2.1.4"
 
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
@@ -228,7 +228,7 @@ func (a *App) StopTracking(taskId string) {
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	// NOTE this needs to be refactor, no logic should be applied here
-	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 		Type:    runtime.QuestionDialog,
 		Title:   "Quit?",
 		Message: "Are you sure you want to quit? \n\nNote:Leaving will stop working task.",
@@ -250,7 +250,7 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
 	a.AuthService.TaskService.SyncService.AuthUser = authUser
-	a.AuthService.TaskService.Attendance = attendance
+	a.AuthService.TaskService.Attendance = &attendance
 	a.AuthService.TaskService.AddContext(a.ctx)
 
 	return offlineData, nil

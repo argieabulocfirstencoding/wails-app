@@ -91,7 +91,6 @@ const Task = () => {
 
       if (lastTaskRecord) {
         lastTaskRecord.padagan = isPadagan;
-        await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
       }
 
       setStart(true);
@@ -122,9 +121,6 @@ const Task = () => {
   async function stopTime() {
     setSyncing(true);
     if (id) {
-      if (lastTaskRecord)
-        await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
-
       await StopTracking(id);
     }
 
@@ -297,6 +293,14 @@ const Task = () => {
 
     return () => off();
   }, []);
+
+  useEffect(() => {
+    (async function () {
+      if (lastTaskRecord && isStarted) {
+        await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
+      }
+    })();
+  }, [memo, tag]);
 
   useEffect(() => {
     if (!EventsOn) return;
@@ -615,15 +619,6 @@ const Task = () => {
                     async function updateMemo() {
                       setMemo(newMemo);
                       setTag(newTag);
-                      // localStorage.setItem("memo", newMemo);
-                      // localStorage.setItem("tag", newTag);
-
-                      if (lastTaskRecord && isStarted) {
-                        await SetTaskRecordNotes(
-                          lastTaskRecord.id,
-                          memo + " || " + tag,
-                        );
-                      }
 
                       await AddMemo(newMemo || "", newTag || "");
                     }

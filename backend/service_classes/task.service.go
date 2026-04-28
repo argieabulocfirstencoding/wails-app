@@ -22,9 +22,9 @@ type TaskService struct {
 	SyncService       *SyncService
 	Logger            *utils.LoggerService
 	WorkingTaskID     *string
-	Attendance        *models.Attendance
-	ctx               context.Context
+	Attendance        **models.Attendance
 	TaskRecord        *models.TaskRecord
+	ctx               context.Context
 }
 
 func NewTaskService(SyncService *SyncService) *TaskService {
@@ -89,7 +89,7 @@ func (t *TaskService) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 		return nil, fmt.Errorf("GetLastTaskRecords error: AuthUser is nil")
 	}
 
-	task_records, err := t.TaskRepository.GetAllPreviousTasksRecords(t.Attendance.UserID)
+	task_records, err := t.TaskRepository.GetAllPreviousTasksRecords((*t.Attendance).UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +107,8 @@ func (t *TaskService) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 // ======================== TASK RECORD ACTIONS ====================================
 
 func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskRecord, error) {
-	userId := t.Attendance.UserID
-	attendanceId := t.Attendance.ID
+	userId := (*t.Attendance).UserID
+	attendanceId := (*t.Attendance).ID
 
 	if taskRecord, err := t.TaskRepository.CheckTaskRecord(userId, taskId); err == nil {
 		t.Logger.Println(err) // TODO remove if not used
@@ -119,8 +119,8 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	}
 
 	record, err := t.newTaskRecord(userId, taskId, attendanceId, padagan)
-	record.Attendance = *t.Attendance
-	record.User = t.Attendance.User
+record.Attendance = *(*t.Attendance)
+	record.User = (*t.Attendance).User
 
 	if err := t.SyncService.SyncTaskRecord(record); err != nil {
 		t.Logger.Printlnf("error syncing task_record: %v", err)
@@ -159,7 +159,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	if t.ScreenshotService.Running {
 		t.ScreenshotService.Stop()
 	}
-	if err := t.TaskRepository.StopAllActiveRecords(t.Attendance); err != nil {
+	if err := t.TaskRepository.StopAllActiveRecords(*t.Attendance); err != nil {
 		fmt.Printf("Error stoping active task record: %s", err)
 	}
 
@@ -203,7 +203,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 }
 
 func (t *TaskService) StopTracking(taskId string) {
-	userId := t.Attendance.UserID
+	userId := (*t.Attendance).UserID
 
 	if t.Attendance == nil {
 		t.Logger.Println("StopTracking error: AuthUser is nil")
@@ -220,17 +220,11 @@ func (t *TaskService) StopTracking(taskId string) {
 		return
 	}
 
-	// Check before dereferencing
-	if t.ScreenshotService.TaskRecordID == nil {
-		log.Println("No TaskRecordID available to sync, skipping Firebase sync.")
-		return
-	}
-
 	// Syncing TaskRecord to Firebase
 	if config.OnlineMode {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
-		taskRecord, err := t.TaskRepository.GetTaskRecord(*t.ScreenshotService.TaskRecordID)
+		taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)
 		t.TaskRecord = taskRecord
 
 		if err != nil {
@@ -248,7 +242,7 @@ func (t *TaskService) StopTracking(taskId string) {
 }
 
 func (t *TaskService) StopAllActiveRecords() error {
-	attendance := t.Attendance
+	attendance := (*t.Attendance)
 
 	return t.TaskRepository.StopAllActiveRecords(attendance)
 }
@@ -258,14 +252,19 @@ func (t *TaskService) GetLastTaskRecord(userId, taskId string) (*models.TaskReco
 }
 
 func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
-	t.TaskRecord.Notes = notes
-
 	if taskRecord, err := t.GetTaskRecord(taskRecordId); err != nil {
 		t.Logger.Println(err)
 	} else {
 		taskRecord.Notes = notes
 		t.TaskRepository.UpdateTaskRecord(taskRecord, taskRecord)
+
+		if t.TaskRecord == nil {
+			t.TaskRecord = taskRecord
+		} else {
+			t.TaskRecord.Notes = notes
+		}
 	}
+
 }
 
 //  ============= PRIVATE METHODS =========================

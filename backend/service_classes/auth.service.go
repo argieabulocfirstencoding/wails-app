@@ -50,6 +50,17 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 		return nil, nil, err
 	}
 
+	authUser := &models.AuthUser{
+		LocalID: *userId,
+		Email:   email,
+	}
+
+	a.TaskService.Attendance = &attendance
+	a.TaskService.SyncService.AuthUser = authUser
+
+	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
+	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
+
 	if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		a.Logger.Printf("error syncing attendance on login")
 	}
@@ -69,14 +80,6 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 
 	// }()
 
-	authUser := &models.AuthUser{
-		LocalID: *userId,
-		Email:   email,
-	}
-
-	a.TaskService.Attendance = attendance
-	a.TaskService.SyncService.AuthUser = authUser
-
 	return attendance, authUser, nil
 }
 
@@ -90,11 +93,11 @@ func (a *AuthService) Logout() error {
 	}
 
 	if attendance != nil {
-		if err := services.LogoutAttendance(attendance); err != nil {
+		if err := services.LogoutAttendance(*attendance); err != nil {
 			return err
 		}
 
-		if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
+		if err := a.TaskService.SyncService.SyncAttendance(*attendance); err != nil {
 			a.Logger.Printf("error syncing attendance on logout")
 		}
 	} else {
@@ -139,9 +142,6 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 
 	return &userId, nil
 }
-
-
-
 
 func (a *AuthService) maskPassword(p string) string {
 	n := len(p)

@@ -39,12 +39,10 @@ jobs:
         run: |
           $VERSION = "${{ github.ref_name }}"
           $REPO = "FES-Paul/FES-APP-TRACKER"
-          $FILE = "build/bin/FesApp Tracker.exe"
+          $FILE = "build/bin/fesapp-amd64-installer.exe"
 
           # 1. Try to create the release. If it exists, '|| echo' prevents the script from crashing.
           gh release create $VERSION --repo $REPO --title "FESAPP TRACKER $VERSION" --generate-notes --verify-tag || echo "Release already exists, moving to upload..."
 
           # 2. Upload the file. '--clobber' works here to overwrite old versions.
           gh release upload $VERSION "$FILE" --repo $REPO --clobber
-
-      
