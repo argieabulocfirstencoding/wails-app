@@ -23,7 +23,7 @@ type TaskService struct {
 	Logger            *utils.LoggerService
 	WorkingTaskID     *string
 	Attendance        **models.Attendance
-	TaskRecord        *models.TaskRecord
+	TaskRecord        **models.TaskRecord
 	ctx               context.Context
 }
 
@@ -119,10 +119,10 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	}
 
 	record, err := t.newTaskRecord(userId, taskId, attendanceId, padagan)
-record.Attendance = *(*t.Attendance)
+	record.Attendance = *(*t.Attendance)
 	record.User = (*t.Attendance).User
 
-	if err := t.SyncService.SyncTaskRecord(record); err != nil {
+	if err := t.SyncService.SyncTaskRecord(record.ID); err != nil {
 		t.Logger.Printlnf("error syncing task_record: %v", err)
 	}
 
@@ -169,7 +169,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 		if err != nil {
 			fmt.Printf("Error on syncing record: %s", err)
 		} else {
-			if err := t.SyncService.SyncTaskRecord(record); err != nil {
+			if err := t.SyncService.SyncTaskRecord(record.ID); err != nil {
 				t.Logger.Printlnf("error syncing task_record: %v", err)
 			}
 		}
@@ -181,7 +181,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	t.WorkingTaskID = &taskId
 	record, err := t.StartTaskRecord(taskId, padagan)
 
-	t.TaskRecord = record
+	t.TaskRecord = &record
 
 	if err != nil {
 		t.Logger.Printf("error starting task record: %v", err)
@@ -195,7 +195,7 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	}
 
 	if task.ProjectName == "Break" {
-		t.SyncService.SyncTaskRecord(record)
+		t.SyncService.SyncTaskRecord(record.ID)
 		return
 	}
 
@@ -225,7 +225,7 @@ func (t *TaskService) StopTracking(taskId string) {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
 		taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)
-		t.TaskRecord = taskRecord
+		*t.TaskRecord = taskRecord
 
 		if err != nil {
 			log.Printf("error retrieving task record: %v\n", err)
@@ -233,7 +233,7 @@ func (t *TaskService) StopTracking(taskId string) {
 		log.Printf("Syncing record: %v\n", taskRecord)
 		db.DB.Model(taskRecord).Update("sync_status", "pending")
 
-		if err := t.SyncService.SyncTaskRecord(taskRecord); err != nil {
+		if err := t.SyncService.SyncTaskRecord(taskRecord.ID); err != nil {
 			log.Printf("error syncing task_record: %v", err)
 		}
 	}
@@ -259,9 +259,9 @@ func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
 		t.TaskRepository.UpdateTaskRecord(taskRecord, taskRecord)
 
 		if t.TaskRecord == nil {
-			t.TaskRecord = taskRecord
+			*t.TaskRecord = taskRecord
 		} else {
-			t.TaskRecord.Notes = notes
+			(*t.TaskRecord).Notes = notes
 		}
 	}
 

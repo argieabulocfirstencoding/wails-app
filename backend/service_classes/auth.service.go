@@ -59,7 +59,7 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	a.TaskService.SyncService.AuthUser = authUser
 
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
-	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
+	a.TaskService.SyncService.TaskRecord = a.TaskService.TaskRecord
 
 	if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		a.Logger.Printf("error syncing attendance on login")

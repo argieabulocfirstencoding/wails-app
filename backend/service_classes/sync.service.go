@@ -5,6 +5,7 @@ import (
 	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
+	"fesapp/backend/repository"
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
@@ -28,6 +29,8 @@ type SyncService struct {
 
 	Attendance **models.Attendance
 	TaskRecord **models.TaskRecord
+
+	TaskRepository *repository.TaskRepository
 
 	connecting bool
 	queue      []func()
@@ -57,7 +60,8 @@ func (s *SyncService) SyncTasks() {
 
 }
 
-func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) {
+func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
+
 	defer func() {
 		if err != nil {
 			s.Logger.Println("Failed to sync task record:", err)
@@ -66,6 +70,11 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 			runtime.EventsEmit(s.ctx, "record-synced", true)
 		}
 	}()
+
+	taskRecord, err := s.TaskRepository.GetTaskRecord(taskRecordId)
+	if err != nil {
+		return err
+	}
 
 	if !config.OnlineMode {
 		return fmt.Errorf("not currently synced")
@@ -113,6 +122,9 @@ func (s *SyncService) SyncTaskRecord(taskRecord *models.TaskRecord) (err error) 
 	if taskRecord.Padagan {
 		padagan = "Yes"
 	}
+
+	s.Logger.Printlnf("DATE VALUE BEING SENT: %d", (*s.Attendance).TimeIn.UnixMilli())
+	s.Logger.Printlnf("DATE YEAR: %d", (*s.Attendance).TimeIn.Year())
 
 	s.Logger.Printlnf("Syncing TASK IN")
 	if resp, err := s.FesClientService.Request(types.Request{

@@ -45,7 +45,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.1.4"
+var CurrentVersion = "2.1.5"
 
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
@@ -466,19 +466,8 @@ func (a *App) SyncUnsyncedRecords() error {
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
-
-	taskRecord, err := services.GetTaskRecordFromID(taskrecordId)
-	if err != nil {
-		return err
-	}
-
-	if a.Attendance != nil {
-		taskRecord.User = a.Attendance.User
-		taskRecord.Attendance = *a.Attendance
-	}
-
 	// FIX change to attempt sync record
-	if err := a.AuthService.TaskService.SyncService.SyncTaskRecord(taskRecord); err != nil {
+	if err := a.AuthService.TaskService.SyncService.SyncTaskRecord(taskrecordId); err != nil {
 		return err
 	}
 

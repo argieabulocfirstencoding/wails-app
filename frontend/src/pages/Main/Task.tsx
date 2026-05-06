@@ -325,36 +325,6 @@ const Task = () => {
 
   const titleLower = taskDetails?.title?.toLowerCase() ?? "";
 
-  if (!isHydrated)
-    return (
-      <MainLayout>
-        <div
-          className="
-        sticky top-0 z-30
-        bg-white/90 dark:bg-neutral-950/85
-        backdrop-blur-md
-        border-b border-neutral-200 dark:border-neutral-800
-        shadow-sm
-      "
-        >
-          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-            <button
-              onClick={() => navigate("/home")}
-              className="
-            group inline-flex items-center gap-1.5 text-sm font-semibold
-            text-neutral-800 dark:text-neutral-100
-            hover:text-emerald-500 dark:hover:text-emerald-400
-            transition-colors cursor-pointer
-          "
-            >
-              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-              <span>Back</span>
-            </button>
-          </div>{" "}
-        </div>
-      </MainLayout>
-    );
-
   return (
     <MainLayout>
       {/* Sticky top bar: Back + Upwork */}
