@@ -31,7 +31,11 @@ type SyncService struct {
 	TaskRecord **models.TaskRecord
 
 	TaskRepository *repository.TaskRepository
+	AuthRepository *repository.AuthRepository
+}
 
+type SyncQueue struct {
+	ctx        context.Context
 	connecting bool
 	queue      []func()
 	mu         sync.Mutex
@@ -72,6 +76,11 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	}()
 
 	taskRecord, err := s.TaskRepository.GetTaskRecord(taskRecordId)
+	if err != nil {
+		return err
+	}
+
+	attendance, err := s.AuthRepository.GetUserAttendance(taskRecord.UserID)
 	if err != nil {
 		return err
 	}
@@ -123,22 +132,19 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		padagan = "Yes"
 	}
 
-	s.Logger.Printlnf("DATE VALUE BEING SENT: %d", (*s.Attendance).TimeIn.UnixMilli())
-	s.Logger.Printlnf("DATE YEAR: %d", (*s.Attendance).TimeIn.Year())
-
 	s.Logger.Printlnf("Syncing TASK IN")
 	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/task_in",
 		Method: "POST",
 		Body: map[string]any{
 			"task_in":              taskRecord.StartedAt.UnixMilli(),
-			"date":                 (*s.Attendance).TimeIn.UnixMilli(),
+			"date":                 attendance.TimeIn.UnixMilli(),
 			"edited_by":            taskRecord.UserID,
 			"employee_ID":          taskRecord.User.EmployeeId,
 			"padaganan":            padagan,
 			"projects_projects":    taskRecord.TaskID,
 			"task_time":            taskRecord.Duration,
-			"login_logout":         *(*s.Attendance).LoginLogoutID,
+			"login_logout":         attendance.LoginLogoutID,
 			"activity_description": taskRecord.Notes,
 		},
 	}); err != nil {
@@ -252,6 +258,31 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 	}
 
 	return nil
+}
+
+func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {
+	if !config.OnlineMode && (*s.Attendance).LoginLogoutID == nil {
+		runtime.EventsEmit(s.ctx, "attendance-synced", false)
+		return nil, s.Logger.Errorf("cannot get active task record if not synced")
+	}
+
+	body := map[string]any{
+		"login_logout_id": (*s.Attendance).LoginLogoutID,
+	}
+	// TODO continue this to fetch current active record
+	if _, err := s.FesClientService.Request(types.Request{
+		Url:    "wf/active_record",
+		Method: "GET",
+		Body:   body,
+	}); err != nil {
+		s.Logger.Println("Attempt sync attendance error:", err)
+		return nil, err
+	} else {
+
+	}
+
+	// FIX do not return nil on both return params
+	return nil, nil
 }
 
 func (s *SyncService) SyncAllAttendance() error {

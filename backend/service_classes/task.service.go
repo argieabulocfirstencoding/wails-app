@@ -24,7 +24,10 @@ type TaskService struct {
 	WorkingTaskID     *string
 	Attendance        **models.Attendance
 	TaskRecord        **models.TaskRecord
-	ctx               context.Context
+
+	AuthRepository *repository.AuthRepository
+
+	ctx context.Context
 }
 
 func NewTaskService(SyncService *SyncService) *TaskService {
@@ -265,6 +268,24 @@ func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
 		}
 	}
 
+}
+
+func (t *TaskService) GetActiveTaskRecord(userId string) (*models.ExpTaskRecord, error) {
+	// TODO firebase fetch
+	var taskRecord models.TaskRecord
+
+	attendance, err := t.AuthRepository.GetUserAttendance(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only get the active task record from the current attendance
+	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", userId, attendance.ID).First(&taskRecord).Error; err != nil {
+		return nil, err
+	}
+
+	expTaskRecord := taskRecord.ToExp()
+	return &expTaskRecord, nil
 }
 
 //  ============= PRIVATE METHODS =========================

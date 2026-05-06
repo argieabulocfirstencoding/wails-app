@@ -228,7 +228,7 @@ func (a *App) StopTracking(taskId string) {
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	// NOTE this needs to be refactor, no logic should be applied here
-dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 		Type:    runtime.QuestionDialog,
 		Title:   "Quit?",
 		Message: "Are you sure you want to quit? \n\nNote:Leaving will stop working task.",
@@ -378,11 +378,12 @@ func (a *App) GetActiveTaskRecord() *string {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Logger.Print("No active record")
+
+
 		} else {
 			utils.Logger.Printf("Error getting active record %v", err)
+			return nil
 		}
-
-		return nil
 	}
 
 	if taskRecord != nil {
