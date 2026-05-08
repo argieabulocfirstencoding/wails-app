@@ -83,7 +83,7 @@ func (a *AuthService) Logout() error {
 	attendance := a.TaskService.Attendance
 	workingTaskID := a.TaskService.WorkingTaskID
 
-	if workingTaskID != nil {
+	if *workingTaskID != nil {
 		a.TaskService.StopTracking(**workingTaskID)
 		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
 	}
