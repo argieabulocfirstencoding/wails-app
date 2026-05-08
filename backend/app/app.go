@@ -64,8 +64,6 @@ func NewApp() *App {
 	syncService := service_classes.NewSyncService()
 	authService := service_classes.NewAuthService()
 
-	authService.SyncService = syncService
-	authService.TaskService.SyncService = syncService
 
 	app := &App{
 		ScreenshotService:   screenshotService,
@@ -75,7 +73,16 @@ func NewApp() *App {
 		Logger:              logger,
 	}
 
+
+	authService.SyncService = syncService
+
 	authService.TaskService.Connect(app.ctx)
+	authService.TaskService.WorkingTaskID = &app.WorkingTaskID
+	authService.TaskService.Attendance = &app.Attendance
+	authService.TaskService.ScreenshotService = screenshotService
+	authService.TaskService.SyncService = syncService
+
+
 	syncService.Connect(app.ctx)
 
 	return app
@@ -157,8 +164,6 @@ func (a *App) GetMonitorCount() int {
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
 
-	//NOTE this is already a repeated action but not yet removed for safeguarding
-	a.AuthService.TaskService.WorkingTaskID = &a.WorkingTaskID
 }
 
 func (a *App) StopTracking(taskId string) {
