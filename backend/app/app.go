@@ -47,7 +47,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.1.6"
+var CurrentVersion = "2.2.0"
 
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
@@ -364,6 +364,15 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 
 func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 	return a.AuthService.TaskService.GetTasks(isOnline)
+}
+
+func (a *App) FetchActiveTask() error {
+	_, err := a.SyncService.SyncActiveTaskRecord()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, error) {

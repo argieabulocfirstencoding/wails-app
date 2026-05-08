@@ -22,7 +22,7 @@ import {
   LoginUserOnline,
   LogoutUser,
   SyncUnsyncedRecords,
-  OpenFesWebApp
+  OpenFesWebApp,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
 
@@ -320,7 +320,12 @@ const ProfileBar = () => {
       <div className="flex px-4 sm:px-6 py-3 sm:py-4 border-t border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md slight-shadow w-full justify-between items-center">
         {/* Left side – user info */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <button onClick={launchFesApp}>
+          <button
+            onClick={launchFesApp}
+            className={
+              "cursor-pointer active:opacity-70 transition-all duration-300"
+            }
+          >
             <img
               // src="//cf9237271c7c9759e747853c3b817950.cdn.bubble.io/f1764841309776x100054280396554060/jp.png"
               src={

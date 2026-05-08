@@ -5,6 +5,7 @@ import {
   RotateCcw, // Changed from RefreshCcw
   CheckCircle,
   TriangleAlert,
+  ArrowDownUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -13,6 +14,7 @@ import {
   GetCurrentAttendance,
   GetLastTaskRecords,
   SyncUnsyncedAttendance,
+  FetchActiveTask,
   FetchUserDetails,
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
@@ -169,6 +171,14 @@ const Home = () => {
 
     fetchAttendanceSyncStatus();
   }, []);
+
+  async function fetchFESActiveRecord() {
+    try {
+      await FetchActiveTask();
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   // Refresh (button)
   async function fetchTasks() {
@@ -371,6 +381,46 @@ const Home = () => {
                 className="w-full bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none border-none"
               />
             </div>
+
+            {/* Refresh button with spinner */}
+            {/* <button
+              onClick={() => {
+                console.log("Refresh button clicked");
+                fetchFESActiveRecord();
+              }}
+              disabled={isRefreshing || loading}
+              className={`
+                flex items-center justify-center
+                w-10 h-10 rounded-full border-2 border-green-500
+                bg-transparent
+                transition-all duration-200
+                ${
+                  isRefreshing || loading
+                    ? "cursor-not-allowed opacity-60"
+                    : "cursor-pointer hover:bg-transparent dark:hover:bg-transparent"
+                }
+              `}
+              type="button"
+              title="Refresh tasks"
+              aria-label="Refresh tasks"
+            >
+              <div
+                className={
+                  isRefreshing
+                    ? ""
+                    : "transform transition-transform duration-500 ease hover:-scale-120"
+                }
+              >
+                <ArrowDownUp
+                  size={20}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.2}
+                  className="text-green-600"
+                  style={{ color: "#16a34a" }}
+                />
+              </div>
+            </button> */}
 
             {/* Refresh button with spinner */}
             <button

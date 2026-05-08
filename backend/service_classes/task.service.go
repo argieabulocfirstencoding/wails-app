@@ -237,6 +237,8 @@ func (t *TaskService) StopTracking(taskId string) {
 		if err := t.SyncService.SyncTaskRecord(taskRecord.ID); err != nil {
 			t.Logger.Printf("error syncing task_record: %v", err)
 		}
+
+		t.TaskRecord = nil
 	}
 
 	t.ScreenshotService.TaskRecordID = nil
@@ -278,7 +280,6 @@ func (t *TaskService) GetActiveTaskRecord(userId string) (*models.ExpTaskRecord,
 	if err != nil {
 		return nil, err
 	}
-
 
 	expTaskRecord := taskRecord.ToExp()
 	return &expTaskRecord, nil

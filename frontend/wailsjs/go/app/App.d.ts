@@ -20,6 +20,8 @@ export function CreateTask(arg1:string,arg2:string):Promise<models.ExpTask>;
 
 export function DownloadAndInstall(arg1:string):Promise<void>;
 
+export function FetchActiveTask():Promise<void>;
+
 export function FetchUserDetails():Promise<models.AuthUser>;
 
 export function GetAccounts():Promise<Array<models.User>>;

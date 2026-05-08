@@ -255,11 +255,11 @@ func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {
 	}
 
 	body := map[string]any{
-		"login_logout_id": (*s.Attendance).LoginLogoutID,
+		"login_logout": *(*s.Attendance).LoginLogoutID,
 	}
 	// TODO continue this to fetch current active record
 	if resp, err := s.FesClientService.Request(types.Request{
-		Url:    "wf/active_record",
+		Url:    "wf/active_task",
 		Method: "GET",
 		Body:   body,
 	}); err != nil {
