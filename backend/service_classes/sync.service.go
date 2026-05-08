@@ -56,9 +56,6 @@ func (s *SyncService) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (s *SyncService) SyncCredentials() {
-
-}
 
 func (s *SyncService) SyncTasks() {
 
@@ -75,6 +72,10 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		}
 	}()
 
+	if !config.OnlineMode {
+		return fmt.Errorf("not currently synced")
+	}
+
 	taskRecord, err := s.TaskRepository.GetTaskRecord(taskRecordId)
 	if err != nil {
 		return err
@@ -83,10 +84,6 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	attendance, err := s.AuthRepository.GetUserAttendance(taskRecord.UserID)
 	if err != nil {
 		return err
-	}
-
-	if !config.OnlineMode {
-		return fmt.Errorf("not currently synced")
 	}
 
 	Save := func() error {
@@ -140,7 +137,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 			"task_in":              taskRecord.StartedAt.UnixMilli(),
 			"date":                 attendance.TimeIn.UnixMilli(),
 			"edited_by":            taskRecord.UserID,
-			"employee_ID":          taskRecord.User.EmployeeId,
+			"employee_ID":          (*s.Attendance).User.EmployeeId,
 			"padaganan":            padagan,
 			"projects_projects":    taskRecord.TaskID,
 			"task_time":            taskRecord.Duration,
@@ -155,14 +152,6 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		s.Logger.Printlnf("PRODUCTIVITY ID: %v", resp["productivity"])
 
 		if productivity, ok := resp["productivity"].(string); ok {
-			// jsonData, err := json.Marshal(productivity)
-			// if err != nil {
-			// 	return err
-			// }
-			// // Cast to RawMessage so it stays as valid JSON
-			// p := json.RawMessage(jsonData)
-			// taskRecord.Productivity = &p
-
 			taskRecord.Productivity = &productivity
 		}
 

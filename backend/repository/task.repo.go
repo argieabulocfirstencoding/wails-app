@@ -158,6 +158,18 @@ func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.TaskR
 	return &taskRecord, nil
 }
 
+func (t *TaskRepository) GetLastTaskRecordFromAttendance(userId string, attendanceId uint) (*models.TaskRecord, error) {
+	var taskRecord models.TaskRecord
+
+	if err := db.DB.Where("user_id = ? AND attendance_id = ?", userId, attendanceId).
+		Order("started_at DESC").
+		First(&taskRecord).Error; err != nil {
+		return nil, err
+	}
+
+	return &taskRecord, nil
+}
+
 func (t *TaskRepository) UpdateRecord(tr *models.TaskRecord) error {
 
 	now := time.Now()
@@ -193,4 +205,15 @@ func (t *TaskRepository) GetAllPreviousTasksRecords(userID string) ([]models.Tas
 	}
 
 	return taskRecords, nil
+}
+
+func (t *TaskRepository) GetActiveTaskRecord(userId string, attendanceId uint) (*models.TaskRecord, error) {
+	var taskRecord models.TaskRecord
+
+	// Only get the active task record from the current attendance
+	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", userId, attendanceId).First(&taskRecord).Error; err != nil {
+		return nil, err
+	}
+
+	return &taskRecord, nil
 }

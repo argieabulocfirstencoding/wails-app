@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/go-vgo/robotgo/clipboard"
@@ -20,6 +21,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 	"golang.org/x/sys/windows"
+
+	native_runtime "runtime"
 )
 
 type FesClientService struct {
@@ -115,6 +118,30 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	}
 
 	return response, nil
+}
+
+// ========================== UTILITY ===============================
+
+func (f *FesClientService) OpenFesWebApp() error {
+	if resp, err := f.Request(types.Request{
+		Url:    "wf/magic_link",
+		Method: "GET",
+		Body:   map[string]any{},
+	}); err == nil {
+		url, ok := resp["magic_link"].(string)
+		if !ok {
+			return f.logger.Errorf("Error on opening fes web app")
+		}
+
+		if err := f.openIncognitoBrowserUrl(url); err != nil {
+			return err
+		}
+
+	} else {
+		return err
+	}
+
+	return nil
 }
 
 // ========================== CLIENTS & PROJECTS ===============================
@@ -308,7 +335,7 @@ func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) 
 	}
 
 	fmt.Print("Fetching Upwork Credentials Please wait")
-	openFESApp()
+	f.openFESApp()
 	time.Sleep(1000 * time.Millisecond)
 	f.logger.Print("Opening upwork..")
 	// openFESApp(ctx)
@@ -371,12 +398,14 @@ func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) 
 
 		time.Sleep(1000 * time.Millisecond)
 
-		openFESApp()
+		f.openFESApp()
 		runtime.EventsEmit(ctx, "upwork-button", true)
 	}()
 }
 
-func openFESApp() {
+// ============================ PRIVATES ========================
+
+func (f *FesClientService) openFESApp() {
 	verb := "open"
 	file := "fesapp://"
 
@@ -394,4 +423,30 @@ func openFESApp() {
 	// 2. Pass the pointers directly to ShellExecute
 	// We don't need [0] anymore because we have the actual pointer variable
 	_ = windows.ShellExecute(0, verbPtr, filePtr, nil, nil, windows.SW_SHOWNORMAL)
+}
+
+func (f *FesClientService) openIncognitoBrowserUrl(url string) error {
+	var cmd *exec.Cmd
+
+	switch native_runtime.GOOS {
+	case "windows":
+		// Windows: use 'start' or call chrome directly
+		// Note: If chrome isn't in PATH, you may need the full path
+		cmd = exec.Command("cmd", "/c", "start", "chrome", "--incognito", url)
+	case "darwin":
+		// macOS: uses the 'open' command with the -a flag for the app name
+		cmd = exec.Command("open", "-na", "Google Chrome", "--args", "--incognito", url)
+	case "linux":
+		// Linux: usually 'google-chrome' or 'google-chrome-stable'
+		cmd = exec.Command("google-chrome", "--incognito", url)
+	default:
+		return f.logger.Errorf("Unsupported OS")
+	}
+
+	err := cmd.Start()
+	if err != nil {
+		return f.logger.Errorf("Error opening Chrome: %s", err.Error())
+	}
+
+	return nil
 }

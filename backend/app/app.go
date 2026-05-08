@@ -31,21 +31,23 @@ import (
 
 // App struct
 type App struct {
-	ctx               context.Context
-	ScreenshotService *service_classes.ScreenshotService
-	SyncService       *services.FirebaseSyncService
-	AuthService       *service_classes.AuthService
-	windowOpen        bool
-	AuthUser          *models.AuthUser
-	WorkingTask       *models.Task
-	Attendance        *models.Attendance
-	WorkingTaskID     *string
-	AttendanceID      *uint
-	Logger            *utils.LoggerService
+	ctx                 context.Context
+	ScreenshotService   *service_classes.ScreenshotService
+	FirebaseSyncService *services.FirebaseSyncService
+	AuthService         *service_classes.AuthService
+	SyncService         *service_classes.SyncService
+	windowOpen          bool
+	AuthUser            *models.AuthUser
+	Logger              *utils.LoggerService
+
+	WorkingTask   *models.Task
+	Attendance    *models.Attendance
+	WorkingTaskID *string
+	AttendanceID  *uint
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.1.5"
+var CurrentVersion = "2.1.6"
 
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
@@ -53,95 +55,30 @@ type UpdateInfo struct {
 	DownloadUrl string `json:"downloadUrl"`
 }
 
-func (a *App) CheckForUpdates() UpdateInfo {
-	// FIX: Added /releases/latest to the end of the URL
-	url := "https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest"
-
-	res, err := http.Get(url)
-	if err != nil || res.StatusCode != 200 {
-		return UpdateInfo{Exists: false}
-	}
-	defer res.Body.Close()
-
-	var target struct {
-		TagName string `json:"tag_name"`
-		Assets  []struct {
-			BrowserDownloadURL string `json:"browser_download_url"`
-			Name               string `json:"name"`
-		} `json:"assets"`
-	}
-
-	if err := json.NewDecoder(res.Body).Decode(&target); err != nil {
-		return UpdateInfo{Exists: false}
-	}
-
-	vCurrent := semver.MustParse(CurrentVersion)
-	// Handle cases where TagName might not have 'v' prefix
-	remoteTag := target.TagName
-	if remoteTag[0] == 'v' {
-		remoteTag = remoteTag[1:]
-	}
-
-	vRemote, err := semver.Parse(remoteTag)
-
-	if err == nil && vRemote.GT(vCurrent) && len(target.Assets) > 0 {
-		return UpdateInfo{
-			Exists:      true,
-			Version:     target.TagName,
-			DownloadUrl: target.Assets[0].BrowserDownloadURL,
-		}
-	}
-
-	return UpdateInfo{Exists: false}
-}
-
-func (a *App) DownloadAndInstall(url string) error {
-	// 1. Create a path for the temporary installer
-	tempPath := os.TempDir() + "\\fes_installer.exe"
-	out, err := os.Create(tempPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// 2. Download the file
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	// 3. Launch the installer
-	// We use /S for a silent install so it's "Automatic"
-	cmd := exec.Command(tempPath, "/S")
-	err = cmd.Start()
-	if err != nil {
-		return err
-	}
-
-	// 4. Exit the app so the installer can replace the files
-	os.Exit(0)
-	return nil
-}
-
 // NewApp creates a new App application struct
 func NewApp() *App {
-	syncService := services.NewFirebaseSyncService()
-	screenshotService := service_classes.NewScreenshotService()
-	authService := service_classes.NewAuthService()
+	firebaseSyncService := services.NewFirebaseSyncService()
 	logger := utils.NewLoggerService()
 
-	return &App{
-		ScreenshotService: screenshotService,
-		SyncService:       syncService,
-		AuthService:       authService,
-		Logger:            logger,
+	screenshotService := service_classes.NewScreenshotService()
+	syncService := service_classes.NewSyncService()
+	authService := service_classes.NewAuthService()
+
+	authService.SyncService = syncService
+	authService.TaskService.SyncService = syncService
+
+	app := &App{
+		ScreenshotService:   screenshotService,
+		FirebaseSyncService: firebaseSyncService,
+		SyncService:         syncService,
+		AuthService:         authService,
+		Logger:              logger,
 	}
+
+	authService.TaskService.Connect(app.ctx)
+	syncService.Connect(app.ctx)
+
+	return app
 }
 
 // Embed the tray icon
@@ -219,7 +156,9 @@ func (a *App) GetMonitorCount() int {
 
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
 	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
-	a.WorkingTaskID = a.AuthService.TaskService.WorkingTaskID
+
+	//NOTE this is already a repeated action but not yet removed for safeguarding
+	a.AuthService.TaskService.WorkingTaskID = &a.WorkingTaskID
 }
 
 func (a *App) StopTracking(taskId string) {
@@ -251,7 +190,7 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.AuthUser = authUser
 	a.AuthService.TaskService.SyncService.AuthUser = authUser
 	a.AuthService.TaskService.Attendance = &attendance
-	a.AuthService.TaskService.AddContext(a.ctx)
+	a.AuthService.TaskService.Connect(a.ctx)
 
 	return offlineData, nil
 }
@@ -308,7 +247,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 			if err != nil {
 				return
 			}
-			a.SyncService.SyncAttendance(attendance)
+			a.FirebaseSyncService.SyncAttendance(attendance)
 		}()
 	}
 
@@ -318,15 +257,14 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	a.AttendanceID = attendanceID
 	a.AuthUser = authUser
 	// a.SyncService.Backblaze.AuthUser = user
-	a.SyncService.AuthUser = user
-	a.SyncService.IdToken = &user.IDToken
-	a.SyncService.IssuedAt = &now
+	a.FirebaseSyncService.AuthUser = user
+	a.FirebaseSyncService.IdToken = &user.IDToken
+	a.FirebaseSyncService.IssuedAt = &now
 
 	// TODO handle checking connection and only one connection attempt at a time
 	go func() {
-		a.SyncService.Connect(a.ctx)
-		a.SyncService.SyncUser(*authUser)
-		a.SyncService.SyncCredentials()
+		a.FirebaseSyncService.Connect(a.ctx)
+		a.FirebaseSyncService.SyncUser(*authUser)
 		// a.SyncService.SyncTasks()
 
 	}()
@@ -374,11 +312,10 @@ func (a *App) LogoutUser() error {
 
 func (a *App) GetActiveTaskRecord() *string {
 	// NOTE this needs to be refactor, no logic should be applied here
-	taskRecord, err := services.GetActiveTaskRecord(a.AuthUser.LocalID)
+	taskRecord, err := a.AuthService.TaskService.GetActiveTaskRecord(a.AuthUser.LocalID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Logger.Print("No active record")
-
 
 		} else {
 			utils.Logger.Printf("Error getting active record %v", err)
@@ -453,7 +390,7 @@ func (a *App) GetAccounts() ([]models.User, error) {
 
 // Not used yet
 func (a *App) SyncAttendance() error {
-	if err := a.SyncService.SyncAllAttendance(); err != nil {
+	if err := a.FirebaseSyncService.SyncAllAttendance(); err != nil {
 		return err
 	}
 
@@ -550,4 +487,82 @@ func (a *App) OnSecondInstanceLaunch(data options.SecondInstanceData) {
 
 func (a *App) GetAppCurrentVersion() string {
 	return CurrentVersion
+}
+
+// FIX BELOW IS ABOUT AUTO UPDATE PROMPTS BUT NOT WORKING CORRECTLY
+
+func (a *App) CheckForUpdates() UpdateInfo {
+	// FIX: Added /releases/latest to the end of the URL
+	url := "https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest"
+
+	res, err := http.Get(url)
+	if err != nil || res.StatusCode != 200 {
+		return UpdateInfo{Exists: false}
+	}
+	defer res.Body.Close()
+
+	var target struct {
+		TagName string `json:"tag_name"`
+		Assets  []struct {
+			BrowserDownloadURL string `json:"browser_download_url"`
+			Name               string `json:"name"`
+		} `json:"assets"`
+	}
+
+	if err := json.NewDecoder(res.Body).Decode(&target); err != nil {
+		return UpdateInfo{Exists: false}
+	}
+
+	vCurrent := semver.MustParse(CurrentVersion)
+	// Handle cases where TagName might not have 'v' prefix
+	remoteTag := target.TagName
+	if remoteTag[0] == 'v' {
+		remoteTag = remoteTag[1:]
+	}
+
+	vRemote, err := semver.Parse(remoteTag)
+
+	if err == nil && vRemote.GT(vCurrent) && len(target.Assets) > 0 {
+		return UpdateInfo{
+			Exists:      true,
+			Version:     target.TagName,
+			DownloadUrl: target.Assets[0].BrowserDownloadURL,
+		}
+	}
+
+	return UpdateInfo{Exists: false}
+}
+
+func (a *App) DownloadAndInstall(url string) error {
+	// 1. Create a path for the temporary installer
+	tempPath := os.TempDir() + "\\fes_installer.exe"
+	out, err := os.Create(tempPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// 2. Download the file
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	// 3. Launch the installer
+	// We use /S for a silent install so it's "Automatic"
+	cmd := exec.Command(tempPath, "/S")
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	// 4. Exit the app so the installer can replace the files
+	os.Exit(0)
+	return nil
 }
