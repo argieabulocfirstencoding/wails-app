@@ -124,7 +124,7 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 
 func (f *FesClientService) OpenFesWebApp() error {
 	if resp, err := f.Request(types.Request{
-		Url:    "wf/magic_link",
+		Url:    "wf/open_web_app",
 		Method: "GET",
 		Body:   map[string]any{},
 	}); err == nil {

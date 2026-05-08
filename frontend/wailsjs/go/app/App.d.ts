@@ -52,6 +52,8 @@ export function LogoutUser():Promise<void>;
 
 export function OnSecondInstanceLaunch(arg1:options.SecondInstanceData):Promise<void>;
 
+export function OpenFesWebApp():Promise<void>;
+
 export function OpenUpwork(arg1:string):Promise<void>;
 
 export function SetTaskRecordNotes(arg1:number,arg2:string):Promise<void>;

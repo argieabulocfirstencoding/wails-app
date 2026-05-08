@@ -56,7 +56,6 @@ func (s *SyncService) Connect(ctx context.Context) error {
 	return nil
 }
 
-
 func (s *SyncService) SyncTasks() {
 
 }
@@ -259,7 +258,7 @@ func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {
 		"login_logout_id": (*s.Attendance).LoginLogoutID,
 	}
 	// TODO continue this to fetch current active record
-	if _, err := s.FesClientService.Request(types.Request{
+	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/active_record",
 		Method: "GET",
 		Body:   body,
@@ -268,6 +267,12 @@ func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {
 		return nil, err
 	} else {
 
+		productivity, ok := resp["productivity"].(map[string]any)
+		if !ok {
+			return nil, s.Logger.Error("productivity not found on syncing active task record")
+		}
+
+		s.Logger.Printf("productivity returned on sync: %v", productivity)
 	}
 
 	// FIX do not return nil on both return params

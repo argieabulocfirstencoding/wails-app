@@ -64,7 +64,6 @@ func NewApp() *App {
 	syncService := service_classes.NewSyncService()
 	authService := service_classes.NewAuthService()
 
-
 	app := &App{
 		ScreenshotService:   screenshotService,
 		FirebaseSyncService: firebaseSyncService,
@@ -73,7 +72,6 @@ func NewApp() *App {
 		Logger:              logger,
 	}
 
-
 	authService.SyncService = syncService
 
 	authService.TaskService.Connect(app.ctx)
@@ -81,7 +79,6 @@ func NewApp() *App {
 	authService.TaskService.Attendance = &app.Attendance
 	authService.TaskService.ScreenshotService = screenshotService
 	authService.TaskService.SyncService = syncService
-
 
 	syncService.Connect(app.ctx)
 
@@ -374,9 +371,13 @@ func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, 
 }
 
 func (a *App) OpenUpwork(taskID string) error {
-	a.AuthService.TaskService.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID)
+	a.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID)
 
 	return nil
+}
+
+func (a *App) OpenFesWebApp() error {
+	return a.SyncService.FesClientService.OpenFesWebApp()
 }
 
 func (a *App) GetAccounts() ([]models.User, error) {

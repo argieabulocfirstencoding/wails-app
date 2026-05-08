@@ -94,6 +94,10 @@ export function OnSecondInstanceLaunch(arg1) {
   return window['go']['app']['App']['OnSecondInstanceLaunch'](arg1);
 }
 
+export function OpenFesWebApp() {
+  return window['go']['app']['App']['OpenFesWebApp']();
+}
+
 export function OpenUpwork(arg1) {
   return window['go']['app']['App']['OpenUpwork'](arg1);
 }
