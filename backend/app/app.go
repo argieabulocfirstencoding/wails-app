@@ -47,7 +47,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.2.1"
+var CurrentVersion = "2.2.2"
 
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`

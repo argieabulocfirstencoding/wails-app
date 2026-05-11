@@ -157,9 +157,9 @@ func (t *TaskService) StopTaskRecord(userId, taskId string) error {
 
 func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bool) {
 
-	if t.ScreenshotService.Running {
-		t.ScreenshotService.Stop()
-	}
+	// if t.ScreenshotService.Running {
+	// 	t.ScreenshotService.Stop()
+	// }
 	if err := t.TaskRepository.StopAllActiveRecords(*t.Attendance); err != nil {
 		fmt.Printf("Error stoping active task record: %s", err)
 	}
@@ -179,7 +179,18 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 
 	t.ScreenshotService.FolderName = localStorageValue
 	t.ScreenshotService.TaskID = &taskId
-	**t.WorkingTaskID = taskId
+
+	if t.WorkingTaskID != nil {
+		if *t.WorkingTaskID != nil {
+			// Update the value at the existing address
+			**t.WorkingTaskID = taskId
+		} else {
+			// The outer pointer exists, but it points to nil
+			// Assign a new pointer to the inner location
+			*t.WorkingTaskID = &taskId
+		}
+	}
+
 	record, err := t.StartTaskRecord(taskId, padagan)
 
 	t.TaskRecord = record
