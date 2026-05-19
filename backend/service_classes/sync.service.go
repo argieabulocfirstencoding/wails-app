@@ -47,6 +47,8 @@ func NewSyncService() *SyncService {
 		Backblaze:        backblaze,
 		FesClientService: NewFesClientService(),
 		Logger:           utils.NewLoggerService(),
+		TaskRepository:   repository.NewTaskRepository(),
+		AuthRepository:   repository.NewAuthRepository(),
 	}
 }
 
@@ -105,6 +107,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 
 	if taskRecord.EndedAt != nil {
 		s.Logger.Printlnf("Syncing TASK OUT")
+
 		if resp, err := s.FesClientService.Request(types.Request{
 			Url:    "wf/task_out",
 			Method: "POST",
@@ -128,6 +131,12 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		padagan = "Yes"
 	}
 
+	task, err := s.TaskRepository.GetTaskFromTaskID(taskRecord.TaskID)
+	if err != nil {
+		s.Logger.Printlnf("Task not found on syncing task record, important for determining of upwork account. err: ", err)
+		return err
+	}
+
 	s.Logger.Printlnf("Syncing TASK IN")
 	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/task_in",
@@ -139,6 +148,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 			"employee_ID":          (*s.Attendance).User.EmployeeId,
 			"padaganan":            padagan,
 			"projects_projects":    taskRecord.TaskID,
+			"tracker_used":         task.Title,
 			"task_time":            taskRecord.Duration,
 			"login_logout":         attendance.LoginLogoutID,
 			"activity_description": taskRecord.Notes,

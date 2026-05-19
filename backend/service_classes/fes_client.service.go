@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+
 	"os/exec"
 	"time"
 
@@ -108,7 +109,7 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	}
 
 	f.logger.Printlnf("RESULT: %v", result)
- 	response, ok := result["response"].(map[string]any)
+	response, ok := result["response"].(map[string]any)
 	if !ok {
 		errorMessage, ok := result["message"].(string)
 		if !ok {

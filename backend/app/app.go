@@ -47,7 +47,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.2.2"
+var CurrentVersion = "2.2.3"
 
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
@@ -79,6 +79,7 @@ func NewApp() *App {
 	authService.TaskService.Attendance = &app.Attendance
 	authService.TaskService.ScreenshotService = screenshotService
 	authService.TaskService.SyncService = syncService
+
 
 	syncService.Connect(app.ctx)
 

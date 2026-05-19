@@ -107,6 +107,18 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 		}
 	}
 
+	// if rawBirthdate != "" {
+	// 	slicedBd := strings.Split(rawBirthdate, " ")
+
+	// 	// Check if we have enough parts to avoid an index out of range error
+	// 	if len(slicedBd) < 3 {
+	// 		// Handle the "error" state here if needed
+	// 		fmt.Println("Warning: rawBirthdate format is invalid")
+	// 	} else {
+	// 		birthdate = fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
+	// 	}
+	// }
+
 	// 2. Map fields safely (This prevents the "interface {} is nil" error)
 	fesid := safeString(response, "fesid")
 	if fesid != "" {
