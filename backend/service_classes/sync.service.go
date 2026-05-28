@@ -170,6 +170,8 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
+	// FIX logout if onlinemode should priroitize logging out maybe check if login_logout id is not nul DEBUG here
+	
 	if !config.OnlineMode {
 		runtime.EventsEmit(s.ctx, "attendance-synced", false)
 		return nil
