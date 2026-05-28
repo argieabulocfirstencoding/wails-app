@@ -1,115 +1,208 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import SettingsLayout from "@/layouts/SettingsLayout";
 import {
+  AlertTriangle,
+  CheckCircle2,
   History,
   LogIn,
   LogOut,
-  AlertTriangle,
+  RotateCcw,
   UserCircle2,
+  XCircle,
 } from "lucide-react";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import { models } from "@/../wailsjs/go/models";
 import {
   GetActivityLogRecord,
   GetTotalClientRecords,
+  SyncAttendanceByID,
+  SyncUnsyncedTaskRecord,
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
-import { fetchTodayClientSummary, secondsToHHMM } from "@/lib/utils";
+import { secondsToHHMM } from "@/lib/utils";
 
-const ActivityLogs = () => {
-  const [activities, setActivities] = useState<models.ActivityLogRecord[]>();
-  const { summaries, setSummary } = useAuthStore();
-  const [date, setDate] = useState<Date>(new Date());
+const MANILA_TIMEZONE = "Asia/Manila";
 
-  useEffect(() => {
-    // fetchTodayClientSummary(date);
+const toDateOnly = (input: Date): string => {
+  const year = input.getFullYear();
+  const month = String(input.getMonth() + 1).padStart(2, "0");
+  const day = String(input.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-    async function fetchActivity() {
-      try {
-        const dateOnly = date.toLocaleDateString("en-CA", {
-          timeZone: "Asia/Manila",
-        });
+const parseDateTime = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === "number") {
+    const numericDate = new Date(value);
+    return Number.isNaN(numericDate.getTime()) ? null : numericDate;
+  }
+  if (typeof value !== "string") return null;
 
-        let a = await GetActivityLogRecord(dateOnly);
-        // console.log("Activities: ", a);
-        setActivities(a);
-      } catch (e) {
-        console.log("Error fetching activities: ", e);
-      }
-    }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
 
-    fetchActivity();
-  }, [date]);
+  const normalized = trimmed.includes("T")
+    ? trimmed
+    : trimmed.replace(" ", "T");
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+  const withTimezone = hasTimezone ? normalized : `${normalized}+08:00`;
 
-  useEffect(() => {
-    async function fetchTodayClientSummary() {
-      try {
-        const dateOnly = date.toLocaleDateString("en-CA", {
-          timeZone: "Asia/Manila",
-        });
+  const parsed = new Date(withTimezone);
+  if (!Number.isNaN(parsed.getTime())) return parsed;
 
-        const results = await GetTotalClientRecords(dateOnly);
-        console.log("results", results);
-        setSummary(results);
-      } catch (error) {
-        console.log("Error in fetchActivity in activity logs ", error);
-      }
-    }
+  const fallback = new Date(trimmed);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+};
 
-    fetchTodayClientSummary();
-  }, [date]);
+const formatTimestamp = (value: unknown) => {
+  const parsed = parseDateTime(value);
+  if (!parsed) return { date: "Invalid date", time: "" };
 
-  console.log(secondsToHHMM(3661)); // "01:01"
-  console.log(secondsToHHMM(5400)); // "01:30"
-  console.log(secondsToHHMM(90000)); // "25:00"
+  const date = parsed.toLocaleDateString("en-US", {
+    timeZone: MANILA_TIMEZONE,
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
 
-  const renderIcon = (event: string) => {
-    const lower = event.toLowerCase();
-    if (lower.includes("logged in")) {
-      return (
-        <div className="mt-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 p-1.5">
-          <LogIn className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-        </div>
-      );
-    }
-    if (lower.includes("logged out")) {
-      return (
-        <div className="mt-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 p-1.5">
-          <LogOut className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-        </div>
-      );
-    }
+  const time = parsed.toLocaleTimeString("en-US", {
+    timeZone: MANILA_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return { date, time };
+};
+
+const isSynced = (syncStatus?: string, syncedAt?: unknown): boolean => {
+  return syncStatus?.toLowerCase() === "synced" && !!parseDateTime(syncedAt);
+};
+
+const statusLabel = (syncStatus?: string, syncedAt?: unknown): string => {
+  if (isSynced(syncStatus, syncedAt)) return "Synced";
+  if (syncStatus?.toLowerCase() === "pending") return "Pending";
+  return "Unsynced";
+};
+
+const renderEventIcon = (event: string) => {
+  const lower = event.toLowerCase();
+  if (lower.includes("logged in")) {
     return (
-      <div className="mt-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 p-1.5">
-        <History className="w-3.5 h-3.5 text-neutral-700 dark:text-neutral-300" />
+      <div className="mt-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 p-1.5">
+        <LogIn className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
       </div>
     );
+  }
+  if (lower.includes("logged out")) {
+    return (
+      <div className="mt-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 p-1.5">
+        <LogOut className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+      </div>
+    );
+  }
+  return (
+    <div className="mt-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 p-1.5">
+      <History className="w-3.5 h-3.5 text-neutral-700 dark:text-neutral-300" />
+    </div>
+  );
+};
+
+const ActivityLogs = () => {
+  const [activities, setActivities] = useState<models.ActivityLogRecord[]>([]);
+  const [date, setDate] = useState<Date>(new Date());
+  const [loading, setLoading] = useState(false);
+  const [syncingKeys, setSyncingKeys] = useState<Record<string, boolean>>({});
+  const [syncErrorByKey, setSyncErrorByKey] = useState<Record<string, string>>(
+    {},
+  );
+  const { summaries, setSummary, tasks, online } = useAuthStore();
+
+  const loadActivityData = useCallback(
+    async (targetDate: Date) => {
+      setLoading(true);
+      try {
+        const dateOnly = toDateOnly(targetDate);
+        const [fetchedActivities, summaryResults] = await Promise.all([
+          GetActivityLogRecord(dateOnly),
+          GetTotalClientRecords(dateOnly),
+        ]);
+        setActivities(fetchedActivities ?? []);
+        setSummary(summaryResults ?? []);
+      } catch (error) {
+        console.log("Error loading activity logs:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setSummary],
+  );
+
+  useEffect(() => {
+    loadActivityData(date);
+  }, [date, loadActivityData]);
+
+  const setSyncing = (key: string, syncing: boolean) => {
+    setSyncingKeys((prev) => ({ ...prev, [key]: syncing }));
   };
 
-  const formatTimestamp = (iso: string) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return { date: iso, time: "" };
+  const clearSyncError = (key: string) => {
+    setSyncErrorByKey((prev) => ({ ...prev, [key]: "" }));
+  };
 
-    const date = d.toLocaleDateString(undefined, {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    });
+  const setSyncError = (key: string, message: string) => {
+    setSyncErrorByKey((prev) => ({ ...prev, [key]: message }));
+  };
 
-    const time = d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
+  const syncTaskRecord = async (recordID: number, key: string) => {
+    if (!online) {
+      setSyncError(key, "Cannot sync while offline.");
+      return;
+    }
 
-    return { date, time };
+    setSyncing(key, true);
+    clearSyncError(key);
+    try {
+      await SyncUnsyncedTaskRecord(recordID);
+      await loadActivityData(date);
+    } catch (error) {
+      console.error("Failed to sync task record:", error);
+      setSyncError(key, "Sync failed. Please retry.");
+    } finally {
+      setSyncing(key, false);
+    }
+  };
+
+  const syncAttendanceRecord = async (attendanceID: number, key: string) => {
+    if (!online) {
+      setSyncError(key, "Cannot sync while offline.");
+      return;
+    }
+
+    setSyncing(key, true);
+    clearSyncError(key);
+    try {
+      await SyncAttendanceByID(attendanceID);
+      await loadActivityData(date);
+    } catch (error) {
+      console.error("Failed to sync attendance:", error);
+      setSyncError(key, "Sync failed. Please retry.");
+    } finally {
+      setSyncing(key, false);
+    }
+  };
+
+  const findTaskByID = (id: string) => {
+    return tasks.find((task) => task.taskId === id) ?? null;
   };
 
   return (
     <SettingsLayout>
       <div className="max-w-md mx-auto space-y-6">
-        {/* Page title (match Notifications) */}
         <header className="space-y-1">
           <h2 className="text-xl sm:text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
             Activity Logs
@@ -118,24 +211,17 @@ const ActivityLogs = () => {
             Here you can manage your activity logs.
           </p>
         </header>
+
         <div className="absolute top-3 z-999 right-4 flex justify-end items-end">
           <Calendar22 setDate={setDate} date={date} />
         </div>
+
         {summaries && summaries.length > 0 && (
-          <section
-            className="
-            rounded-2xl
-            border border-neutral-200 dark:border-neutral-800
-            bg-white dark:bg-neutral-900
-            overflow-hidden
-          "
-          >
+          <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
             <div className="px-6 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
                 Client
               </span>
-              {/* <History className="w-4 h-4 text-neutral-400 dark:text-neutral-500" /> */}
-
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
                 Total Time
               </span>
@@ -175,41 +261,93 @@ const ActivityLogs = () => {
           </section>
         )}
 
-        {/* Main card */}
-        <section
-          className="
-            rounded-2xl
-            border border-neutral-200 dark:border-neutral-800
-            bg-white dark:bg-neutral-900
-            overflow-hidden
-          "
-        >
-          {/* Label row */}
+        <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden">
           <div className="px-6 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-500">
               Recent Activity
             </span>
-            {/* <History className="w-4 h-4 text-neutral-400 dark:text-neutral-500" /> */}
           </div>
 
-          {/* Body */}
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {activities?.length === 0 ? (
+            {loading ? (
+              <div className="px-6 py-6 text-sm text-neutral-500 dark:text-neutral-400">
+                Loading activity logs...
+              </div>
+            ) : activities.length === 0 ? (
               <div className="px-6 py-6 text-sm text-neutral-500 dark:text-neutral-400">
                 No activity logs yet.
               </div>
             ) : (
-              activities?.map((activity, idx) => (
-                <ActivityBannerSet
-                  activity={activity}
-                  key={activity.attendance.ID + idx}
-                />
-              ))
+              activities.map((activity, idx) => {
+                const attendanceLoginKey = `attendance-login-${activity.attendance.ID}`;
+                const attendanceLogoutKey = `attendance-logout-${activity.attendance.ID}`;
+
+                return (
+                  <div key={activity.attendance.ID + "-" + idx}>
+                    <ActivityBanner
+                      label="Logged In"
+                      description="FES App Tracker session started"
+                      isoTime={activity.attendance.TimeIn}
+                      syncStatus={activity.attendance.SyncStatus}
+                      syncedAt={activity.attendance.SyncedAt}
+                      syncing={!!syncingKeys[attendanceLoginKey]}
+                      syncError={syncErrorByKey[attendanceLoginKey]}
+                      onSync={() =>
+                        syncAttendanceRecord(
+                          activity.attendance.ID,
+                          attendanceLoginKey,
+                        )
+                      }
+                    />
+
+                    {activity.records.map((record) => {
+                      const task = findTaskByID(record.TaskID);
+                      const key = `record-${record.ID}`;
+                      const taskName = task?.title
+                        ? `${task.title.slice(0, 50)}${
+                            task.title.length > 50 ? "..." : ""
+                          }`
+                        : "Task";
+
+                      return (
+                        <ActivityBanner
+                          key={key}
+                          label="Task Recorded"
+                          description={`${taskName} task has been recorded`}
+                          isoTime={record.StartedAt}
+                          syncStatus={record.SyncStatus}
+                          syncedAt={record.SyncedAt}
+                          syncing={!!syncingKeys[key]}
+                          syncError={syncErrorByKey[key]}
+                          onSync={() => syncTaskRecord(record.ID, key)}
+                        />
+                      );
+                    })}
+
+                    {activity.attendance.TimeOut && (
+                      <ActivityBanner
+                        label="Logged Out"
+                        description="FES App Tracker session ended"
+                        isoTime={activity.attendance.TimeOut}
+                        syncStatus={activity.attendance.SyncStatus}
+                        syncedAt={activity.attendance.SyncedAt}
+                        syncing={!!syncingKeys[attendanceLogoutKey]}
+                        syncError={syncErrorByKey[attendanceLogoutKey]}
+                        onSync={() =>
+                          syncAttendanceRecord(
+                            activity.attendance.ID,
+                            attendanceLogoutKey,
+                          )
+                        }
+                      />
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </section>
 
-        {/* Footnote */}
         <footer className="flex items-start gap-2 text-xs text-neutral-500 dark:text-neutral-400">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-amber-500" />
           <p>
@@ -221,121 +359,104 @@ const ActivityLogs = () => {
       <AppFooterInfo className="mt-6" />
     </SettingsLayout>
   );
-
-  function ActivityBannerSet({
-    activity,
-  }: {
-    activity: models.ActivityLogRecord;
-  }) {
-    const { tasks } = useAuthStore();
-
-    function getTasksFromId(id: string) {
-      return tasks.find((task) => task.taskId === id) ?? null;
-    }
-
-    return (
-      <>
-        <ActivityBanner
-          label="Logged In"
-          description="FES App Tracker session started"
-          iso_time={activity.attendance.TimeIn}
-          synced_at={activity.attendance.SyncedAt}
-        />
-
-        {activity.records.map((record, idx) => {
-          const task = getTasksFromId(record.TaskID);
-
-          return (
-            <ActivityBanner
-              label="Task Recorded"
-              description={`${
-                task?.title?.slice(0, 50) +
-                (task?.title && task.title.length > 50 ? "..." : "")
-              } task has been recorded`}
-              iso_time={record.StartedAt}
-              synced_at={record.SyncedAt}
-            />
-          );
-        })}
-
-        {activity.attendance.TimeOut && (
-          <ActivityBanner
-            label="Logged Out"
-            description="FES App Tracker session ended"
-            iso_time={activity.attendance.TimeOut}
-            synced_at={activity.attendance.SyncedAt}
-          />
-        )}
-      </>
-    );
-
-    function ActivityBanner({
-      label,
-      description,
-      iso_time,
-      synced_at,
-    }: {
-      label: string;
-      description: string;
-      iso_time: string;
-      synced_at: string;
-    }) {
-      return (
-        <div
-          key={label + iso_time}
-          className="px-4 py-4 flex items-start justify-between gap-4"
-        >
-          <div className="flex items-start gap-3">
-            {renderIcon(label)}
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                {label}
-              </p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                {description}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              {(() => {
-                const t = formatTimestamp(iso_time);
-                return (
-                  <div className="flex flex-col items-end leading-tight">
-                    <span className="text-[11px] text-neutral-700 dark:text-neutral-300">
-                      {t.date}
-                    </span>
-                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                      {t.time}
-                    </span>
-                  </div>
-                );
-              })()}
-            </span>
-
-            <div>
-              <span className="text-[9px] text-emerald-400">Synced at:</span>
-              <span className="text-[9px] text-neutral-500 dark:text-neutral-400">
-                {(() => {
-                  const t = formatTimestamp(synced_at);
-                  return (
-                    <div className="flex flex-col items-end leading-tight">
-                      <span className="text-neutral-700 dark:text-neutral-300">
-                        {t.date}
-                      </span>
-                      <span className="text-neutral-500 dark:text-neutral-400">
-                        {t.time}
-                      </span>
-                    </div>
-                  );
-                })()}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    }
-  }
 };
+
+type ActivityBannerProps = {
+  label: string;
+  description: string;
+  isoTime: unknown;
+  syncStatus?: string;
+  syncedAt?: unknown;
+  syncing: boolean;
+  syncError?: string;
+  onSync: () => void;
+};
+
+function ActivityBanner({
+  label,
+  description,
+  isoTime,
+  syncStatus,
+  syncedAt,
+  syncing,
+  syncError,
+  onSync,
+}: ActivityBannerProps) {
+  const eventTime = formatTimestamp(isoTime);
+  const syncedTime = formatTimestamp(syncedAt);
+  const synced = isSynced(syncStatus, syncedAt);
+  const currentStatus = statusLabel(syncStatus, syncedAt);
+
+  return (
+    <div className="px-4 py-4 flex items-start justify-between gap-4">
+      <div className="flex items-start gap-3">
+        {renderEventIcon(label)}
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+            {label}
+          </p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+            {description}
+          </p>
+          {syncError && (
+            <p className="text-[10px] text-rose-500 dark:text-rose-400">
+              {syncError}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end leading-tight text-[11px]">
+          <span className="text-neutral-700 dark:text-neutral-300">
+            {eventTime.date}
+          </span>
+          <span className="text-neutral-500 dark:text-neutral-400">
+            {eventTime.time}
+          </span>
+        </div>
+
+        <div
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+            synced
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+          }`}
+        >
+          {synced ? (
+            <CheckCircle2 className="w-3 h-3" />
+          ) : (
+            <XCircle className="w-3 h-3" />
+          )}
+          <span>{currentStatus}</span>
+        </div>
+
+        {synced && (
+          <div className="text-[9px] text-neutral-500 dark:text-neutral-400 flex flex-col items-end leading-tight">
+            <span className="text-emerald-500 dark:text-emerald-400">
+              Synced at
+            </span>
+            <span className="text-neutral-700 dark:text-neutral-300">
+              {syncedTime.date}
+            </span>
+            <span>{syncedTime.time}</span>
+          </div>
+        )}
+
+        {!synced && (
+          <button
+            onClick={onSync}
+            disabled={syncing}
+            className="inline-flex items-center gap-1 rounded-full border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60 cursor-pointer"
+            title="Retry sync"
+          >
+            <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing..." : "Resync"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default ActivityLogs;

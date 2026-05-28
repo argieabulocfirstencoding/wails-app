@@ -80,7 +80,6 @@ func NewApp() *App {
 	authService.TaskService.ScreenshotService = screenshotService
 	authService.TaskService.SyncService = syncService
 
-
 	syncService.Connect(app.ctx)
 
 	return app
@@ -436,6 +435,19 @@ func (a *App) SyncUnsyncedAttendance() error {
 	}
 
 	// FIX change to attempt sync attendance
+	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *App) SyncAttendanceByID(attendanceID uint) error {
+	attendance, err := services.GetAttendanceFromID(attendanceID)
+	if err != nil {
+		return err
+	}
+
 	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		return err
 	}

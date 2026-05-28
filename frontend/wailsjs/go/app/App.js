@@ -122,6 +122,10 @@ export function SyncAttendance() {
   return window['go']['app']['App']['SyncAttendance']();
 }
 
+export function SyncAttendanceByID(arg1) {
+  return window['go']['app']['App']['SyncAttendanceByID'](arg1);
+}
+
 export function SyncUnsyncedAttendance() {
   return window['go']['app']['App']['SyncUnsyncedAttendance']();
 }

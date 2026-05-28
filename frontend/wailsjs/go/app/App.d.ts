@@ -66,6 +66,8 @@ export function StopTracking(arg1:string):Promise<void>;
 
 export function SyncAttendance():Promise<void>;
 
+export function SyncAttendanceByID(arg1:number):Promise<void>;
+
 export function SyncUnsyncedAttendance():Promise<void>;
 
 export function SyncUnsyncedRecords():Promise<void>;
