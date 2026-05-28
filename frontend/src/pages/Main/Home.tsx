@@ -13,14 +13,11 @@ import {
   GetTasks,
   GetCurrentAttendance,
   GetLastTaskRecords,
-  SyncUnsyncedAttendance,
   FetchActiveTask,
   FetchUserDetails,
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
-import { Button } from "@/components/ui/button";
 import Loader from "@/components/custom/Loader";
-import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import { models, types } from "@/../wailsjs/go/models";
 import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatDistance } from "date-fns";
@@ -37,7 +34,6 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSyncing, setSyncing] = useState(false);
   const [taskRecords, setTaskRecords] = useState<models.ExpTaskRecord[]>();
   const {
     taskID,
@@ -99,7 +95,6 @@ const Home = () => {
   useEffect(() => {
     const off = EventsOn("attendance-synced", (synced: boolean) => {
       setAttendanceSynced(synced);
-      setSyncing(false);
     });
 
     return () => off();
@@ -207,20 +202,6 @@ const Home = () => {
         setIsRefreshing(false);
         console.log("refresh finished, isRefreshing set false");
       }, 600);
-    }
-  }
-
-  async function SyncCurrentAttendance() {
-    if (!online || isSyncing) return;
-
-    setSyncing(true);
-    try {
-      await SyncUnsyncedAttendance();
-      await fetchCurrentAttendance();
-    } catch (error) {
-      console.error("Error syncing attendance:", error);
-    } finally {
-      setSyncing(false);
     }
   }
 
@@ -345,36 +326,20 @@ const Home = () => {
 
             {synced && (
               <div className="flex items-center gap-3 text-xs sm:text-sm">
-                {isSyncing ? (
-                  <div className="flex items-center gap-1 text-foreground">
-                    <span>Syncing</span>
-                    <SpinnerLoader className="scale-75" />
-                  </div>
-                ) : attendanceSynced ? (
-                  <button
-                    type="button"
-                    onClick={SyncCurrentAttendance}
-                    disabled={!online}
-                    className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                    title="Synced. Click to resync."
-                    aria-label="Resync attendance"
+                {attendanceSynced ? (
+                  <div
+                    className="inline-flex items-center gap-1 text-green-600 dark:text-green-400"
+                    title="Attendance synced"
                   >
                     <span>Synced</span>
                     <CheckCircle className="w-4 h-4" />
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </button>
+                  </div>
                 ) : (
-                  <div className="flex flex-col items-end gap-1 text-amber-500">
-                    <span className="flex items-center gap-1 text-[11px] sm:text-xs select-none">
+                  <div className="flex items-center gap-1 text-foreground">
+                    <span className="flex items-center gap-1 text-[11px] sm:text-xs select-none text-amber-500">
                       Not synced
                       <TriangleAlert size={12} />
                     </span>
-                    <Button
-                      className="h-8 px-3 bg-green-500 hover:bg-green-600 rounded-full cursor-pointer text-xs sm:text-sm text-white"
-                      onClick={SyncCurrentAttendance}
-                    >
-                      {isSyncing ? "Syncing..." : "Sync now"}
-                    </Button>
                   </div>
                 )}
               </div>

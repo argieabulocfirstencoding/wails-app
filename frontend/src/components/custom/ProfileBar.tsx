@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { RotateCcw, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import Drawer from "@/components/custom/Drawer";
 import {
   Dialog,
@@ -385,32 +385,20 @@ const ProfileBar = () => {
 
         {/* Right side – Sync + Settings */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {online && (
+          {online && !synced && (
             <button
               onClick={() => setOpenSyncDialog(true)}
               disabled={syncLoading}
-              className={`inline-flex justify-center items-center gap-1 min-w-[72px] px-4 py-2 text-xs font-medium rounded-full shadow disabled:opacity-60 cursor-pointer transition ${
-                synced
-                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                  : "bg-emerald-600 text-white hover:bg-emerald-700"
-              }`}
-              title={
-                synced
-                  ? "Synced. Click to open sync and resync."
-                  : "Open sync dialog"
-              }
+              className="inline-flex justify-center items-center gap-1 min-w-[72px] px-4 py-2 text-xs font-medium rounded-full shadow disabled:opacity-60 cursor-pointer transition bg-emerald-600 text-white hover:bg-emerald-700"
+              title="Open sync dialog"
             >
-              {syncLoading ? (
-                "..."
-              ) : synced ? (
-                <>
-                  Synced
-                  <RotateCcw className="w-3 h-3" />
-                </>
-              ) : (
-                "Sync"
-              )}
+              {syncLoading ? "..." : "Sync"}
             </button>
+          )}
+          {online && synced && (
+            <span className="inline-flex justify-center items-center min-w-[72px] px-4 py-2 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700">
+              Synced
+            </span>
           )}
 
           <div className="relative flex items-center group">

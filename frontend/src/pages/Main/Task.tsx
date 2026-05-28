@@ -5,17 +5,11 @@ import {
   CircleCheckBig,
   CirclePlay,
   StopCircle,
-  RefreshCcw,
 } from "lucide-react";
 import React, { forwardRef, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
 import upworkLogo from "@/assets/images/upwork_logo.png";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   GetMonitorCount,
   StartTracking,
@@ -23,7 +17,6 @@ import {
   GetLastTaskRecord,
   AddMemo,
   OpenUpwork,
-  SyncUnsyncedTaskRecord,
   SetTaskRecordNotes,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime";
@@ -175,12 +168,6 @@ const Task = () => {
       setLaunching(true);
       await OpenUpwork(taskDetails.taskId);
     }
-  }
-
-  async function handleSyncTaskRecord() {
-    if (!lastTaskRecord) return;
-    setSyncing(true);
-    await SyncUnsyncedTaskRecord(lastTaskRecord.id);
   }
 
   function openPreview(base64: string) {
@@ -447,20 +434,6 @@ const Task = () => {
                       <span className="inline-flex items-center gap-1 text-amber-500">
                         Not synced
                         <CircleAlert className="w-3 h-3" />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              onClick={handleSyncTaskRecord}
-                              className="ml-1 rounded-full p-1 text-neutral-400 dark:text-neutral-300 hover:text-neutral-700 dark:hover:text-white transition-colors cursor-pointer"
-                            >
-                              <RefreshCcw className="w-3.5 h-3.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Click to sync this session</p>
-                          </TooltipContent>
-                        </Tooltip>
                       </span>
                     )
                   )

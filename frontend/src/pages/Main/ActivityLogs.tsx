@@ -18,6 +18,15 @@ import {
   SyncAttendanceByID,
   SyncUnsyncedTaskRecord,
 } from "@/../wailsjs/go/app/App";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
 import { secondsToHHMM } from "@/lib/utils";
@@ -120,6 +129,13 @@ const ActivityLogs = () => {
   const [syncErrorByKey, setSyncErrorByKey] = useState<Record<string, string>>(
     {},
   );
+  const [syncConfirmOpen, setSyncConfirmOpen] = useState(false);
+  const [pendingSync, setPendingSync] = useState<{
+    type: "task" | "attendance";
+    id: number;
+    key: string;
+    label: string;
+  } | null>(null);
   const { summaries, setSummary, tasks, online } = useAuthStore();
 
   const loadActivityData = useCallback(
@@ -198,6 +214,31 @@ const ActivityLogs = () => {
 
   const findTaskByID = (id: string) => {
     return tasks.find((task) => task.taskId === id) ?? null;
+  };
+
+  const requestSync = (
+    type: "task" | "attendance",
+    id: number,
+    key: string,
+    label: string,
+  ) => {
+    setPendingSync({ type, id, key, label });
+    setSyncConfirmOpen(true);
+  };
+
+  const confirmSync = async () => {
+    if (!pendingSync) return;
+
+    setSyncConfirmOpen(false);
+    const { type, id, key } = pendingSync;
+    setPendingSync(null);
+
+    if (type === "task") {
+      await syncTaskRecord(id, key);
+      return;
+    }
+
+    await syncAttendanceRecord(id, key);
   };
 
   return (
@@ -293,9 +334,11 @@ const ActivityLogs = () => {
                       syncing={!!syncingKeys[attendanceLoginKey]}
                       syncError={syncErrorByKey[attendanceLoginKey]}
                       onSync={() =>
-                        syncAttendanceRecord(
+                        requestSync(
+                          "attendance",
                           activity.attendance.ID,
                           attendanceLoginKey,
+                          "Logged In",
                         )
                       }
                     />
@@ -319,7 +362,9 @@ const ActivityLogs = () => {
                           syncedAt={record.SyncedAt}
                           syncing={!!syncingKeys[key]}
                           syncError={syncErrorByKey[key]}
-                          onSync={() => syncTaskRecord(record.ID, key)}
+                          onSync={() =>
+                            requestSync("task", record.ID, key, "Task Recorded")
+                          }
                         />
                       );
                     })}
@@ -334,9 +379,11 @@ const ActivityLogs = () => {
                         syncing={!!syncingKeys[attendanceLogoutKey]}
                         syncError={syncErrorByKey[attendanceLogoutKey]}
                         onSync={() =>
-                          syncAttendanceRecord(
+                          requestSync(
+                            "attendance",
                             activity.attendance.ID,
                             attendanceLogoutKey,
+                            "Logged Out",
                           )
                         }
                       />
@@ -357,6 +404,46 @@ const ActivityLogs = () => {
         </footer>
       </div>
       <AppFooterInfo className="mt-6" />
+
+      <Dialog open={syncConfirmOpen} onOpenChange={setSyncConfirmOpen}>
+        <DialogContent className="sm:max-w-[420px] rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+              Confirm Resync
+            </DialogTitle>
+            <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+              Resyncing this activity may override what was recorded by another
+              tracker for the same session.
+            </DialogDescription>
+          </DialogHeader>
+
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Activity: {pendingSync?.label ?? "-"}
+          </p>
+
+          <DialogFooter className="mt-2 flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer rounded-lg border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+              onClick={() => {
+                setSyncConfirmOpen(false);
+                setPendingSync(null);
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              onClick={confirmSync}
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 cursor-pointer"
+            >
+              Continue Resync
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SettingsLayout>
   );
 };
@@ -443,17 +530,15 @@ function ActivityBanner({
           </div>
         )}
 
-        {!synced && (
-          <button
-            onClick={onSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-1 rounded-full border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60 cursor-pointer"
-            title="Retry sync"
-          >
-            <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing..." : "Resync"}
-          </button>
-        )}
+        <button
+          onClick={onSync}
+          disabled={syncing}
+          className="inline-flex items-center gap-1 rounded-full border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60 cursor-pointer"
+          title={synced ? "Resync this entry" : "Retry sync"}
+        >
+          <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Syncing..." : "Resync"}
+        </button>
       </div>
     </div>
   );
