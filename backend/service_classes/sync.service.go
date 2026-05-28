@@ -47,6 +47,8 @@ func NewSyncService() *SyncService {
 		Backblaze:        backblaze,
 		FesClientService: NewFesClientService(),
 		Logger:           utils.NewLoggerService(),
+		TaskRepository:   repository.NewTaskRepository(),
+		AuthRepository:   repository.NewAuthRepository(),
 	}
 }
 
@@ -54,10 +56,6 @@ func (s *SyncService) Connect(ctx context.Context) error {
 	s.ctx = ctx
 
 	return nil
-}
-
-func (s *SyncService) SyncCredentials() {
-
 }
 
 func (s *SyncService) SyncTasks() {
@@ -75,6 +73,10 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		}
 	}()
 
+	if !config.OnlineMode {
+		return fmt.Errorf("not currently synced")
+	}
+
 	taskRecord, err := s.TaskRepository.GetTaskRecord(taskRecordId)
 	if err != nil {
 		return err
@@ -83,10 +85,6 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	attendance, err := s.AuthRepository.GetUserAttendance(taskRecord.UserID)
 	if err != nil {
 		return err
-	}
-
-	if !config.OnlineMode {
-		return fmt.Errorf("not currently synced")
 	}
 
 	Save := func() error {
@@ -109,6 +107,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 
 	if taskRecord.EndedAt != nil {
 		s.Logger.Printlnf("Syncing TASK OUT")
+
 		if resp, err := s.FesClientService.Request(types.Request{
 			Url:    "wf/task_out",
 			Method: "POST",
@@ -132,6 +131,12 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		padagan = "Yes"
 	}
 
+	task, err := s.TaskRepository.GetTaskFromTaskID(taskRecord.TaskID)
+	if err != nil {
+		s.Logger.Printlnf("Task not found on syncing task record, important for determining of upwork account. err: ", err)
+		return err
+	}
+
 	s.Logger.Printlnf("Syncing TASK IN")
 	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/task_in",
@@ -140,9 +145,10 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 			"task_in":              taskRecord.StartedAt.UnixMilli(),
 			"date":                 attendance.TimeIn.UnixMilli(),
 			"edited_by":            taskRecord.UserID,
-			"employee_ID":          taskRecord.User.EmployeeId,
+			"employee_ID":          (*s.Attendance).User.EmployeeId,
 			"padaganan":            padagan,
 			"projects_projects":    taskRecord.TaskID,
+			"tracker_used":         task.Title,
 			"task_time":            taskRecord.Duration,
 			"login_logout":         attendance.LoginLogoutID,
 			"activity_description": taskRecord.Notes,
@@ -155,14 +161,6 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		s.Logger.Printlnf("PRODUCTIVITY ID: %v", resp["productivity"])
 
 		if productivity, ok := resp["productivity"].(string); ok {
-			// jsonData, err := json.Marshal(productivity)
-			// if err != nil {
-			// 	return err
-			// }
-			// // Cast to RawMessage so it stays as valid JSON
-			// p := json.RawMessage(jsonData)
-			// taskRecord.Productivity = &p
-
 			taskRecord.Productivity = &productivity
 		}
 
@@ -172,6 +170,8 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
+	// FIX logout if onlinemode should priroitize logging out maybe check if login_logout id is not nul DEBUG here
+	
 	if !config.OnlineMode {
 		runtime.EventsEmit(s.ctx, "attendance-synced", false)
 		return nil
@@ -267,11 +267,11 @@ func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {
 	}
 
 	body := map[string]any{
-		"login_logout_id": (*s.Attendance).LoginLogoutID,
+		"login_logout": *(*s.Attendance).LoginLogoutID,
 	}
 	// TODO continue this to fetch current active record
-	if _, err := s.FesClientService.Request(types.Request{
-		Url:    "wf/active_record",
+	if resp, err := s.FesClientService.Request(types.Request{
+		Url:    "wf/active_task",
 		Method: "GET",
 		Body:   body,
 	}); err != nil {
@@ -279,6 +279,12 @@ func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {
 		return nil, err
 	} else {
 
+		productivity, ok := resp["productivity"].(map[string]any)
+		if !ok {
+			return nil, s.Logger.Error("productivity not found on syncing active task record")
+		}
+
+		s.Logger.Printf("productivity returned on sync: %v", productivity)
 	}
 
 	// FIX do not return nil on both return params

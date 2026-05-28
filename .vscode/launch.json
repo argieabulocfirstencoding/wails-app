@@ -9,6 +9,7 @@
       "program": "${workspaceFolder}/main.go",
       "buildFlags": "-tags dev",
       "args": ["-debug"],
+      "preLaunchTask": "build-frontend" 
     }
   ]
 }

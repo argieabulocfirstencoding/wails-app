@@ -21,24 +21,20 @@ type AuthService struct {
 
 func NewAuthService() *AuthService {
 	SyncService := NewSyncService()
+
 	return &AuthService{
 		FesClientService: NewFesClientService(),
 		Logger:           utils.NewLoggerService(),
 		UserService:      NewUserService(),
-
 		SyncService:       SyncService,
 		AttendanceService: NewAttendanceService(SyncService),
 		TaskService:       NewTaskService(SyncService),
 	}
 }
 
-func (a *AuthService) AddTaskService(taskService *TaskService) {
-	a.TaskService = taskService
-}
-
 func (a *AuthService) Login(ctx context.Context, email, password string) (*models.Attendance, *models.AuthUser, error) {
 	a.ctx = ctx
-	a.TaskService.AddContext(ctx)
+	a.TaskService.Connect(ctx)
 
 	userId, err := a.AttemptLogin(email, password)
 	if err != nil {
@@ -55,11 +51,12 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 		Email:   email,
 	}
 
+	// NOTE INITIALIZATIONS
 	a.TaskService.Attendance = &attendance
 	a.TaskService.SyncService.AuthUser = authUser
 
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
-	a.TaskService.SyncService.TaskRecord = a.TaskService.TaskRecord
+	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
 
 	if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		a.Logger.Printf("error syncing attendance on login")
@@ -75,7 +72,6 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	// go func() {
 	// 	a.SyncService.Connect(a.ctx)
 	// 	a.SyncService.SyncUser(*authUser)
-	// 	a.SyncService.SyncCredentials()
 	// 	// a.SyncService.SyncTasks()
 
 	// }()
@@ -87,9 +83,9 @@ func (a *AuthService) Logout() error {
 	attendance := a.TaskService.Attendance
 	workingTaskID := a.TaskService.WorkingTaskID
 
-	if workingTaskID != nil {
-		a.TaskService.StopTracking(*workingTaskID)
-		a.Logger.Printf("WorkingTaskID: %s", *workingTaskID)
+	if *workingTaskID != nil {
+		a.TaskService.StopTracking(**workingTaskID)
+		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
 	}
 
 	if attendance != nil {

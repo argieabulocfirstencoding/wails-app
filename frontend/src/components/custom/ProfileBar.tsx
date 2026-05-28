@@ -22,6 +22,7 @@ import {
   LoginUserOnline,
   LogoutUser,
   SyncUnsyncedRecords,
+  OpenFesWebApp,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
 
@@ -124,6 +125,14 @@ const ProfileBar = () => {
 
     proceedLogout();
   };
+
+  async function launchFesApp() {
+    try {
+      await OpenFesWebApp();
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   async function syncAccount(e?: React.MouseEvent) {
     if (e) e.preventDefault();
@@ -311,17 +320,24 @@ const ProfileBar = () => {
       <div className="flex px-4 sm:px-6 py-3 sm:py-4 border-t border-neutral-200 dark:border-neutral-800 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md slight-shadow w-full justify-between items-center">
         {/* Left side – user info */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <img
-            // src="//cf9237271c7c9759e747853c3b817950.cdn.bubble.io/f1764841309776x100054280396554060/jp.png"
-            src={
-              user?.photo ||
-              "https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"
+          <button
+            onClick={launchFesApp}
+            className={
+              "cursor-pointer active:opacity-70 transition-all duration-300"
             }
-            className={`rounded-full border-2 object-cover object-top ${
-              online ? "border-emerald-500" : "border-neutral-500"
-            } select-none`}
-            style={{ height: 48, width: 48 }}
-          />
+          >
+            <img
+              // src="//cf9237271c7c9759e747853c3b817950.cdn.bubble.io/f1764841309776x100054280396554060/jp.png"
+              src={
+                user?.photo ||
+                "https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"
+              }
+              className={`rounded-full border-2 object-cover object-top ${
+                online ? "border-emerald-500" : "border-neutral-500"
+              } select-none`}
+              style={{ height: 48, width: 48 }}
+            />
+          </button>
 
           <div className="flex flex-col leading-tight">
             <span

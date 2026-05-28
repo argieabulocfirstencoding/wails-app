@@ -7,10 +7,8 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
-	"fesapp/backend/services"
 	"fesapp/backend/utils"
 	"fmt"
-	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -21,9 +19,9 @@ type TaskService struct {
 	ScreenshotService *ScreenshotService
 	SyncService       *SyncService
 	Logger            *utils.LoggerService
-	WorkingTaskID     *string
+	WorkingTaskID     **string
 	Attendance        **models.Attendance
-	TaskRecord        **models.TaskRecord
+	TaskRecord        *models.TaskRecord
 
 	AuthRepository *repository.AuthRepository
 
@@ -39,7 +37,7 @@ func NewTaskService(SyncService *SyncService) *TaskService {
 	}
 }
 
-func (t *TaskService) AddContext(ctx context.Context) {
+func (t *TaskService) Connect(ctx context.Context) {
 	t.ctx = ctx
 	t.SyncService.Connect(ctx)
 }
@@ -159,9 +157,9 @@ func (t *TaskService) StopTaskRecord(userId, taskId string) error {
 
 func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bool) {
 
-	if t.ScreenshotService.Running {
-		t.ScreenshotService.Stop()
-	}
+	// if t.ScreenshotService.Running {
+	// 	t.ScreenshotService.Stop()
+	// }
 	if err := t.TaskRepository.StopAllActiveRecords(*t.Attendance); err != nil {
 		fmt.Printf("Error stoping active task record: %s", err)
 	}
@@ -181,15 +179,26 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 
 	t.ScreenshotService.FolderName = localStorageValue
 	t.ScreenshotService.TaskID = &taskId
-	t.WorkingTaskID = &taskId
+
+	if t.WorkingTaskID != nil {
+		if *t.WorkingTaskID != nil {
+			// Update the value at the existing address
+			**t.WorkingTaskID = taskId
+		} else {
+			// The outer pointer exists, but it points to nil
+			// Assign a new pointer to the inner location
+			*t.WorkingTaskID = &taskId
+		}
+	}
+
 	record, err := t.StartTaskRecord(taskId, padagan)
 
-	t.TaskRecord = &record
+	t.TaskRecord = record
 
 	if err != nil {
 		t.Logger.Printf("error starting task record: %v", err)
 	}
-	t.ScreenshotService.TaskID = t.WorkingTaskID
+	t.ScreenshotService.TaskID = *t.WorkingTaskID
 	t.ScreenshotService.TaskRecordID = &record.ID
 
 	task, err := t.TaskRepository.GetTask(taskId)
@@ -226,19 +235,21 @@ func (t *TaskService) StopTracking(taskId string) {
 	// Syncing TaskRecord to Firebase
 	if config.OnlineMode {
 		// Retrieving TaskRecord from TaskRecordID
-		log.Print("Attempting to sync record")
+		t.Logger.Print("Attempting to sync record")
 		taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)
-		*t.TaskRecord = taskRecord
+		t.TaskRecord = taskRecord
 
 		if err != nil {
-			log.Printf("error retrieving task record: %v\n", err)
+			t.Logger.Printf("error retrieving task record: %v\n", err)
 		}
-		log.Printf("Syncing record: %v\n", taskRecord)
+		t.Logger.Printf("Syncing record: %v\n", taskRecord)
 		db.DB.Model(taskRecord).Update("sync_status", "pending")
 
 		if err := t.SyncService.SyncTaskRecord(taskRecord.ID); err != nil {
-			log.Printf("error syncing task_record: %v", err)
+			t.Logger.Printf("error syncing task_record: %v", err)
 		}
+
+		t.TaskRecord = nil
 	}
 
 	t.ScreenshotService.TaskRecordID = nil
@@ -262,7 +273,7 @@ func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
 		t.TaskRepository.UpdateTaskRecord(taskRecord, taskRecord)
 
 		if t.TaskRecord == nil {
-			*t.TaskRecord = taskRecord
+			t.TaskRecord = taskRecord
 		} else {
 			(*t.TaskRecord).Notes = notes
 		}
@@ -271,16 +282,13 @@ func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
 }
 
 func (t *TaskService) GetActiveTaskRecord(userId string) (*models.ExpTaskRecord, error) {
-	// TODO firebase fetch
-	var taskRecord models.TaskRecord
-
 	attendance, err := t.AuthRepository.GetUserAttendance(userId)
 	if err != nil {
 		return nil, err
 	}
 
-	// Only get the active task record from the current attendance
-	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", userId, attendance.ID).First(&taskRecord).Error; err != nil {
+	taskRecord, err := t.TaskRepository.GetActiveTaskRecord(userId, attendance.ID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -301,7 +309,7 @@ func (t *TaskService) newTaskRecord(userId, taskId string, attendanceId uint, pa
 		StartedAt:    now,
 	}
 
-	if err := services.CalculateGap(&record, now); err != nil {
+	if err := t.calculateGap(&record, now); err != nil {
 		return nil, err
 	}
 
@@ -329,4 +337,27 @@ func (t *TaskService) updateRecord(tr *models.TaskRecord) error {
 
 	// This part updates the database
 	return t.TaskRepository.UpdateTaskRecord(tr, &taskRecord)
+}
+
+func (t *TaskService) calculateGap(tr *models.TaskRecord, now time.Time) error {
+	taskRecord, err := t.TaskRepository.GetLastTaskRecordFromAttendance(tr.UserID, tr.AttendanceID)
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			tr.Gap = 0
+			return nil
+		}
+		return err
+	}
+
+	// Defensive checks (VERY important)
+	if taskRecord == nil || taskRecord.EndedAt == nil {
+		tr.Gap = 0
+		return nil
+	}
+
+	gap := now.Sub(*taskRecord.EndedAt)
+	tr.Gap = int32(gap / time.Second)
+
+	return nil
 }

@@ -30,6 +30,10 @@ export function DownloadAndInstall(arg1) {
   return window['go']['app']['App']['DownloadAndInstall'](arg1);
 }
 
+export function FetchActiveTask() {
+  return window['go']['app']['App']['FetchActiveTask']();
+}
+
 export function FetchUserDetails() {
   return window['go']['app']['App']['FetchUserDetails']();
 }
@@ -92,6 +96,10 @@ export function LogoutUser() {
 
 export function OnSecondInstanceLaunch(arg1) {
   return window['go']['app']['App']['OnSecondInstanceLaunch'](arg1);
+}
+
+export function OpenFesWebApp() {
+  return window['go']['app']['App']['OpenFesWebApp']();
 }
 
 export function OpenUpwork(arg1) {
