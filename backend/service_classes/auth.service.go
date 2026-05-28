@@ -6,6 +6,7 @@ import (
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
+	"fmt"
 	"strings"
 )
 
@@ -23,9 +24,9 @@ func NewAuthService() *AuthService {
 	SyncService := NewSyncService()
 
 	return &AuthService{
-		FesClientService: NewFesClientService(),
-		Logger:           utils.NewLoggerService(),
-		UserService:      NewUserService(),
+		FesClientService:  NewFesClientService(),
+		Logger:            utils.NewLoggerService(),
+		UserService:       NewUserService(),
 		SyncService:       SyncService,
 		AttendanceService: NewAttendanceService(SyncService),
 		TaskService:       NewTaskService(SyncService),
@@ -83,7 +84,7 @@ func (a *AuthService) Logout() error {
 	attendance := a.TaskService.Attendance
 	workingTaskID := a.TaskService.WorkingTaskID
 
-	if *workingTaskID != nil {
+	if workingTaskID != nil && *workingTaskID != nil {
 		a.TaskService.StopTracking(**workingTaskID)
 		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
 	}
@@ -94,7 +95,8 @@ func (a *AuthService) Logout() error {
 		}
 
 		if err := a.TaskService.SyncService.SyncAttendance(*attendance); err != nil {
-			a.Logger.Printf("error syncing attendance on logout")
+			a.Logger.Printf("error syncing attendance on logout: %v", err)
+			return fmt.Errorf("logout sync failed: %w", err)
 		}
 	} else {
 		a.Logger.Println("No active AttendanceID")

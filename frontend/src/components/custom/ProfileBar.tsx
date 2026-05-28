@@ -43,6 +43,9 @@ const ProfileBar = () => {
   const [syncLoading, setSyncLoading] = useState(false);
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
   const [syncErrorMsg, setSyncErrorMsg] = useState("");
+  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [logoutSyncError, setLogoutSyncError] = useState("");
+  const [logoutSyncFailDialog, setLogoutSyncFailDialog] = useState(false);
 
   const { online, synced, setSynced, reset } = useAuthStore();
   const navigate = useNavigate();
@@ -81,7 +84,7 @@ const ProfileBar = () => {
     };
   }, []);
 
-  const handleLogout = () => {
+  const finishLogout = () => {
     const currentTheme = localStorage.getItem("theme");
 
     localStorage.clear(); // clears user, tokens, etc.
@@ -89,41 +92,66 @@ const ProfileBar = () => {
     if (currentTheme) {
       localStorage.setItem("theme", currentTheme);
     }
-    async function proceedLogout() {
+    try {
+      // clear local client state BEFORE navigation
+      localStorage.removeItem("user");
+      localStorage.removeItem("authToken");
+
+      // ensure your auth store reset runs synchronously
+      if (reset) reset();
+    } catch (err) {
+      console.warn("Cleanup failed:", err);
+    } finally {
+      // First try client-side navigation
       try {
-        // best-effort server logout
-        await LogoutUser().catch((e) => {
-          console.warn("LogoutUser failed:", e);
-        });
-      } catch {}
-
-      try {
-        // clear local client state BEFORE navigation
-        localStorage.removeItem("user");
-        localStorage.removeItem("authToken");
-
-        // ensure your auth store reset runs synchronously
-        if (reset) reset();
-      } catch (err) {
-        console.warn("Cleanup failed:", err);
-      } finally {
-        // First try client-side navigation
-        try {
-          navigate("/login", { replace: true });
-        } catch (e) {
-          console.warn("navigate('/login') failed:", e);
-        }
-
-        // Hard fallback: force a full-page replace after a short delay so we never end up stuck
-        setTimeout(() => {
-          if (window.location.pathname !== "/login") {
-            window.location.replace("/login");
-          }
-        }, 300);
+        navigate("/login", { replace: true });
+      } catch (e) {
+        console.warn("navigate('/login') failed:", e);
       }
-    }
 
-    proceedLogout();
+      // Hard fallback: force a full-page replace after a short delay so we never end up stuck
+      setTimeout(() => {
+        if (window.location.pathname !== "/login") {
+          window.location.replace("/login");
+        }
+      }, 300);
+    }
+  };
+
+  const getErrorMessage = (error: unknown): string => {
+    if (typeof error === "string") return error;
+    if (error instanceof Error) return error.message;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return "Sync failed while logging out.";
+    }
+  };
+
+  const handleLogout = async () => {
+    if (logoutLoading) return;
+
+    setLogoutLoading(true);
+    setLogoutDialog(false);
+    setLogoutSyncError("");
+    setLogoutSyncFailDialog(false);
+
+    try {
+      await LogoutUser();
+      finishLogout();
+    } catch (error) {
+      console.error("Logout sync failed:", error);
+      setLogoutDialog(false);
+      setLogoutSyncError(getErrorMessage(error));
+      setLogoutSyncFailDialog(true);
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
+
+  const handleLogoutWithoutSync = () => {
+    setLogoutSyncFailDialog(false);
+    finishLogout();
   };
 
   async function launchFesApp() {
@@ -478,16 +506,62 @@ const ProfileBar = () => {
             <DialogFooter className="flex gap-3 justify-end">
               <Button
                 variant="outline"
+                disabled={logoutLoading}
                 onClick={() => setLogoutDialog(false)}
                 className="cursor-pointer border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200"
               >
                 Cancel
               </Button>
               <Button
+                disabled={logoutLoading}
                 onClick={handleLogout}
                 className="bg-red-600 hover:bg-red-700 text-white cursor-pointer"
               >
-                Logout
+                {logoutLoading ? "Logging out..." : "Logout"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={logoutSyncFailDialog} onOpenChange={setLogoutSyncFailDialog}>
+          <DialogContent className="sm:max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+            <DialogHeader>
+              <DialogTitle className="text-neutral-900 dark:text-neutral-50">
+                Logout Sync Failed
+              </DialogTitle>
+              <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-300">
+                We could not sync your logout session to the server.
+              </DialogDescription>
+            </DialogHeader>
+
+            {logoutSyncError && (
+              <p className="text-xs sm:text-sm text-red-600 dark:text-red-400">
+                {logoutSyncError}
+              </p>
+            )}
+
+            <DialogFooter className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setLogoutSyncFailDialog(false)}
+                disabled={logoutLoading}
+                className="cursor-pointer border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleLogout}
+                disabled={logoutLoading}
+                className="cursor-pointer border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200"
+              >
+                {logoutLoading ? "Retrying..." : "Retry Sync & Logout"}
+              </Button>
+              <Button
+                onClick={handleLogoutWithoutSync}
+                className="bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+              >
+                Logout Without Sync
               </Button>
             </DialogFooter>
           </DialogContent>
