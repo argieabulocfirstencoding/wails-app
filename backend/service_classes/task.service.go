@@ -111,12 +111,12 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	userId := (*t.Attendance).UserID
 	attendanceId := (*t.Attendance).ID
 
-	if taskRecord, err := t.TaskRepository.CheckTaskRecord(userId, taskId); err == nil {
-		t.Logger.Println(err) // TODO remove if not used
-	} else {
+	if taskRecord, err := t.TaskRepository.CheckTaskRecord(userId, taskId); err == nil && taskRecord != nil {
 		if err := t.updateRecord(taskRecord); err != nil {
 			return nil, err
 		}
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
 	}
 
 	record, err := t.newTaskRecord(userId, taskId, attendanceId, padagan)
@@ -156,6 +156,10 @@ func (t *TaskService) StopTaskRecord(userId, taskId string) error {
 }
 
 func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bool) {
+	if t.Attendance == nil || *t.Attendance == nil {
+		t.Logger.Println("StartTracking error: Attendance is nil")
+		return
+	}
 
 	// if t.ScreenshotService.Running {
 	// 	t.ScreenshotService.Stop()
@@ -215,12 +219,11 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 }
 
 func (t *TaskService) StopTracking(taskId string) {
-	userId := (*t.Attendance).UserID
-
-	if t.Attendance == nil {
-		t.Logger.Println("StopTracking error: AuthUser is nil")
+	if t.Attendance == nil || *t.Attendance == nil {
+		t.Logger.Println("StopTracking error: Attendance is nil")
 		return
 	}
+	userId := (*t.Attendance).UserID
 
 	t.ScreenshotService.Stop()
 	err := t.StopTaskRecord(
@@ -241,6 +244,15 @@ func (t *TaskService) StopTracking(taskId string) {
 
 		if err != nil {
 			t.Logger.Printf("error retrieving task record: %v\n", err)
+		}
+		if taskRecord == nil {
+			t.Logger.Printf("error retrieving task record: no record found for user %s task %s\n", userId, taskId)
+		}
+
+		if err != nil || taskRecord == nil {
+			t.TaskRecord = nil
+			t.ScreenshotService.TaskRecordID = nil
+			return
 		}
 		t.Logger.Printf("Syncing record: %v\n", taskRecord)
 		db.DB.Model(taskRecord).Update("sync_status", "pending")

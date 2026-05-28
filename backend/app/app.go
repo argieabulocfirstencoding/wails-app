@@ -49,6 +49,8 @@ type App struct {
 // CurrentVersion will be injected from wails.json or ldflags
 var CurrentVersion = "2.2.3"
 
+const attendanceResyncWindow = 48 * time.Hour
+
 type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
 	Version     string `json:"version"`
@@ -443,9 +445,21 @@ func (a *App) SyncUnsyncedAttendance() error {
 }
 
 func (a *App) SyncAttendanceByID(attendanceID uint) error {
+	if a.AuthUser == nil || a.AuthUser.LocalID == "" {
+		return fmt.Errorf("cannot resync attendance without authenticated user")
+	}
+
 	attendance, err := services.GetAttendanceFromID(attendanceID)
 	if err != nil {
 		return err
+	}
+
+	if attendance.UserID != a.AuthUser.LocalID {
+		return fmt.Errorf("cannot resync attendance owned by another user")
+	}
+
+	if !canResyncAttendanceByTime(attendanceResyncReferenceTime(attendance), time.Now()) {
+		return fmt.Errorf("cannot resync login/logout older than 2 days")
 	}
 
 	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
@@ -453,6 +467,31 @@ func (a *App) SyncAttendanceByID(attendanceID uint) error {
 	}
 
 	return nil
+}
+
+func attendanceResyncReferenceTime(attendance *models.Attendance) time.Time {
+	if attendance == nil {
+		return time.Time{}
+	}
+
+	if attendance.TimeOut != nil {
+		return *attendance.TimeOut
+	}
+
+	return attendance.TimeIn
+}
+
+func canResyncAttendanceByTime(attendanceTime, now time.Time) bool {
+	if attendanceTime.IsZero() {
+		return false
+	}
+
+	elapsed := now.Sub(attendanceTime)
+	if elapsed < 0 {
+		return true
+	}
+
+	return elapsed < attendanceResyncWindow
 }
 
 func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {

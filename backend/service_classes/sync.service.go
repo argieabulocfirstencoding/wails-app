@@ -178,10 +178,13 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
 	// FIX logout if onlinemode should priroitize logging out maybe check if login_logout id is not nul DEBUG here
+	if attendance == nil {
+		return fmt.Errorf("cannot sync nil attendance")
+	}
 
 	if !config.OnlineMode {
 		runtime.EventsEmit(s.ctx, "attendance-synced", false)
-		return nil
+		return fmt.Errorf("cannot sync attendance while offline")
 	}
 
 	defer func() {
@@ -210,11 +213,28 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 	Save()
 
 	if attendance.TimeOut != nil && attendance.LoginLogoutID != nil {
+		email := ""
+		if s.AuthUser != nil {
+			email = s.AuthUser.Email
+		}
+
+		if email == "" {
+			user, userErr := s.UserRepository.GetUserFromId(attendance.UserID)
+			if userErr != nil {
+				return fmt.Errorf("unable to resolve user email for logout sync: %w", userErr)
+			}
+			email = user.Email
+		}
+
+		if email == "" {
+			return fmt.Errorf("unable to resolve user email for logout sync")
+		}
+
 		if resp, err := s.FesClientService.Request(types.Request{
 			Url:    "wf/logout",
 			Method: "POST",
 			Body: map[string]any{
-				"email":        s.AuthUser.Email,
+				"email":        email,
 				"login_logout": *attendance.LoginLogoutID,
 				"date_logout":  attendance.TimeOut.UnixMilli(),
 				"duration":     int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),

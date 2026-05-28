@@ -100,10 +100,8 @@ func (t *TaskRepository) UpdateTaskRecord(oldRecord, newRecord *models.TaskRecor
 
 func (t *TaskRepository) CheckTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
-	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
-		fmt.Print(err)
-
-		return nil, nil
+	if err := db.DB.Where("user_id = ? AND task_id = ? AND ended_at IS NULL", userId, taskId).First(&taskRecord).Error; err != nil {
+		return nil, err
 	}
 
 	return &taskRecord, nil

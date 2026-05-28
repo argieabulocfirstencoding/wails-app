@@ -32,6 +32,7 @@ import { Calendar22 } from "@/components/ui/calendar22";
 import { secondsToHHMM } from "@/lib/utils";
 
 const MANILA_TIMEZONE = "Asia/Manila";
+const RESYNC_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 const toDateOnly = (input: Date): string => {
   const year = input.getFullYear();
@@ -98,6 +99,16 @@ const statusLabel = (syncStatus?: string, syncedAt?: unknown): string => {
   return "Unsynced";
 };
 
+const canResyncAttendanceByTime = (value: unknown): boolean => {
+  const parsed = parseDateTime(value);
+  if (!parsed) return false;
+
+  const ageMs = Date.now() - parsed.getTime();
+  if (ageMs < 0) return true;
+
+  return ageMs < RESYNC_WINDOW_MS;
+};
+
 const renderEventIcon = (event: string) => {
   const lower = event.toLowerCase();
   if (lower.includes("logged in")) {
@@ -119,6 +130,21 @@ const renderEventIcon = (event: string) => {
       <History className="w-3.5 h-3.5 text-neutral-700 dark:text-neutral-300" />
     </div>
   );
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const value = (error as { message?: unknown }).message;
+    if (typeof value === "string") return value;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Sync failed. Please retry.";
+  }
 };
 
 const ActivityLogs = () => {
@@ -187,7 +213,7 @@ const ActivityLogs = () => {
       await loadActivityData(date);
     } catch (error) {
       console.error("Failed to sync task record:", error);
-      setSyncError(key, "Sync failed. Please retry.");
+      setSyncError(key, getErrorMessage(error));
     } finally {
       setSyncing(key, false);
     }
@@ -206,7 +232,7 @@ const ActivityLogs = () => {
       await loadActivityData(date);
     } catch (error) {
       console.error("Failed to sync attendance:", error);
-      setSyncError(key, "Sync failed. Please retry.");
+      setSyncError(key, getErrorMessage(error));
     } finally {
       setSyncing(key, false);
     }
@@ -322,6 +348,12 @@ const ActivityLogs = () => {
               activities.map((activity, idx) => {
                 const attendanceLoginKey = `attendance-login-${activity.attendance.ID}`;
                 const attendanceLogoutKey = `attendance-logout-${activity.attendance.ID}`;
+                const loginResyncAllowed = canResyncAttendanceByTime(
+                  activity.attendance.TimeIn,
+                );
+                const logoutResyncAllowed = activity.attendance.TimeOut
+                  ? canResyncAttendanceByTime(activity.attendance.TimeOut)
+                  : false;
 
                 return (
                   <div key={activity.attendance.ID + "-" + idx}>
@@ -333,6 +365,8 @@ const ActivityLogs = () => {
                       syncedAt={activity.attendance.SyncedAt}
                       syncing={!!syncingKeys[attendanceLoginKey]}
                       syncError={syncErrorByKey[attendanceLoginKey]}
+                      resyncAllowed={loginResyncAllowed}
+                      resyncBlockedReason="Login resync is only available within 2 days."
                       onSync={() =>
                         requestSync(
                           "attendance",
@@ -362,6 +396,7 @@ const ActivityLogs = () => {
                           syncedAt={record.SyncedAt}
                           syncing={!!syncingKeys[key]}
                           syncError={syncErrorByKey[key]}
+                          resyncAllowed={true}
                           onSync={() =>
                             requestSync("task", record.ID, key, "Task Recorded")
                           }
@@ -378,6 +413,8 @@ const ActivityLogs = () => {
                         syncedAt={activity.attendance.SyncedAt}
                         syncing={!!syncingKeys[attendanceLogoutKey]}
                         syncError={syncErrorByKey[attendanceLogoutKey]}
+                        resyncAllowed={logoutResyncAllowed}
+                        resyncBlockedReason="Logout resync is only available within 2 days."
                         onSync={() =>
                           requestSync(
                             "attendance",
@@ -405,7 +442,15 @@ const ActivityLogs = () => {
       </div>
       <AppFooterInfo className="mt-6" />
 
-      <Dialog open={syncConfirmOpen} onOpenChange={setSyncConfirmOpen}>
+      <Dialog
+        open={syncConfirmOpen}
+        onOpenChange={(open) => {
+          setSyncConfirmOpen(open);
+          if (!open) {
+            setPendingSync(null);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[420px] rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl">
           <DialogHeader className="space-y-2">
             <DialogTitle className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-50">
@@ -456,6 +501,8 @@ type ActivityBannerProps = {
   syncedAt?: unknown;
   syncing: boolean;
   syncError?: string;
+  resyncAllowed?: boolean;
+  resyncBlockedReason?: string;
   onSync: () => void;
 };
 
@@ -467,6 +514,8 @@ function ActivityBanner({
   syncedAt,
   syncing,
   syncError,
+  resyncAllowed = true,
+  resyncBlockedReason = "Resync is no longer available for this entry.",
   onSync,
 }: ActivityBannerProps) {
   const eventTime = formatTimestamp(isoTime);
@@ -488,6 +537,11 @@ function ActivityBanner({
           {syncError && (
             <p className="text-[10px] text-rose-500 dark:text-rose-400">
               {syncError}
+            </p>
+          )}
+          {!resyncAllowed && (
+            <p className="text-[10px] text-amber-600 dark:text-amber-400">
+              {resyncBlockedReason}
             </p>
           )}
         </div>
@@ -532,9 +586,15 @@ function ActivityBanner({
 
         <button
           onClick={onSync}
-          disabled={syncing}
+          disabled={syncing || !resyncAllowed}
           className="inline-flex items-center gap-1 rounded-full border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60 cursor-pointer"
-          title={synced ? "Resync this entry" : "Retry sync"}
+          title={
+            resyncAllowed
+              ? synced
+                ? "Resync this entry"
+                : "Retry sync"
+              : resyncBlockedReason
+          }
         >
           <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? "Syncing..." : "Resync"}
