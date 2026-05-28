@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Settings } from "lucide-react";
+import { RotateCcw, Settings } from "lucide-react";
 import Drawer from "@/components/custom/Drawer";
 import {
   Dialog,
@@ -357,13 +357,31 @@ const ProfileBar = () => {
 
         {/* Right side – Sync + Settings */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {!synced && online && (
+          {online && (
             <button
               onClick={() => setOpenSyncDialog(true)}
               disabled={syncLoading}
-              className="inline-flex justify-center items-center w-[60px] px-8 py-2 bg-emerald-600 text-white text-xs font-medium rounded-full shadow hover:bg-emerald-700 disabled:opacity-60 cursor-pointer transition"
+              className={`inline-flex justify-center items-center gap-1 min-w-[72px] px-4 py-2 text-xs font-medium rounded-full shadow disabled:opacity-60 cursor-pointer transition ${
+                synced
+                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700"
+              }`}
+              title={
+                synced
+                  ? "Synced. Click to open sync and resync."
+                  : "Open sync dialog"
+              }
             >
-              {syncLoading ? "..." : "Sync"}
+              {syncLoading ? (
+                "..."
+              ) : synced ? (
+                <>
+                  Synced
+                  <RotateCcw className="w-3 h-3" />
+                </>
+              ) : (
+                "Sync"
+              )}
             </button>
           )}
 

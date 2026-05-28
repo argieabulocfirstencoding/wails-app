@@ -32,6 +32,7 @@ type SyncService struct {
 
 	TaskRepository *repository.TaskRepository
 	AuthRepository *repository.AuthRepository
+	UserRepository *repository.UserRepository
 }
 
 type SyncQueue struct {
@@ -49,6 +50,7 @@ func NewSyncService() *SyncService {
 		Logger:           utils.NewLoggerService(),
 		TaskRepository:   repository.NewTaskRepository(),
 		AuthRepository:   repository.NewAuthRepository(),
+		UserRepository:   repository.NewUserRepository(),
 	}
 }
 
@@ -82,7 +84,12 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		return err
 	}
 
-	attendance, err := s.AuthRepository.GetUserAttendance(taskRecord.UserID)
+	attendance, err := s.AuthRepository.GetAttendanceFromID(taskRecord.AttendanceID)
+	if err != nil {
+		return err
+	}
+
+	user, err := s.UserRepository.GetUserFromId(taskRecord.UserID)
 	if err != nil {
 		return err
 	}
@@ -145,7 +152,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 			"task_in":              taskRecord.StartedAt.UnixMilli(),
 			"date":                 attendance.TimeIn.UnixMilli(),
 			"edited_by":            taskRecord.UserID,
-			"employee_ID":          (*s.Attendance).User.EmployeeId,
+			"employee_ID":          user.EmployeeId,
 			"padaganan":            padagan,
 			"projects_projects":    taskRecord.TaskID,
 			"tracker_used":         task.Title,
@@ -171,7 +178,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
 	// FIX logout if onlinemode should priroitize logging out maybe check if login_logout id is not nul DEBUG here
-	
+
 	if !config.OnlineMode {
 		runtime.EventsEmit(s.ctx, "attendance-synced", false)
 		return nil
@@ -296,7 +303,44 @@ func (s *SyncService) SyncAllAttendance() error {
 }
 
 func (s *SyncService) SyncUnsyncedRecords() error {
-	return nil
+	if !config.OnlineMode {
+		return fmt.Errorf("cannot sync records while offline")
+	}
+
+	if s.AuthUser == nil {
+		return fmt.Errorf("cannot sync records without authenticated user")
+	}
+
+	var unsynced []models.TaskRecord
+	if err := db.DB.
+		Where("user_id = ? AND sync_status = ?", s.AuthUser.LocalID, "pending").
+		Order("started_at ASC").
+		Find(&unsynced).Error; err != nil {
+		return err
+	}
+
+	if len(unsynced) == 0 {
+		return nil
+	}
+
+	var firstErr error
+	for i := range unsynced {
+		if err := s.SyncTaskRecord(unsynced[i].ID); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+	}
+
+	// Try to also bring attendance sync state up-to-date.
+	if s.Attendance != nil && *s.Attendance != nil {
+		if err := s.SyncAttendance(*s.Attendance); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	return firstErr
 }
 
 func (s *SyncService) SyncUser(user models.AuthUser) error {

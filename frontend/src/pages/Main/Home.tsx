@@ -211,13 +211,17 @@ const Home = () => {
   }
 
   async function SyncCurrentAttendance() {
-    setSyncing(true);
-    await SyncUnsyncedAttendance();
-    await fetchCurrentAttendance();
+    if (!online || isSyncing) return;
 
-    setTimeout(() => {
+    setSyncing(true);
+    try {
+      await SyncUnsyncedAttendance();
+      await fetchCurrentAttendance();
+    } catch (error) {
+      console.error("Error syncing attendance:", error);
+    } finally {
       setSyncing(false);
-    }, 2000);
+    }
   }
 
   const sortedTasks = useMemo(() => {
@@ -347,10 +351,18 @@ const Home = () => {
                     <SpinnerLoader className="scale-75" />
                   </div>
                 ) : attendanceSynced ? (
-                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400 select-none">
+                  <button
+                    type="button"
+                    onClick={SyncCurrentAttendance}
+                    disabled={!online}
+                    className="inline-flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    title="Synced. Click to resync."
+                    aria-label="Resync attendance"
+                  >
                     <span>Synced</span>
                     <CheckCircle className="w-4 h-4" />
-                  </div>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
                 ) : (
                   <div className="flex flex-col items-end gap-1 text-amber-500">
                     <span className="flex items-center gap-1 text-[11px] sm:text-xs select-none">
