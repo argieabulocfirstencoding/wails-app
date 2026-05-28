@@ -21,7 +21,7 @@ import Loader from "@/components/custom/Loader";
 import { models, types } from "@/../wailsjs/go/models";
 import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatDistance } from "date-fns";
-import { fetchTodayClientSummary, secondsToHHMM } from "@/lib/utils";
+import { fetchTodayClientSummary } from "@/lib/utils";
 
 interface TaskProps {
   taskId: string | null;
@@ -35,6 +35,7 @@ const Home = () => {
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [taskRecords, setTaskRecords] = useState<models.ExpTaskRecord[]>();
+  const [nowTick, setNowTick] = useState<number>(Date.now());
   const {
     taskID,
     setFetchedActiveRecord,
@@ -79,6 +80,14 @@ const Home = () => {
 
   useEffect(() => {
     fetchTodayClientSummary();
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -249,6 +258,16 @@ const Home = () => {
         : 0;
 
       const recordSummary = combinedSummaries[task.taskId] || null;
+      const runningRecord = records.find((r) => !r.ended_at);
+      const runningStartedAt = runningRecord?.started_at
+        ? new Date(runningRecord.started_at).getTime()
+        : NaN;
+      const runningSeconds =
+        runningRecord && Number.isFinite(runningStartedAt)
+          ? Math.max(0, Math.floor((nowTick - runningStartedAt) / 1000))
+          : 0;
+      const displayDurationSeconds =
+        (recordSummary?.TotalDuration ?? 0) + runningSeconds;
 
       return {
         ...task,
@@ -256,6 +275,7 @@ const Home = () => {
         active: task.taskId === activeTaskId,
         latestEndedAt,
         recordSummary,
+        displayDurationSeconds,
       };
     });
 
@@ -284,7 +304,7 @@ const Home = () => {
     });
 
     return mappedTasks;
-  }, [tasks, taskRecords, taskID, searchQuery]);
+  }, [tasks, taskRecords, taskID, searchQuery, summaries, nowTick]);
 
   return (
     <MainLayout>
@@ -485,6 +505,20 @@ interface TaskItemProps {
   active: boolean;
 }
 
+const secondsToHHMMSS = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(
+      2,
+      "0",
+    )}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
 const TaskItem = ({ task, active }: TaskItemProps) => {
   const navigate = useNavigate();
 
@@ -541,8 +575,8 @@ const TaskItem = ({ task, active }: TaskItemProps) => {
         {/* Right column placeholder for future hours */}
         <div className="flex items-start justify-end">
           <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 opacity-70">
-            {task.recordSummary
-              ? secondsToHHMM(task.recordSummary.TotalDuration) + " hrs"
+            {task.recordSummary || task.displayDurationSeconds > 0
+              ? secondsToHHMMSS(task.displayDurationSeconds) + " hrs"
               : "--"}
           </span>
         </div>

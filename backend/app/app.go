@@ -102,6 +102,11 @@ func (a *App) Startup(ctx context.Context) {
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
 
+	env := runtime.Environment(ctx)
+	if err := utils.ConfigureLogger(env.BuildType); err != nil {
+		runtime.LogErrorf(ctx, "failed to configure file logger: %v", err)
+	}
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -113,7 +118,6 @@ func (a *App) Startup(ctx context.Context) {
 			// icon is now guaranteed to be valid
 			systray.SetIcon(trayIcon)
 
-			env := runtime.Environment(ctx)
 			if env.BuildType == "dev" {
 				systray.SetTitle("FESApp Dev")
 				systray.SetTooltip("FESApp Dev")

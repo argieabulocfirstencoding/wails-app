@@ -1,16 +1,38 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+	"os"
+)
 
 type LoggerService struct {
+	logger *log.Logger
+}
+
+func (l *LoggerService) getLogger() *log.Logger {
+	if l.logger != nil {
+		return l.logger
+	}
+	if Logger != nil {
+		l.logger = Logger
+		return l.logger
+	}
+	l.logger = log.New(os.Stdout, "FES_LOG: ", log.Ldate|log.Ltime|log.Lshortfile)
+	return l.logger
 }
 
 func NewLoggerService() *LoggerService {
-	return &LoggerService{}
+	if Logger == nil {
+		return &LoggerService{
+			logger: log.New(os.Stdout, "FES_LOG: ", log.Ldate|log.Ltime|log.Lshortfile),
+		}
+	}
+	return &LoggerService{logger: Logger}
 }
 
 func (l *LoggerService) Error(a ...any) error {
-	return fmt.Errorf("%s", a...)
+	return fmt.Errorf("%v", fmt.Sprint(a...))
 }
 
 func (l *LoggerService) Errorf(format string, a ...any) error {
@@ -42,17 +64,17 @@ func (l *LoggerService) Panic(message string) {
 }
 
 func (l *LoggerService) Print(a ...any) {
-	fmt.Print(a...)
+	l.getLogger().Print(a...)
 }
 
 func (l *LoggerService) Println(a ...any) {
-	fmt.Println(a...)
+	l.getLogger().Println(a...)
 }
 
 func (l *LoggerService) Printf(format string, a ...any) {
-	fmt.Printf(format, a...)
+	l.getLogger().Printf(format, a...)
 }
 
 func (l *LoggerService) Printlnf(format string, a ...any) {
-	fmt.Printf(format+"\n", a...)
+	l.getLogger().Printf(format+"\n", a...)
 }

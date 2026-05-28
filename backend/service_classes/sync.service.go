@@ -140,7 +140,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 
 	task, err := s.TaskRepository.GetTaskFromTaskID(taskRecord.TaskID)
 	if err != nil {
-		s.Logger.Printlnf("Task not found on syncing task record, important for determining of upwork account. err: ", err)
+		s.Logger.Printlnf("Task not found on syncing task record, important for determining of upwork account. err: %v", err)
 		return err
 	}
 

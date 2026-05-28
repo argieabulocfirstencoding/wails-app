@@ -4,17 +4,45 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"sync"
 )
 
 var Logger *log.Logger
+var loggerMu sync.Mutex
+var loggerFile *os.File
 
 func init() {
-	f, err := os.OpenFile("log.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		panic(err)
+	// Default to stdout. Startup will route logs to file based on build type.
+	Logger = log.New(os.Stdout, "FES_LOG: ", log.Ldate|log.Ltime|log.Lshortfile)
+}
+
+func ConfigureLogger(buildType string) error {
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
+
+	logPath := "log.txt"
+	if buildType != "dev" {
+		exePath, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		logPath = filepath.Join(filepath.Dir(exePath), "logs.txt")
 	}
 
-	Logger = log.New(f, "FES_LOG: ", log.Ldate|log.Ltime|log.Lshortfile)
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	if loggerFile != nil {
+		_ = loggerFile.Close()
+	}
+	loggerFile = file
+
+	Logger.SetOutput(file)
+	Logger.Printf("Logger initialized. buildType=%s path=%s", buildType, logPath)
+	return nil
 }
 
 func GetStringValue(field interface{}) string {
