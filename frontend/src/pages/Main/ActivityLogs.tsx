@@ -35,10 +35,43 @@ const MANILA_TIMEZONE = "Asia/Manila";
 const RESYNC_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 const toDateOnly = (input: Date): string => {
-  const year = input.getFullYear();
-  const month = String(input.getMonth() + 1).padStart(2, "0");
-  const day = String(input.getDate()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: MANILA_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(input);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "00";
+  const day = parts.find((part) => part.type === "day")?.value ?? "00";
+
   return `${year}-${month}-${day}`;
+};
+
+const logActivityUI = (
+  level: "info" | "warn" | "error",
+  message: string,
+  context?: Record<string, unknown>,
+) => {
+  const payload = {
+    message,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    timestamp: new Date().toISOString(),
+    ...context,
+  };
+
+  if (level === "error") {
+    console.error("[ActivityLogs]", payload);
+    return;
+  }
+
+  if (level === "warn") {
+    console.warn("[ActivityLogs]", payload);
+    return;
+  }
+
+  console.info("[ActivityLogs]", payload);
 };
 
 const parseDateTime = (value: unknown): Date | null => {
@@ -151,6 +184,8 @@ const ActivityLogs = () => {
   const [activities, setActivities] = useState<models.ActivityLogRecord[]>([]);
   const [date, setDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string>("");
+  const [loadWarning, setLoadWarning] = useState<string>("");
   const [syncingKeys, setSyncingKeys] = useState<Record<string, boolean>>({});
   const [syncErrorByKey, setSyncErrorByKey] = useState<Record<string, string>>(
     {},
@@ -167,16 +202,64 @@ const ActivityLogs = () => {
   const loadActivityData = useCallback(
     async (targetDate: Date) => {
       setLoading(true);
+      setLoadError("");
+      setLoadWarning("");
       try {
         const dateOnly = toDateOnly(targetDate);
-        const [fetchedActivities, summaryResults] = await Promise.all([
+        logActivityUI("info", "Loading activity data", {
+          targetDateISO: targetDate.toISOString(),
+          queryDate: dateOnly,
+        });
+
+        const [activitiesResult, summaryResult] = await Promise.allSettled([
           GetActivityLogRecord(dateOnly),
           GetTotalClientRecords(dateOnly),
         ]);
-        setActivities(fetchedActivities ?? []);
-        setSummary(summaryResults ?? []);
+
+        if (activitiesResult.status === "fulfilled") {
+          setActivities(activitiesResult.value ?? []);
+          logActivityUI("info", "Activity records loaded", {
+            queryDate: dateOnly,
+            count: activitiesResult.value?.length ?? 0,
+          });
+        } else {
+          const errorMessage = getErrorMessage(activitiesResult.reason);
+          setActivities([]);
+          setLoadError(errorMessage);
+          logActivityUI("error", "Failed to load activity records", {
+            queryDate: dateOnly,
+            error: errorMessage,
+            raw: activitiesResult.reason,
+          });
+        }
+
+        if (summaryResult.status === "fulfilled") {
+          setSummary(summaryResult.value ?? []);
+          logActivityUI("info", "Summary records loaded", {
+            queryDate: dateOnly,
+            count: summaryResult.value?.length ?? 0,
+          });
+        } else {
+          const summaryError = getErrorMessage(summaryResult.reason);
+          setSummary([]);
+          setLoadWarning(
+            `Activity summary could not be loaded: ${summaryError}`,
+          );
+          logActivityUI("warn", "Failed to load summary records", {
+            queryDate: dateOnly,
+            error: summaryError,
+            raw: summaryResult.reason,
+          });
+        }
       } catch (error) {
-        console.log("Error loading activity logs:", error);
+        const errorMessage = getErrorMessage(error);
+        setActivities([]);
+        setSummary([]);
+        setLoadError(errorMessage);
+        logActivityUI("error", "Unexpected error loading activity page", {
+          error: errorMessage,
+          raw: error,
+        });
       } finally {
         setLoading(false);
       }
@@ -203,17 +286,29 @@ const ActivityLogs = () => {
   const syncTaskRecord = async (recordID: number, key: string) => {
     if (!online) {
       setSyncError(key, "Cannot sync while offline.");
+      logActivityUI("warn", "Blocked task resync while offline", {
+        recordID,
+        key,
+      });
       return;
     }
 
     setSyncing(key, true);
     clearSyncError(key);
     try {
+      logActivityUI("info", "Task resync requested", { recordID, key });
       await SyncUnsyncedTaskRecord(recordID);
       await loadActivityData(date);
+      logActivityUI("info", "Task resync completed", { recordID, key });
     } catch (error) {
-      console.error("Failed to sync task record:", error);
-      setSyncError(key, getErrorMessage(error));
+      const errorMessage = getErrorMessage(error);
+      setSyncError(key, errorMessage);
+      logActivityUI("error", "Task resync failed", {
+        recordID,
+        key,
+        error: errorMessage,
+        raw: error,
+      });
     } finally {
       setSyncing(key, false);
     }
@@ -222,17 +317,35 @@ const ActivityLogs = () => {
   const syncAttendanceRecord = async (attendanceID: number, key: string) => {
     if (!online) {
       setSyncError(key, "Cannot sync while offline.");
+      logActivityUI("warn", "Blocked attendance resync while offline", {
+        attendanceID,
+        key,
+      });
       return;
     }
 
     setSyncing(key, true);
     clearSyncError(key);
     try {
+      logActivityUI("info", "Attendance resync requested", {
+        attendanceID,
+        key,
+      });
       await SyncAttendanceByID(attendanceID);
       await loadActivityData(date);
+      logActivityUI("info", "Attendance resync completed", {
+        attendanceID,
+        key,
+      });
     } catch (error) {
-      console.error("Failed to sync attendance:", error);
-      setSyncError(key, getErrorMessage(error));
+      const errorMessage = getErrorMessage(error);
+      setSyncError(key, errorMessage);
+      logActivityUI("error", "Attendance resync failed", {
+        attendanceID,
+        key,
+        error: errorMessage,
+        raw: error,
+      });
     } finally {
       setSyncing(key, false);
     }
@@ -334,6 +447,17 @@ const ActivityLogs = () => {
               Recent Activity
             </span>
           </div>
+
+          {loadError && (
+            <div className="px-6 py-3 border-b border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/20 text-[11px] text-rose-700 dark:text-rose-300">
+              Failed to load activity logs: {loadError}
+            </div>
+          )}
+          {loadWarning && !loadError && (
+            <div className="px-6 py-3 border-b border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 text-[11px] text-amber-700 dark:text-amber-300">
+              {loadWarning}
+            </div>
+          )}
 
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
             {loading ? (

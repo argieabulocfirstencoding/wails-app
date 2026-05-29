@@ -47,7 +47,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.3.2"
+var CurrentVersion = "2.3.3"
 
 const attendanceResyncWindow = 48 * time.Hour
 
@@ -383,7 +383,20 @@ func (a *App) FetchActiveTask() error {
 }
 
 func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, error) {
-	return services.GetAttendanceAndRecords(dateStr)
+	userID := "<nil>"
+	if a.AuthUser != nil {
+		userID = a.AuthUser.LocalID
+	}
+
+	utils.Logger.Printf("app.GetActivityLogRecord: start date=%q user_id=%q", dateStr, userID)
+	records, err := services.GetAttendanceAndRecords(dateStr)
+	if err != nil {
+		utils.Logger.Printf("app.GetActivityLogRecord: failed date=%q user_id=%q err=%v", dateStr, userID, err)
+		return nil, err
+	}
+
+	utils.Logger.Printf("app.GetActivityLogRecord: success date=%q user_id=%q count=%d", dateStr, userID, len(records))
+	return records, nil
 }
 
 func (a *App) OpenUpwork(taskID string) error {
@@ -511,7 +524,20 @@ func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
 }
 
 func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error) {
-	return services.GetTodaySummary(dateStr)
+	userID := "<nil>"
+	if a.AuthUser != nil {
+		userID = a.AuthUser.LocalID
+	}
+
+	utils.Logger.Printf("app.GetTotalClientRecords: start date=%q user_id=%q", dateStr, userID)
+	records, err := services.GetTodaySummary(dateStr)
+	if err != nil {
+		utils.Logger.Printf("app.GetTotalClientRecords: failed date=%q user_id=%q err=%v", dateStr, userID, err)
+		return nil, err
+	}
+
+	utils.Logger.Printf("app.GetTotalClientRecords: success date=%q user_id=%q count=%d", dateStr, userID, len(records))
+	return records, nil
 }
 
 // This is used to get the tasks that have recently used so that it can be quickly seen.

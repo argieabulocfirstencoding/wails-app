@@ -44,6 +44,13 @@ func GetAttendanceAndRecords(dateStr string) ([]models.ActivityLogRecord, error)
 	}
 
 	utils.Logger.Printf("activity_log: attendance query matched count=%d", len(foundAttendance))
+	if len(foundAttendance) == 0 {
+		if err := db.DB.Where("date(time_in) = ? OR date(time_in, 'localtime') = ? OR date(time_in, '+8 hours') = ?", dateStr, dateStr, dateStr).Find(&foundAttendance).Error; err != nil {
+			utils.Logger.Printf("activity_log: fallback attendance query failed date=%q err=%v", dateStr, err)
+			return nil, err
+		}
+		utils.Logger.Printf("activity_log: fallback attendance query matched count=%d date=%q", len(foundAttendance), dateStr)
+	}
 
 	activityLogRecords := make([]models.ActivityLogRecord, 0, len(foundAttendance))
 
