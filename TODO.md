@@ -24,11 +24,11 @@ Last updated: 2026-05-29
 - [ ] Add end-to-end manual test script for multi-monitor + offline + online.
 
 ### 3) Secure updater pipeline
-- [ ] Restrict updates to trusted release source only (allowlist host/path).
-- [ ] Verify installer integrity before execute (checksum and/or signature verification).
-- [ ] Require HTTPS + strict status/content checks for download.
-- [ ] Prevent arbitrary URL install from UI-triggered calls.
-- [ ] Log updater decisions (version, URL, checksum result, execute result).
+- [x] Restrict updates to trusted release source only (allowlist host/path).
+- [x] Verify installer integrity before execute (checksum and/or signature verification).
+- [x] Require HTTPS + strict status/content checks for download.
+- [x] Prevent arbitrary URL install from UI-triggered calls.
+- [x] Log updater decisions (version, URL, checksum result, execute result).
 
 ### 4) Hardening sync correctness
 - [ ] Keep task sync blocked until attendance dependency is satisfied (`login_logout_id` or synced attendance).

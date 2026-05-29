@@ -1,6 +1,7 @@
 package app
 
 import (
+	"crypto/sha256"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -16,8 +17,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -56,6 +60,16 @@ type UpdateInfo struct {
 	Exists      bool   `json:"exists"`
 	Version     string `json:"version"`
 	DownloadUrl string `json:"downloadUrl"`
+}
+
+type githubReleaseAsset struct {
+	BrowserDownloadURL string `json:"browser_download_url"`
+	Name               string `json:"name"`
+}
+
+type githubRelease struct {
+	TagName string               `json:"tag_name"`
+	Assets  []githubReleaseAsset `json:"assets"`
 }
 
 // NewApp creates a new App application struct
@@ -602,24 +616,9 @@ func (a *App) GetAppCurrentVersion() string {
 // FIX BELOW IS ABOUT AUTO UPDATE PROMPTS BUT NOT WORKING CORRECTLY
 
 func (a *App) CheckForUpdates() UpdateInfo {
-	// FIX: Added /releases/latest to the end of the URL
-	url := "https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest"
-
-	res, err := http.Get(url)
-	if err != nil || res.StatusCode != 200 {
-		return UpdateInfo{Exists: false}
-	}
-	defer res.Body.Close()
-
-	var target struct {
-		TagName string `json:"tag_name"`
-		Assets  []struct {
-			BrowserDownloadURL string `json:"browser_download_url"`
-			Name               string `json:"name"`
-		} `json:"assets"`
-	}
-
-	if err := json.NewDecoder(res.Body).Decode(&target); err != nil {
+	release, err := fetchLatestTrustedRelease()
+	if err != nil {
+		a.logUpdaterDecision("check_updates_release_error", map[string]any{"error": err.Error()})
 		return UpdateInfo{Exists: false}
 	}
 
@@ -630,7 +629,7 @@ func (a *App) CheckForUpdates() UpdateInfo {
 	}
 
 	// Handle cases where TagName might not have 'v' prefix
-	remoteTag := strings.TrimSpace(target.TagName)
+	remoteTag := strings.TrimSpace(release.TagName)
 	if remoteTag == "" {
 		return UpdateInfo{Exists: false}
 	}
@@ -645,60 +644,286 @@ func (a *App) CheckForUpdates() UpdateInfo {
 
 	vRemote, err := semver.Parse(remoteTag)
 	if err != nil {
-		utils.Logger.Printf("check updates: invalid remote version tag=%q err=%v", target.TagName, err)
+		utils.Logger.Printf("check updates: invalid remote version tag=%q err=%v", release.TagName, err)
 		return UpdateInfo{Exists: false}
 	}
 
-	if len(target.Assets) == 0 {
+	asset, err := pickTrustedInstallerAsset(release.Assets)
+	if err != nil {
+		a.logUpdaterDecision("check_updates_no_installer_asset", map[string]any{"error": err.Error()})
 		return UpdateInfo{Exists: false}
 	}
 
-	downloadURL := strings.TrimSpace(target.Assets[0].BrowserDownloadURL)
+	downloadURL := strings.TrimSpace(asset.BrowserDownloadURL)
 	if downloadURL == "" {
 		return UpdateInfo{Exists: false}
 	}
 
 	if vRemote.GT(vCurrent) {
+		a.logUpdaterDecision("check_updates_update_available", map[string]any{
+			"current_version": CurrentVersion,
+			"remote_version":  release.TagName,
+			"asset_name":      asset.Name,
+		})
 		return UpdateInfo{
 			Exists:      true,
-			Version:     target.TagName,
+			Version:     release.TagName,
 			DownloadUrl: downloadURL,
 		}
 	}
 
+	a.logUpdaterDecision("check_updates_up_to_date", map[string]any{
+		"current_version": CurrentVersion,
+		"remote_version":  release.TagName,
+	})
 	return UpdateInfo{Exists: false}
 }
 
 func (a *App) DownloadAndInstall(url string) error {
-	// 1. Create a path for the temporary installer
-	tempPath := os.TempDir() + "\\fes_installer.exe"
+	release, err := fetchLatestTrustedRelease()
+	if err != nil {
+		a.logUpdaterDecision("download_install_release_error", map[string]any{"error": err.Error()})
+		return err
+	}
+
+	asset, err := pickTrustedInstallerAsset(release.Assets)
+	if err != nil {
+		a.logUpdaterDecision("download_install_no_installer_asset", map[string]any{"error": err.Error()})
+		return err
+	}
+
+	requestedURL := strings.TrimSpace(url)
+	if requestedURL != "" && !strings.EqualFold(requestedURL, strings.TrimSpace(asset.BrowserDownloadURL)) {
+		a.logUpdaterDecision("download_install_rejected_non_latest_asset", map[string]any{
+			"requested_url": requestedURL,
+			"allowed_url":   asset.BrowserDownloadURL,
+		})
+		return fmt.Errorf("installer URL rejected")
+	}
+
+	installerURL := strings.TrimSpace(asset.BrowserDownloadURL)
+	if err := validateTrustedDownloadURL(installerURL); err != nil {
+		a.logUpdaterDecision("download_install_rejected_untrusted_url", map[string]any{
+			"url":   installerURL,
+			"error": err.Error(),
+		})
+		return err
+	}
+
+	installerName := filepath.Base(strings.TrimSpace(asset.Name))
+	if installerName == "." || installerName == string(filepath.Separator) || installerName == "" {
+		installerName = "fes_installer.exe"
+	}
+
+	tempPath := filepath.Join(os.TempDir(), installerName)
 	out, err := os.Create(tempPath)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
 
-	// 2. Download the file
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, installerURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/octet-stream")
+
+	client := &http.Client{Timeout: 3 * time.Minute}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	_, err = io.Copy(out, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		a.logUpdaterDecision("download_install_http_status_rejected", map[string]any{
+			"url":    installerURL,
+			"status": resp.StatusCode,
+		})
+		return fmt.Errorf("installer download failed with status: %d", resp.StatusCode)
+	}
+
+	contentType := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
+	if contentType == "" || strings.Contains(contentType, "text/html") || strings.Contains(contentType, "application/json") {
+		a.logUpdaterDecision("download_install_content_type_rejected", map[string]any{
+			"url":          installerURL,
+			"content_type": contentType,
+		})
+		return fmt.Errorf("invalid installer content type: %s", contentType)
+	}
+
+	hasher := sha256.New()
+	written, err := io.Copy(io.MultiWriter(out, hasher), resp.Body)
 	if err != nil {
 		return err
 	}
+	if written <= 0 {
+		return fmt.Errorf("empty installer payload")
+	}
 
-	// 3. Launch the installer
-	// We use /S for a silent install so it's "Automatic"
+	if err := verifyInstallerChecksumIfAvailable(release.Assets, installerName, hasher.Sum(nil)); err != nil {
+		a.logUpdaterDecision("download_install_checksum_failed", map[string]any{
+			"asset_name": installerName,
+			"error":      err.Error(),
+		})
+		return err
+	}
+
+	a.logUpdaterDecision("download_install_verified", map[string]any{
+		"version":    release.TagName,
+		"asset_name": installerName,
+		"url":        installerURL,
+		"size_bytes": written,
+	})
+
 	cmd := exec.Command(tempPath, "/S")
 	err = cmd.Start()
 	if err != nil {
+		a.logUpdaterDecision("download_install_execute_failed", map[string]any{
+			"path":  tempPath,
+			"error": err.Error(),
+		})
 		return err
 	}
 
-	// 4. Exit the app so the installer can replace the files
+	a.logUpdaterDecision("download_install_execute_started", map[string]any{
+		"path": tempPath,
+	})
 	os.Exit(0)
 	return nil
+}
+
+func fetchLatestTrustedRelease() (*githubRelease, error) {
+	const latestURL = "https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest"
+	req, err := http.NewRequest(http.MethodGet, latestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("release lookup failed status=%d", resp.StatusCode)
+	}
+
+	if ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type"))); ct != "" && !strings.Contains(ct, "application/json") {
+		return nil, fmt.Errorf("release lookup invalid content type: %s", ct)
+	}
+
+	var rel githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+		return nil, err
+	}
+
+	return &rel, nil
+}
+
+func pickTrustedInstallerAsset(assets []githubReleaseAsset) (*githubReleaseAsset, error) {
+	for i := range assets {
+		name := strings.ToLower(strings.TrimSpace(assets[i].Name))
+		if !strings.HasSuffix(name, ".exe") {
+			continue
+		}
+		if strings.Contains(name, "sha256") || strings.Contains(name, "checksum") || strings.Contains(name, ".sig") {
+			continue
+		}
+		if err := validateTrustedDownloadURL(assets[i].BrowserDownloadURL); err != nil {
+			continue
+		}
+		return &assets[i], nil
+	}
+	return nil, fmt.Errorf("no trusted installer asset found")
+}
+
+func validateTrustedDownloadURL(raw string) error {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(u.Scheme, "https") {
+		return fmt.Errorf("untrusted scheme")
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Host))
+	if host != "github.com" && host != "objects.githubusercontent.com" && host != "release-assets.githubusercontent.com" {
+		return fmt.Errorf("untrusted host")
+	}
+
+	p := path.Clean(u.Path)
+	if host == "github.com" && !strings.Contains(p, "/FES-Paul/FES-APP-TRACKER/releases/download/") {
+		return fmt.Errorf("untrusted github path")
+	}
+	return nil
+}
+
+func verifyInstallerChecksumIfAvailable(assets []githubReleaseAsset, installerName string, actualHash []byte) error {
+	var checksumURL string
+	for i := range assets {
+		name := strings.ToLower(strings.TrimSpace(assets[i].Name))
+		if strings.Contains(name, "sha256") || strings.Contains(name, "checksums") {
+			checksumURL = strings.TrimSpace(assets[i].BrowserDownloadURL)
+			break
+		}
+	}
+
+	if checksumURL == "" {
+		return nil
+	}
+	if err := validateTrustedDownloadURL(checksumURL); err != nil {
+		return err
+	}
+
+	resp, err := http.Get(checksumURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("checksum download status=%d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*1024*1024))
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(string(body), "\n")
+	expected := ""
+	lowerInstaller := strings.ToLower(strings.TrimSpace(installerName))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		filename := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(fields[1], "*")))
+		if filename == lowerInstaller {
+			expected = strings.ToLower(strings.TrimSpace(fields[0]))
+			break
+		}
+	}
+	if expected == "" {
+		return fmt.Errorf("checksum entry not found for installer")
+	}
+
+	actual := fmt.Sprintf("%x", actualHash)
+	if !strings.EqualFold(actual, expected) {
+		return fmt.Errorf("checksum mismatch")
+	}
+	return nil
+}
+
+func (a *App) logUpdaterDecision(event string, details map[string]any) {
+	raw, _ := json.Marshal(details)
+	utils.Logger.Printf("updater: event=%s details=%s", event, string(raw))
+	if a.ctx != nil {
+		runtime.LogPrintf(a.ctx, "updater: event=%s details=%s", event, string(raw))
+	}
 }
