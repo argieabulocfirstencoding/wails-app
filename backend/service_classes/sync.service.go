@@ -115,7 +115,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 		key:  fmt.Sprintf("task-record:%d", taskRecordId),
 		name: fmt.Sprintf("sync_task_record_%d", taskRecordId),
 		fn: func(ctx context.Context) error {
-			return s.syncTaskRecordNow(taskRecordId)
+			return s.syncTaskRecordNow(ctx, taskRecordId)
 		},
 	}
 
@@ -130,7 +130,7 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	return nil
 }
 
-func (s *SyncService) syncTaskRecordNow(taskRecordId uint) error {
+func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) error {
 	if !config.OnlineMode {
 		return fmt.Errorf("not currently synced")
 	}
@@ -140,7 +140,7 @@ func (s *SyncService) syncTaskRecordNow(taskRecordId uint) error {
 		return err
 	}
 
-	attendance, err := s.AuthRepository.GetAttendanceFromID(taskRecord.AttendanceID)
+	attendance, err := s.ensureAttendanceReadyForTaskSync(ctx, taskRecord.AttendanceID)
 	if err != nil {
 		return err
 	}
@@ -229,6 +229,63 @@ func (s *SyncService) syncTaskRecordNow(taskRecordId uint) error {
 
 		return saveStatus()
 	}
+}
+
+func (s *SyncService) ensureAttendanceReadyForTaskSync(ctx context.Context, attendanceID uint) (*models.Attendance, error) {
+	const waitInterval = 3 * time.Second
+
+	for {
+		if ctx != nil {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+		}
+
+		attendance, err := s.AuthRepository.GetAttendanceFromID(attendanceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if attendanceReadyForTaskSync(attendance) {
+			return attendance, nil
+		}
+
+		s.Logger.Printf(
+			"task sync waiting for attendance dependency. attendance_id=%d sync_status=%q has_login_logout_id=%t",
+			attendance.ID,
+			attendance.SyncStatus,
+			attendance.LoginLogoutID != nil && strings.TrimSpace(*attendance.LoginLogoutID) != "",
+		)
+
+		if err := s.syncAttendanceNow(attendance); err != nil {
+			s.Logger.Printf("task sync dependency attendance sync attempt failed. attendance_id=%d err=%v", attendance.ID, err)
+		}
+
+		if ctx == nil {
+			time.Sleep(waitInterval)
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(waitInterval):
+		}
+	}
+}
+
+func attendanceReadyForTaskSync(attendance *models.Attendance) bool {
+	if attendance == nil {
+		return false
+	}
+
+	if attendance.LoginLogoutID != nil && strings.TrimSpace(*attendance.LoginLogoutID) != "" {
+		return true
+	}
+
+	return strings.EqualFold(attendance.SyncStatus, "synced")
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
@@ -424,7 +481,7 @@ func (s *SyncService) syncUnsyncedRecordsNow() error {
 
 	var firstErr error
 	for i := range unsynced {
-		if err := s.syncTaskRecordNow(unsynced[i].ID); err != nil {
+		if err := s.syncTaskRecordNow(s.queueCtx, unsynced[i].ID); err != nil {
 			s.emit("record-synced", false)
 			if firstErr == nil {
 				firstErr = err
