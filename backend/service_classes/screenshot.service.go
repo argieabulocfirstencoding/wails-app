@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
@@ -32,6 +31,7 @@ type ScreenshotService struct {
 	Memo         string
 	Notes        string
 	SyncService  *SyncService
+	Connectivity *ConnectivityStateService
 
 	mu          sync.Mutex
 	cancel      context.CancelFunc
@@ -40,11 +40,19 @@ type ScreenshotService struct {
 	syncRetry   int
 }
 
-func NewScreenshotService() *ScreenshotService {
+func NewScreenshotService(connectivity ...*ConnectivityStateService) *ScreenshotService {
+	var connectivityState *ConnectivityStateService
+	if len(connectivity) > 0 {
+		connectivityState = connectivity[0]
+	}
+	if connectivityState == nil {
+		connectivityState = NewConnectivityStateService()
+	}
 	return &ScreenshotService{
-		TaskRepo:    repository.NewTaskRepository(),
-		uploadRetry: 3,
-		syncRetry:   3,
+		TaskRepo:     repository.NewTaskRepository(),
+		Connectivity: connectivityState,
+		uploadRetry:  3,
+		syncRetry:    3,
 	}
 }
 
@@ -267,7 +275,7 @@ func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []s
 		return
 	}
 
-	if config.OnlineMode && s.SyncService.Backblaze != nil && len(paths) > 0 {
+	if s.Connectivity.IsOnline() && s.SyncService.Backblaze != nil && len(paths) > 0 {
 		backoff := 800 * time.Millisecond
 		for attempt := 1; attempt <= s.uploadRetry; attempt++ {
 			remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)

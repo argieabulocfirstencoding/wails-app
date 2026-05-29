@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
@@ -92,8 +91,6 @@ var LoginUser = func(email string) (*models.OfflineLoginProps, *models.Attendanc
 	if attendance == nil {
 		return nil, nil, nil, err
 	}
-
-	config.OnlineMode = false
 
 	offlineData := &models.OfflineLoginProps{
 		AuthUser:   *authUser,

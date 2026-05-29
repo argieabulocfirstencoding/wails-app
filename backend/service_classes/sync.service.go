@@ -3,7 +3,6 @@ package service_classes
 import (
 	"context"
 	"errors"
-	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
@@ -40,6 +39,7 @@ type syncJob struct {
 type SyncService struct {
 	ctx              context.Context
 	isConnected      bool
+	Connectivity     *ConnectivityStateService
 	AuthUser         *models.AuthUser
 	IdToken          *string
 	IssuedAt         *time.Time
@@ -66,15 +66,23 @@ type SyncService struct {
 	pendingSet map[string]struct{}
 }
 
-func NewSyncService() *SyncService {
+func NewSyncService(connectivity ...*ConnectivityStateService) *SyncService {
 	backblaze := services.NewBackblazeSync()
+	var connectivityState *ConnectivityStateService
+	if len(connectivity) > 0 {
+		connectivityState = connectivity[0]
+	}
+	if connectivityState == nil {
+		connectivityState = NewConnectivityStateService()
+	}
 	return &SyncService{
 		Backblaze:        backblaze,
-		FesClientService: NewFesClientService(),
+		FesClientService: NewFesClientService(connectivityState),
 		Logger:           utils.NewLoggerService(),
 		TaskRepository:   repository.NewTaskRepository(),
 		AuthRepository:   repository.NewAuthRepository(),
 		UserRepository:   repository.NewUserRepository(),
+		Connectivity:     connectivityState,
 		pendingSet:       make(map[string]struct{}),
 	}
 }
@@ -146,7 +154,7 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 		return err
 	}
 
-	if !config.OnlineMode {
+	if !s.Connectivity.IsOnline() {
 		_ = s.updateTaskRecordSyncState(taskRecord, syncStateInProgress, nil)
 		return s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, fmt.Errorf("cannot sync task record while offline"))
 	}
@@ -338,7 +346,7 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 		return fmt.Errorf("cannot sync nil attendance")
 	}
 
-	if !config.OnlineMode {
+	if !s.Connectivity.IsOnline() {
 		_ = s.updateAttendanceSyncState(attendance, syncStateInProgress, nil)
 		return s.updateAttendanceSyncState(attendance, syncStateBlocked, fmt.Errorf("cannot sync attendance while offline"))
 	}
@@ -427,7 +435,7 @@ func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {
 		return nil, s.Logger.Errorf("cannot get active task record without attendance")
 	}
 
-	if !config.OnlineMode || (*s.Attendance).LoginLogoutID == nil {
+	if !s.Connectivity.IsOnline() || (*s.Attendance).LoginLogoutID == nil {
 		s.emit("attendance-synced", false)
 		return nil, s.Logger.Errorf("cannot get active task record if not synced")
 	}
@@ -460,7 +468,7 @@ func (s *SyncService) SyncAllAttendance() error {
 }
 
 func (s *SyncService) SyncUnsyncedRecords() error {
-	if !config.OnlineMode {
+	if !s.Connectivity.IsOnline() {
 		return fmt.Errorf("cannot sync records while offline")
 	}
 

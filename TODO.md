@@ -46,9 +46,9 @@ Last updated: 2026-05-29
 ## P1 Reliability Foundations
 
 ### 6) Remove global mutable runtime state risk
-- [ ] Replace package-level `OnlineMode` global with scoped connectivity/session state service.
-- [ ] Pass connectivity via context/service dependencies instead of global variable access.
-- [ ] Add tests for online/offline transitions during active task + sync queue processing.
+- [x] Replace package-level `OnlineMode` global with scoped connectivity/session state service.
+- [x] Pass connectivity via context/service dependencies instead of global variable access.
+- [x] Add tests for online/offline transitions during active task + sync queue processing.
 
 ### 7) Observability and diagnostics
 - [ ] Implement logger levels (`Info/Warn/Error/Debug`) with consistent formatting.

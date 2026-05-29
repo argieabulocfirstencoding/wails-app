@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/service_classes"
@@ -41,6 +40,7 @@ type App struct {
 	FirebaseSyncService *services.FirebaseSyncService
 	AuthService         *service_classes.AuthService
 	SyncService         *service_classes.SyncService
+	Connectivity        *service_classes.ConnectivityStateService
 	windowOpen          bool
 	AuthUser            *models.AuthUser
 	Logger              *utils.LoggerService
@@ -74,18 +74,20 @@ type githubRelease struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
+	connectivity := service_classes.NewConnectivityStateService()
 	firebaseSyncService := services.NewFirebaseSyncService()
 	logger := utils.NewLoggerService()
 
-	screenshotService := service_classes.NewScreenshotService()
-	syncService := service_classes.NewSyncService()
-	authService := service_classes.NewAuthService()
+	screenshotService := service_classes.NewScreenshotService(connectivity)
+	syncService := service_classes.NewSyncService(connectivity)
+	authService := service_classes.NewAuthService(connectivity)
 
 	app := &App{
 		ScreenshotService:   screenshotService,
 		FirebaseSyncService: firebaseSyncService,
 		SyncService:         syncService,
 		AuthService:         authService,
+		Connectivity:        connectivity,
 		Logger:              logger,
 	}
 
@@ -220,6 +222,7 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	if err != nil {
 		return nil, err
 	}
+	a.Connectivity.SetOnline(false)
 
 	a.AttendanceID = &attendance.ID
 	a.AuthUser = authUser
@@ -239,7 +242,7 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	a.Attendance = attendance
 	a.AuthUser = authUser
 
-	config.OnlineMode = true
+	a.Connectivity.SetOnline(true)
 
 	return attendance, nil
 }
@@ -312,7 +315,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 
 	// services.NewSyncService().SyncAttendance(attendance)
 
-	config.OnlineMode = true
+	a.Connectivity.SetOnline(true)
 	if err := services.AutoCloseStuckSessions(authUser.LocalID); err != nil {
 		return nil, err
 	}
@@ -342,7 +345,11 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
-	return a.AuthService.Logout()
+	err := a.AuthService.Logout()
+	if err == nil {
+		a.Connectivity.SetOnline(false)
+	}
+	return err
 }
 
 func (a *App) GetActiveTaskRecord() *string {

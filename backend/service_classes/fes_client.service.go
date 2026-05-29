@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	config "fesapp/backend"
 	db "fesapp/backend/db/models"
 	"fesapp/backend/repository"
 	"fesapp/backend/types"
@@ -33,11 +32,19 @@ type FesClientService struct {
 	client         *http.Client
 	logger         *utils.LoggerService
 	TaskRepository *repository.TaskRepository
+	Connectivity   *ConnectivityStateService
 	ctx            context.Context
 	apiToken       string
 }
 
-func NewFesClientService() *FesClientService {
+func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientService {
+	var connectivityState *ConnectivityStateService
+	if len(connectivity) > 0 {
+		connectivityState = connectivity[0]
+	}
+	if connectivityState == nil {
+		connectivityState = NewConnectivityStateService()
+	}
 
 	baseUrl := "https://firstencoding.app/api/1.1/"
 	_, exists := os.LookupEnv("DEVELOPMENT")
@@ -51,6 +58,7 @@ func NewFesClientService() *FesClientService {
 		client:         &http.Client{Timeout: 30 * time.Second},
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
+		Connectivity:   connectivityState,
 	}
 
 }
@@ -145,7 +153,7 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 // ========================== UTILITY ===============================
 
 func (f *FesClientService) OpenFesWebApp() error {
-	if !config.OnlineMode {
+	if !f.Connectivity.IsOnline() {
 		return f.logger.Error("you are offline")
 	}
 
@@ -356,7 +364,7 @@ func (f *FesClientService) fetchProjects() error {
 }
 
 func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) {
-	if !config.OnlineMode {
+	if !f.Connectivity.IsOnline() {
 		return
 	}
 

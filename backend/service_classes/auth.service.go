@@ -20,16 +20,23 @@ type AuthService struct {
 	ctx               context.Context
 }
 
-func NewAuthService() *AuthService {
-	SyncService := NewSyncService()
+func NewAuthService(connectivity ...*ConnectivityStateService) *AuthService {
+	var connectivityState *ConnectivityStateService
+	if len(connectivity) > 0 {
+		connectivityState = connectivity[0]
+	}
+	if connectivityState == nil {
+		connectivityState = NewConnectivityStateService()
+	}
+	SyncService := NewSyncService(connectivityState)
 
 	return &AuthService{
-		FesClientService:  NewFesClientService(),
+		FesClientService:  NewFesClientService(connectivityState),
 		Logger:            utils.NewLoggerService(),
 		UserService:       NewUserService(),
 		SyncService:       SyncService,
 		AttendanceService: NewAttendanceService(SyncService),
-		TaskService:       NewTaskService(SyncService),
+		TaskService:       NewTaskService(SyncService, connectivityState),
 	}
 }
 

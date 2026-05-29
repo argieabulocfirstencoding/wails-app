@@ -3,7 +3,6 @@ package service_classes
 import (
 	"context"
 	"errors"
-	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
@@ -25,18 +24,27 @@ type TaskService struct {
 	TaskRecord        *models.TaskRecord
 
 	AuthRepository *repository.AuthRepository
+	Connectivity   *ConnectivityStateService
 
 	ctx context.Context
 }
 
-func NewTaskService(SyncService *SyncService) *TaskService {
-	screenshotService := NewScreenshotService()
+func NewTaskService(SyncService *SyncService, connectivity ...*ConnectivityStateService) *TaskService {
+	var connectivityState *ConnectivityStateService
+	if len(connectivity) > 0 {
+		connectivityState = connectivity[0]
+	}
+	if connectivityState == nil {
+		connectivityState = NewConnectivityStateService()
+	}
+	screenshotService := NewScreenshotService(connectivityState)
 	screenshotService.SyncService = SyncService
 
 	return &TaskService{
 		TaskRepository:    repository.NewTaskRepository(),
 		ScreenshotService: screenshotService,
 		SyncService:       SyncService,
+		Connectivity:      connectivityState,
 		Logger:            utils.NewLoggerService(),
 	}
 }
@@ -55,7 +63,7 @@ func (t *TaskService) GetTask(id string) (*models.ExpTask, error) {
 }
 
 func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
-	if config.OnlineMode && isOnline {
+	if t.Connectivity.IsOnline() && isOnline {
 		if err := t.SyncService.FesClientService.SyncClientsAndProjects(); err != nil {
 			t.Logger.Printf("error fetching tasks from fes: %v", err)
 		}
@@ -255,7 +263,7 @@ func (t *TaskService) StopTracking(taskId string) {
 	}
 
 	// Syncing TaskRecord to Firebase
-	if config.OnlineMode {
+	if t.Connectivity.IsOnline() {
 		// Retrieving TaskRecord from TaskRecordID
 		t.Logger.Print("Attempting to sync record")
 		taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)

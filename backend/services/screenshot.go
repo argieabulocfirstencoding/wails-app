@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
@@ -211,7 +210,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	go func() {
 		log.Printf("Upload called — isConnected=%v", s.SyncService.Backblaze.isConnected)
-		if config.OnlineMode {
+		if s.SyncService != nil && s.SyncService.isConnected {
 			taskScreenshotModel := taskScreenshot
 			remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)
 			if err != nil {
@@ -277,7 +276,7 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 }
 
 func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
-	if config.OnlineMode {
+	if s.SyncService != nil && s.SyncService.isConnected {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
 		taskRecord, err := GetTaskRecordFromID(taskRecordIDCopy)

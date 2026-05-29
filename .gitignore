@@ -6,4 +6,3 @@ backend/screenshots
 .gitattributes
 .env
 log.txt
-backend/db/models/*.go.*
