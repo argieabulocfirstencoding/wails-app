@@ -18,9 +18,9 @@ Last updated: 2026-05-29
 
 ### 2) Restore screenshot capture reliability
 - [ ] Decide single source of truth: keep only one screenshot service implementation.
-- [ ] Ensure `Start/Stop/Screenshot/AddMemo` are fully functional in the active service class.
-- [ ] Add cancellation-safe screenshot loop tied to app lifecycle/context.
-- [ ] Add failure backoff + retry for capture and upload path.
+- [x] Ensure `Start/Stop/Screenshot/AddMemo` are fully functional in the active service class.
+- [x] Add cancellation-safe screenshot loop tied to app lifecycle/context.
+- [x] Add failure backoff + retry for capture and upload path.
 - [ ] Add end-to-end manual test script for multi-monitor + offline + online.
 
 ### 3) Secure updater pipeline

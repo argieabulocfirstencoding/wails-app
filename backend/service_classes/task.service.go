@@ -29,9 +29,12 @@ type TaskService struct {
 }
 
 func NewTaskService(SyncService *SyncService) *TaskService {
+	screenshotService := NewScreenshotService()
+	screenshotService.SyncService = SyncService
+
 	return &TaskService{
 		TaskRepository:    repository.NewTaskRepository(),
-		ScreenshotService: NewScreenshotService(),
+		ScreenshotService: screenshotService,
 		SyncService:       SyncService,
 		Logger:            utils.NewLoggerService(),
 	}

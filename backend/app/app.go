@@ -82,6 +82,7 @@ func NewApp() *App {
 	authService.TaskService.Attendance = &app.Attendance
 	authService.TaskService.ScreenshotService = screenshotService
 	authService.TaskService.SyncService = syncService
+	screenshotService.SyncService = syncService
 
 	syncService.Connect(app.ctx)
 
