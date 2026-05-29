@@ -17,6 +17,9 @@ type Attendance struct {
 	LoginLogoutID *string
 	SyncedAt      *time.Time
 	SyncStatus    string `gorm:"not null;default:'pending'"`
+	AttemptCount  int32  `gorm:"not null;default:0"`
+	LastError     string `gorm:"type:text;not null;default:''"`
+	LastAttemptAt *time.Time
 }
 
 type ActivityLogRecord struct {

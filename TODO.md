@@ -31,11 +31,11 @@ Last updated: 2026-05-29
 - [x] Log updater decisions (version, URL, checksum result, execute result).
 
 ### 4) Hardening sync correctness
-- [ ] Keep task sync blocked until attendance dependency is satisfied (`login_logout_id` or synced attendance).
-- [ ] Add explicit sync state machine (`pending`, `in_progress`, `synced`, `failed`, `blocked`).
-- [ ] Persist retry metadata (`attempt_count`, `last_error`, `last_attempt_at`) for audits.
-- [ ] Ensure queue jobs are idempotent and deduplicated per logical record.
-- [ ] Add reconciliation check: verify external backend reflects sync before final “synced” mark.
+- [x] Keep task sync blocked until attendance dependency is satisfied (`login_logout_id` or synced attendance).
+- [x] Add explicit sync state machine (`pending`, `in_progress`, `synced`, `failed`, `blocked`).
+- [x] Persist retry metadata (`attempt_count`, `last_error`, `last_attempt_at`) for audits.
+- [x] Ensure queue jobs are idempotent and deduplicated per logical record.
+- [x] Add reconciliation check: verify external backend reflects sync before final “synced” mark.
 
 ### 5) Production-safe error handling + DB writes
 - [ ] Remove ignored DB write errors in repositories/services.

@@ -5,23 +5,26 @@ import (
 )
 
 type TaskRecord struct {
-	ID           uint       `gorm:"primaryKey"`
-	UserID       string     `gorm:"not null"`
-	User         User       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	AttendanceID uint       `gorm:"not null"`
-	Attendance   Attendance `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TaskID       string     `gorm:"not null"` // foreign key
-	Task         Task       `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	StartedAt    time.Time  `gorm:"autoCreateTime"`
-	Padagan      bool       `gorm:"not null;default:false"`
-	Notes        string     `gorm:"not null;default:''"`
-	EndedAt      *time.Time
-	Duration     int32
-	SyncedAt     *time.Time
-	Productivity *string
-	SyncStatus   string `gorm:"not null;default:'pending'"`
-	Gap          int32  `gorm:"not null;default:0"`
-	Screenshots  []Screenshot
+	ID            uint       `gorm:"primaryKey"`
+	UserID        string     `gorm:"not null"`
+	User          User       `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	AttendanceID  uint       `gorm:"not null"`
+	Attendance    Attendance `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	TaskID        string     `gorm:"not null"` // foreign key
+	Task          Task       `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	StartedAt     time.Time  `gorm:"autoCreateTime"`
+	Padagan       bool       `gorm:"not null;default:false"`
+	Notes         string     `gorm:"not null;default:''"`
+	EndedAt       *time.Time
+	Duration      int32
+	SyncedAt      *time.Time
+	Productivity  *string
+	SyncStatus    string `gorm:"not null;default:'pending'"`
+	AttemptCount  int32  `gorm:"not null;default:0"`
+	LastError     string `gorm:"type:text;not null;default:''"`
+	LastAttemptAt *time.Time
+	Gap           int32 `gorm:"not null;default:0"`
+	Screenshots   []Screenshot
 }
 
 type ExpTaskRecord struct {
