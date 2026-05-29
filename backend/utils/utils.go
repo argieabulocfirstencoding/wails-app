@@ -6,13 +6,21 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 var Logger *log.Logger
 var loggerMu sync.Mutex
 var loggerFile *os.File
+var loggerPath string
+
+const (
+	maxLogFileSizeBytes = 10 * 1024 * 1024
+	maxRetainedLogFiles = 7
+)
 
 func init() {
 	// Default to stdout. Startup will route logs to file based on build type.
@@ -37,6 +45,10 @@ func ConfigureLogger(buildType string) error {
 			openErrs = append(openErrs, fmt.Sprintf("%s (mkdir: %v)", path, mkErr))
 			continue
 		}
+		if rotateErr := rotateLogFile(path); rotateErr != nil {
+			openErrs = append(openErrs, fmt.Sprintf("%s (rotate: %v)", path, rotateErr))
+			continue
+		}
 
 		f, openErr := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if openErr != nil {
@@ -57,9 +69,87 @@ func ConfigureLogger(buildType string) error {
 		_ = loggerFile.Close()
 	}
 	loggerFile = file
+	loggerPath = selectedPath
 
 	Logger.SetOutput(io.MultiWriter(os.Stdout, file))
 	Logger.Printf("Logger initialized. buildType=%s path=%s", buildType, selectedPath)
+	return nil
+}
+
+func CurrentLogPath() string {
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
+	return loggerPath
+}
+
+func rotateLogFile(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	if info.Size() < maxLogFileSizeBytes {
+		return pruneRotatedLogs(path)
+	}
+
+	rotatedPath := fmt.Sprintf("%s.%s", path, time.Now().UTC().Format("20060102_150405"))
+	if err := os.Rename(path, rotatedPath); err != nil {
+		return err
+	}
+
+	return pruneRotatedLogs(path)
+}
+
+func pruneRotatedLogs(path string) error {
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	type candidate struct {
+		path    string
+		modTime time.Time
+	}
+
+	var rotated []candidate
+	prefix := base + "."
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+
+		info, infoErr := entry.Info()
+		if infoErr != nil {
+			continue
+		}
+		rotated = append(rotated, candidate{
+			path:    filepath.Join(dir, name),
+			modTime: info.ModTime(),
+		})
+	}
+
+	if len(rotated) <= maxRetainedLogFiles {
+		return nil
+	}
+
+	sort.Slice(rotated, func(i, j int) bool {
+		return rotated[i].modTime.After(rotated[j].modTime)
+	})
+
+	for i := maxRetainedLogFiles; i < len(rotated); i++ {
+		_ = os.Remove(rotated[i].path)
+	}
+
 	return nil
 }
 

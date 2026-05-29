@@ -9,6 +9,7 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
+	"fesapp/backend/utils"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -274,6 +275,8 @@ func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []s
 	if taskScreenshot == nil || s.SyncService == nil {
 		return
 	}
+	correlationID := utils.NewCorrelationID("screenshot_batch")
+	s.SyncService.Logger.Infof("op=screenshot_batch_sync_start correlation_id=%s task_record_id=%d item_count=%d", correlationID, taskScreenshot.TaskRecordID, len(paths))
 
 	if s.Connectivity.IsOnline() && s.SyncService.Backblaze != nil && len(paths) > 0 {
 		backoff := 800 * time.Millisecond
@@ -292,6 +295,7 @@ func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []s
 				}
 				break
 			}
+			s.SyncService.Logger.Warnf("op=screenshot_batch_upload_retry correlation_id=%s task_record_id=%d attempt=%d err=%v", correlationID, taskScreenshot.TaskRecordID, attempt, err)
 
 			if attempt == s.uploadRetry {
 				break
@@ -305,10 +309,13 @@ func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []s
 	for attempt := 1; attempt <= s.syncRetry; attempt++ {
 		err := s.SyncService.SyncTaskRecord(taskScreenshot.TaskRecordID)
 		if err == nil {
+			s.SyncService.Logger.Infof("op=screenshot_batch_sync_success correlation_id=%s task_record_id=%d", correlationID, taskScreenshot.TaskRecordID)
 			return
 		}
+		s.SyncService.Logger.Warnf("op=screenshot_batch_sync_retry correlation_id=%s task_record_id=%d attempt=%d err=%v", correlationID, taskScreenshot.TaskRecordID, attempt, err)
 
 		if attempt == s.syncRetry {
+			s.SyncService.Logger.Warnf("op=screenshot_batch_sync_failed correlation_id=%s task_record_id=%d", correlationID, taskScreenshot.TaskRecordID)
 			return
 		}
 		time.Sleep(backoff)

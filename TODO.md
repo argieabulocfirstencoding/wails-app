@@ -51,10 +51,10 @@ Last updated: 2026-05-29
 - [x] Add tests for online/offline transitions during active task + sync queue processing.
 
 ### 7) Observability and diagnostics
-- [ ] Implement logger levels (`Info/Warn/Error/Debug`) with consistent formatting.
-- [ ] Add correlation IDs for login, attendance sync, task sync, screenshot batch.
-- [ ] Add log rotation/retention policy for production installs.
-- [ ] Add “Export Diagnostic Bundle” action (logs + app version + OS + sanitized sync states).
+- [x] Implement logger levels (`Info/Warn/Error/Debug`) with consistent formatting.
+- [x] Add correlation IDs for login, attendance sync, task sync, screenshot batch.
+- [x] Add log rotation/retention policy for production installs.
+- [x] Add "Export Diagnostic Bundle" action (logs + app version + OS + sanitized sync states).
 
 ### 8) Data integrity and migration safety
 - [ ] Add schema migration versioning and rollback strategy.
@@ -128,3 +128,4 @@ Last updated: 2026-05-29
 - Done:
 - Validation evidence:
 - Follow-ups:
+

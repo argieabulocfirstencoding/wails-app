@@ -218,8 +218,11 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 
 // NOTE this is offline login
 func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
+	correlationID := utils.NewCorrelationID("login_offline")
+	a.Logger.Infof("op=login_offline_start correlation_id=%s email=%s", correlationID, strings.TrimSpace(email))
 	offlineData, attendance, authUser, err := services.LoginUser(email)
 	if err != nil {
+		a.Logger.Warnf("op=login_offline_failed correlation_id=%s err=%v", correlationID, err)
 		return nil, err
 	}
 	a.Connectivity.SetOnline(false)
@@ -229,13 +232,17 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.AuthService.TaskService.SyncService.AuthUser = authUser
 	a.AuthService.TaskService.Attendance = &attendance
 	a.AuthService.TaskService.Connect(a.ctx)
+	a.Logger.Infof("op=login_offline_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
 	return offlineData, nil
 }
 
 func (a *App) LoginUserOnline(email string, password string) (*models.Attendance, error) {
+	correlationID := utils.NewCorrelationID("login_online")
+	a.Logger.Infof("op=login_online_start correlation_id=%s email=%s", correlationID, strings.TrimSpace(email))
 	attendance, authUser, err := a.AuthService.Login(a.ctx, email, password)
 	if err != nil {
+		a.Logger.Warnf("op=login_online_failed correlation_id=%s err=%v", correlationID, err)
 		return nil, err
 	}
 	a.AttendanceID = &attendance.ID
@@ -243,6 +250,7 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	a.AuthUser = authUser
 
 	a.Connectivity.SetOnline(true)
+	a.Logger.Infof("op=login_online_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
 	return attendance, nil
 }
@@ -250,6 +258,8 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 // REFACTOR this is not used anymore, was used on firebase integration
 // TODO recheck if this will sustain online login method
 func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) (*models.Attendance, error) {
+	correlationID := utils.NewCorrelationID("firebase_sync")
+	a.Logger.Infof("op=firebase_sync_start correlation_id=%s user_id=%s", correlationID, strings.TrimSpace(user_id))
 	// NOTE this needs to be refactor, no logic should be applied here
 	user := &models.FirebaseLoginResponse{
 		LocalID:      user_id,
@@ -263,6 +273,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	model_user, err := services.CreateUser(user.LocalID, user.Email)
 	if err != nil {
 		fmt.Printf("error creating account %s\n", err)
+		a.Logger.Warnf("op=firebase_sync_failed correlation_id=%s stage=create_user err=%v", correlationID, err)
 		return nil, err
 	}
 
@@ -273,6 +284,7 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 
 	attendance, err := services.LoginAttendance(authUser.LocalID)
 	if attendance == nil {
+		a.Logger.Warnf("op=firebase_sync_failed correlation_id=%s stage=login_attendance err=%v", correlationID, err)
 		return nil, err
 	}
 
@@ -317,8 +329,10 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 
 	a.Connectivity.SetOnline(true)
 	if err := services.AutoCloseStuckSessions(authUser.LocalID); err != nil {
+		a.Logger.Warnf("op=firebase_sync_failed correlation_id=%s stage=auto_close_sessions err=%v", correlationID, err)
 		return nil, err
 	}
+	a.Logger.Infof("op=firebase_sync_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 	return attendance, nil
 }
 

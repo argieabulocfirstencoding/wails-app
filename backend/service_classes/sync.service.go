@@ -129,6 +129,8 @@ func (s *SyncService) SyncTasks() {
 }
 
 func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
+	correlationID := utils.NewCorrelationID("task_sync")
+	s.Logger.Infof("op=task_sync_start correlation_id=%s record_id=%d", correlationID, taskRecordId)
 	job := &syncJob{
 		key:  fmt.Sprintf("task-record:%d", taskRecordId),
 		name: fmt.Sprintf("sync_task_record_%d", taskRecordId),
@@ -139,11 +141,13 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 
 	err = s.enqueueAndWait(job)
 	if err != nil {
+		s.Logger.Warnf("op=task_sync_failed correlation_id=%s record_id=%d err=%v", correlationID, taskRecordId, err)
 		s.Logger.Println("Failed to sync task record:", err)
 		s.emit("record-synced", false)
 		return err
 	}
 
+	s.Logger.Infof("op=task_sync_success correlation_id=%s record_id=%d", correlationID, taskRecordId)
 	s.emit("record-synced", true)
 	return nil
 }
@@ -312,7 +316,14 @@ func attendanceReadyForTaskSync(attendance *models.Attendance) bool {
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
+	correlationID := utils.NewCorrelationID("attendance_sync")
+	attendanceID := uint(0)
+	if attendance != nil {
+		attendanceID = attendance.ID
+	}
+	s.Logger.Infof("op=attendance_sync_start correlation_id=%s attendance_id=%d", correlationID, attendanceID)
 	if attendance == nil {
+		s.Logger.Warnf("op=attendance_sync_failed correlation_id=%s attendance_id=0 err=nil_attendance", correlationID)
 		s.emit("attendance-synced", false)
 		return fmt.Errorf("cannot sync nil attendance")
 	}
@@ -332,11 +343,13 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 
 	err = s.enqueueAndWait(job)
 	if err != nil {
+		s.Logger.Warnf("op=attendance_sync_failed correlation_id=%s attendance_id=%d err=%v", correlationID, attendance.ID, err)
 		s.Logger.Println("Failed to sync attendance:", err)
 		s.emit("attendance-synced", false)
 		return err
 	}
 
+	s.Logger.Infof("op=attendance_sync_success correlation_id=%s attendance_id=%d", correlationID, attendance.ID)
 	s.emit("attendance-synced", true)
 	return nil
 }
@@ -468,11 +481,15 @@ func (s *SyncService) SyncAllAttendance() error {
 }
 
 func (s *SyncService) SyncUnsyncedRecords() error {
+	correlationID := utils.NewCorrelationID("task_sync_batch")
+	s.Logger.Infof("op=task_sync_batch_start correlation_id=%s", correlationID)
 	if !s.Connectivity.IsOnline() {
+		s.Logger.Warnf("op=task_sync_batch_failed correlation_id=%s err=offline", correlationID)
 		return fmt.Errorf("cannot sync records while offline")
 	}
 
 	if s.AuthUser == nil {
+		s.Logger.Warnf("op=task_sync_batch_failed correlation_id=%s err=auth_user_missing", correlationID)
 		return fmt.Errorf("cannot sync records without authenticated user")
 	}
 
@@ -484,7 +501,13 @@ func (s *SyncService) SyncUnsyncedRecords() error {
 		},
 	}
 
-	return s.enqueueAndWait(job)
+	err := s.enqueueAndWait(job)
+	if err != nil {
+		s.Logger.Warnf("op=task_sync_batch_failed correlation_id=%s user_id=%s err=%v", correlationID, s.AuthUser.LocalID, err)
+		return err
+	}
+	s.Logger.Infof("op=task_sync_batch_success correlation_id=%s user_id=%s", correlationID, s.AuthUser.LocalID)
+	return nil
 }
 
 func (s *SyncService) syncUnsyncedRecordsNow() error {
