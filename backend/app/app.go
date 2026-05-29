@@ -1,8 +1,8 @@
 package app
 
 import (
-	"crypto/sha256"
 	"context"
+	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -402,7 +402,7 @@ func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 func (a *App) FetchActiveTask() error {
 	_, err := a.SyncService.SyncActiveTaskRecord()
 	if err != nil {
-		return err
+		return a.stableClientError("fetch_active_task", err)
 	}
 
 	return nil
@@ -460,29 +460,35 @@ func (a *App) SyncAttendance() error {
 
 // Not used yet
 func (a *App) SyncUnsyncedRecords() error {
-
-	return a.AuthService.SyncService.SyncUnsyncedRecords()
+	if err := a.AuthService.SyncService.SyncUnsyncedRecords(); err != nil {
+		return a.stableClientError("sync_unsynced_records", err)
+	}
+	return nil
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
 	// FIX change to attempt sync record
 	if err := a.AuthService.TaskService.SyncService.SyncTaskRecord(taskrecordId); err != nil {
-		return err
+		return a.stableClientError("sync_unsynced_task_record", types.WrapOperation("sync.task_record", taskrecordId, a.safeUserID(), err))
 	}
 
 	return nil
 }
 
 func (a *App) SyncUnsyncedAttendance() error {
+	if a.AttendanceID == nil {
+		return types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance to sync.")
+	}
+
 	// For now syncs current attendance
 	attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
 	if err != nil {
-		return err
+		return a.stableClientError("sync_unsynced_attendance_fetch", err)
 	}
 
 	// FIX change to attempt sync attendance
 	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
-		return err
+		return a.stableClientError("sync_unsynced_attendance", types.WrapOperation("sync.attendance", attendance.ID, attendance.UserID, err))
 	}
 
 	return nil
@@ -490,24 +496,24 @@ func (a *App) SyncUnsyncedAttendance() error {
 
 func (a *App) SyncAttendanceByID(attendanceID uint) error {
 	if a.AuthUser == nil || a.AuthUser.LocalID == "" {
-		return fmt.Errorf("cannot resync attendance without authenticated user")
+		return types.NewStableError("AUTH_REQUIRED", "cannot resync attendance without authenticated user")
 	}
 
 	attendance, err := services.GetAttendanceFromID(attendanceID)
 	if err != nil {
-		return err
+		return a.stableClientError("sync_attendance_by_id_fetch", types.WrapOperation("sync.attendance.fetch", attendanceID, a.safeUserID(), err))
 	}
 
 	if attendance.UserID != a.AuthUser.LocalID {
-		return fmt.Errorf("cannot resync attendance owned by another user")
+		return types.NewStableError("ATTENDANCE_OWNERSHIP_DENIED", "cannot resync attendance owned by another user")
 	}
 
 	if !canResyncAttendanceByTime(attendanceResyncReferenceTime(attendance), time.Now()) {
-		return fmt.Errorf("cannot resync login/logout older than 2 days")
+		return types.NewStableError("ATTENDANCE_RESYNC_WINDOW_EXPIRED", "cannot resync login/logout older than 2 days")
 	}
 
 	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
-		return err
+		return a.stableClientError("sync_attendance_by_id", types.WrapOperation("sync.attendance", attendance.ID, attendance.UserID, err))
 	}
 
 	return nil
@@ -539,10 +545,13 @@ func canResyncAttendanceByTime(attendanceTime, now time.Time) bool {
 }
 
 func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
+	if a.AttendanceID == nil {
+		return nil, types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
+	}
 
 	attendance, err := services.GetAttendanceFromID(*a.AttendanceID)
 	if err != nil {
-		return nil, err
+		return nil, a.stableClientError("get_current_attendance", types.WrapOperation("attendance.get_current", *a.AttendanceID, a.safeUserID(), err))
 	}
 
 	expAttendance := attendance.ToExp()
@@ -926,4 +935,28 @@ func (a *App) logUpdaterDecision(event string, details map[string]any) {
 	if a.ctx != nil {
 		runtime.LogPrintf(a.ctx, "updater: event=%s details=%s", event, string(raw))
 	}
+}
+
+func (a *App) stableClientError(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if stable, ok := err.(*types.StableError); ok {
+		return stable
+	}
+
+	utils.Logger.Printf("app error op=%s user_id=%s err=%v", op, a.safeUserID(), err)
+	if a.ctx != nil {
+		runtime.LogErrorf(a.ctx, "app error op=%s user_id=%s err=%v", op, a.safeUserID(), err)
+	}
+
+	return types.NewStableError("OPERATION_FAILED", "Operation failed. Please try again.")
+}
+
+func (a *App) safeUserID() string {
+	if a.AuthUser == nil {
+		return ""
+	}
+	return a.AuthUser.LocalID
 }

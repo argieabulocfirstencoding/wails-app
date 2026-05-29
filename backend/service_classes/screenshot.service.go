@@ -275,7 +275,11 @@ func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []s
 				if len(remotePaths) > 0 {
 					if jsonRemotePaths, marshalErr := json.Marshal(remotePaths); marshalErr == nil {
 						remoteString := string(jsonRemotePaths)
-						_ = db.DB.Model(taskScreenshot).Update("cloud_url", remoteString).Error
+						if err := db.DB.Model(taskScreenshot).Update("cloud_url", remoteString).Error; err != nil {
+							fmt.Printf("screenshot sync update cloud_url failed task_record_id=%d err=%v\n", taskScreenshot.TaskRecordID, err)
+						}
+					} else {
+						fmt.Printf("screenshot sync marshal remote paths failed task_record_id=%d err=%v\n", taskScreenshot.TaskRecordID, marshalErr)
 					}
 				}
 				break

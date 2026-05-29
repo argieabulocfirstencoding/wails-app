@@ -91,7 +91,7 @@ func (t *TaskRepository) DeleteTask(id string) error {
 }
 
 func (t *TaskRepository) CreateTaskRecord(record *models.TaskRecord) error {
-	return db.DB.Create(&record).Error
+	return db.DB.Create(record).Error
 }
 
 func (t *TaskRepository) UpdateTaskRecord(oldRecord, newRecord *models.TaskRecord) error {
@@ -119,25 +119,30 @@ func (t *TaskRepository) GetTaskRecord(id uint) (*models.TaskRecord, error) {
 }
 
 func (t *TaskRepository) StopAllActiveRecords(attendance *models.Attendance) error {
+	if attendance == nil {
+		return fmt.Errorf("stop active records: attendance is nil")
+	}
+
 	now := time.Now()
 	var taskRecords []models.TaskRecord
-
-	fmt.Println("pass here stoppping all active records")
 
 	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", attendance.UserID, attendance.ID).
 		Find(&taskRecords).Error; err != nil {
 		return err
 	}
 
-	for _, taskRecord := range taskRecords {
-		taskRecord.SyncStatus = "pending"
-		taskRecord.EndedAt = &now
-		taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, taskRecord := range taskRecords {
+			taskRecord.SyncStatus = "pending"
+			taskRecord.EndedAt = &now
+			taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
 
-		db.DB.Save(&taskRecord)
-	}
-
-	return nil
+			if err := tx.Save(&taskRecord).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.TaskRecord, error) {

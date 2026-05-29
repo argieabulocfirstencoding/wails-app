@@ -38,10 +38,10 @@ Last updated: 2026-05-29
 - [x] Add reconciliation check: verify external backend reflects sync before final “synced” mark.
 
 ### 5) Production-safe error handling + DB writes
-- [ ] Remove ignored DB write errors in repositories/services.
-- [ ] Add transaction boundaries where multiple updates must commit atomically.
-- [ ] Standardize error wrapping with operation context (`op`, `record_id`, `user_id`).
-- [ ] Return stable error shapes to frontend (no raw internal stack text).
+- [x] Remove ignored DB write errors in repositories/services.
+- [x] Add transaction boundaries where multiple updates must commit atomically.
+- [x] Standardize error wrapping with operation context (`op`, `record_id`, `user_id`).
+- [x] Return stable error shapes to frontend (no raw internal stack text).
 
 ## P1 Reliability Foundations
 
