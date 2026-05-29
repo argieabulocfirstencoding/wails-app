@@ -30,6 +30,10 @@ export function DownloadAndInstall(arg1) {
   return window['go']['app']['App']['DownloadAndInstall'](arg1);
 }
 
+export function ExportDiagnosticBundle() {
+  return window['go']['app']['App']['ExportDiagnosticBundle']();
+}
+
 export function FetchActiveTask() {
   return window['go']['app']['App']['FetchActiveTask']();
 }

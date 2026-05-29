@@ -52,7 +52,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.4.1"
+var CurrentVersion = "2.4.2"
 
 const attendanceResyncWindow = 48 * time.Hour
 
@@ -250,6 +250,9 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	a.AuthUser = authUser
 
 	a.Connectivity.SetOnline(true)
+	a.SyncService.AuthUser = authUser
+	a.SyncService.Attendance = &a.Attendance
+	a.SyncService.KickoffAutoSyncOnLogin(attendance)
 	a.Logger.Infof("op=login_online_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
 	return attendance, nil

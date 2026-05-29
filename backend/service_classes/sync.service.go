@@ -114,14 +114,46 @@ func (s *SyncService) KickoffAutoSyncOnLogin(attendance *models.Attendance) {
 	if attendance == nil {
 		return
 	}
+	correlationID := utils.NewCorrelationID("login_autosync")
+	userID := ""
+	if s.AuthUser != nil {
+		userID = s.AuthUser.LocalID
+	}
+	s.Logger.Infof(
+		"op=login_autosync_start correlation_id=%s attendance_id=%d user_id=%s online=%t",
+		correlationID,
+		attendance.ID,
+		userID,
+		s.Connectivity.IsOnline(),
+	)
 
 	utils.GoSafe("sync.auto_login_kickoff", func() {
 		if err := s.SyncAttendance(attendance); err != nil {
-			s.Logger.Printf("auto login attendance sync failed: %v", err)
+			s.Logger.Warnf(
+				"op=login_autosync_failed correlation_id=%s stage=attendance attendance_id=%d user_id=%s err=%v",
+				correlationID,
+				attendance.ID,
+				userID,
+				err,
+			)
+			return
 		}
 		if err := s.SyncUnsyncedRecords(); err != nil {
-			s.Logger.Printf("auto login unsynced records sync failed: %v", err)
+			s.Logger.Warnf(
+				"op=login_autosync_failed correlation_id=%s stage=task_records attendance_id=%d user_id=%s err=%v",
+				correlationID,
+				attendance.ID,
+				userID,
+				err,
+			)
+			return
 		}
+		s.Logger.Infof(
+			"op=login_autosync_success correlation_id=%s attendance_id=%d user_id=%s",
+			correlationID,
+			attendance.ID,
+			userID,
+		)
 	})
 }
 

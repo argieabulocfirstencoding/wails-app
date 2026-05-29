@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import "./App.scss";
 import "./styles/style.scss";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -34,8 +34,13 @@ function App() {
   useOnlineStatus();
 
   const { taskID } = useAuthStore();
+  const enableReleaseUpdates = import.meta.env.VITE_ENABLE_RELEASE_UPDATES === "true";
 
   useEffect(() => {
+    if (!enableReleaseUpdates) {
+      return;
+    }
+
     const handleUpdateCheck = async () => {
       try {
         const info: UpdateInfo = await CheckForUpdates();
@@ -57,7 +62,7 @@ function App() {
     };
 
     handleUpdateCheck();
-  }, []); // Empty dependency array ensures this runs once on startup
+  }, [enableReleaseUpdates]); // Runs on startup; update checks are opt-in via env flag.
 
   useEffect(() => {
     if (!EventsOn) return;

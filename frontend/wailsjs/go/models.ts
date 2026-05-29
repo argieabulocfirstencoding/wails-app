@@ -167,6 +167,10 @@ export namespace models {
 	    SyncedAt?: any;
 	    Productivity?: string;
 	    SyncStatus: string;
+	    AttemptCount: number;
+	    LastError: string;
+	    // Go type: time
+	    LastAttemptAt?: any;
 	    Gap: number;
 	    Screenshots: Screenshot[];
 	
@@ -191,6 +195,9 @@ export namespace models {
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
 	        this.Productivity = source["Productivity"];
 	        this.SyncStatus = source["SyncStatus"];
+	        this.AttemptCount = source["AttemptCount"];
+	        this.LastError = source["LastError"];
+	        this.LastAttemptAt = this.convertValues(source["LastAttemptAt"], null);
 	        this.Gap = source["Gap"];
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
 	    }
@@ -293,6 +300,10 @@ export namespace models {
 	    // Go type: time
 	    SyncedAt?: any;
 	    SyncStatus: string;
+	    AttemptCount: number;
+	    LastError: string;
+	    // Go type: time
+	    LastAttemptAt?: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new Attendance(source);
@@ -313,6 +324,9 @@ export namespace models {
 	        this.LoginLogoutID = source["LoginLogoutID"];
 	        this.SyncedAt = this.convertValues(source["SyncedAt"], null);
 	        this.SyncStatus = source["SyncStatus"];
+	        this.AttemptCount = source["AttemptCount"];
+	        this.LastError = source["LastError"];
+	        this.LastAttemptAt = this.convertValues(source["LastAttemptAt"], null);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
