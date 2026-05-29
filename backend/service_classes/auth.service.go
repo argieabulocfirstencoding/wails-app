@@ -46,6 +46,9 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	if err != nil {
 		return nil, nil, err
 	}
+	if attendance == nil {
+		return nil, nil, fmt.Errorf("login attendance is nil")
+	}
 
 	authUser := &models.AuthUser{
 		LocalID: *userId,
@@ -86,7 +89,7 @@ func (a *AuthService) Logout() error {
 		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
 	}
 
-	if attendance != nil {
+	if attendance != nil && *attendance != nil {
 		if err := services.LogoutAttendance(*attendance); err != nil {
 			return err
 		}
@@ -125,8 +128,23 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 		return nil, err
 	}
 
-	userId := resp["user_id"].(string)
-	token := resp["token"].(string)
+	userIDRaw, ok := resp["user_id"]
+	if !ok {
+		return nil, a.Logger.Error("login response missing user_id")
+	}
+	userId, ok := userIDRaw.(string)
+	if !ok || strings.TrimSpace(userId) == "" {
+		return nil, a.Logger.Error("login response user_id has invalid format")
+	}
+
+	tokenRaw, ok := resp["token"]
+	if !ok {
+		return nil, a.Logger.Error("login response missing token")
+	}
+	token, ok := tokenRaw.(string)
+	if !ok || strings.TrimSpace(token) == "" {
+		return nil, a.Logger.Error("login response token has invalid format")
+	}
 
 	a.TaskService.SyncService.FesClientService.SetApiToken(token)
 

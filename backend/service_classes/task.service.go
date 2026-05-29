@@ -108,6 +108,10 @@ func (t *TaskService) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 // ======================== TASK RECORD ACTIONS ====================================
 
 func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskRecord, error) {
+	if t.Attendance == nil || *t.Attendance == nil {
+		return nil, fmt.Errorf("StartTaskRecord error: Attendance is nil")
+	}
+
 	userId := (*t.Attendance).UserID
 	attendanceId := (*t.Attendance).ID
 
@@ -120,6 +124,10 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	}
 
 	record, err := t.newTaskRecord(userId, taskId, attendanceId, padagan)
+	if err != nil {
+		return nil, err
+	}
+
 	record.Attendance = *(*t.Attendance)
 	record.User = (*t.Attendance).User
 
@@ -127,7 +135,7 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 		t.Logger.Printlnf("error syncing task_record: %v", err)
 	}
 
-	return record, err
+	return record, nil
 }
 
 func (t *TaskService) StopTaskRecord(userId, taskId string) error {
@@ -196,13 +204,20 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	}
 
 	record, err := t.StartTaskRecord(taskId, padagan)
+	if err != nil {
+		t.Logger.Printf("error starting task record: %v", err)
+		return
+	}
+	if record == nil {
+		t.Logger.Printf("error starting task record: record is nil")
+		return
+	}
 
 	t.TaskRecord = record
 
-	if err != nil {
-		t.Logger.Printf("error starting task record: %v", err)
+	if t.WorkingTaskID != nil && *t.WorkingTaskID != nil {
+		t.ScreenshotService.TaskID = *t.WorkingTaskID
 	}
-	t.ScreenshotService.TaskID = *t.WorkingTaskID
 	t.ScreenshotService.TaskRecordID = &record.ID
 
 	task, err := t.TaskRepository.GetTask(taskId)

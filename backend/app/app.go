@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -95,7 +96,17 @@ var trayIcon []byte
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
-	db.Init(ctx)
+	if _, err := db.Init(ctx); err != nil {
+		runtime.LogErrorf(ctx, "database initialization failed: %v", err)
+		utils.Logger.Printf("database initialization failed: %v", err)
+		_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+			Type:    runtime.ErrorDialog,
+			Title:   "Startup Error",
+			Message: "Unable to initialize local database. The app will now close.",
+		})
+		runtime.Quit(ctx)
+		return
+	}
 	db.DB.Exec("PRAGMA journal_mode = WAL;")
 	db.DB.Exec("PRAGMA busy_timeout = 5000;")
 
@@ -107,7 +118,7 @@ func (a *App) Startup(ctx context.Context) {
 		runtime.LogErrorf(ctx, "failed to configure file logger: %v", err)
 	}
 
-	go func() {
+	utils.GoSafe("app.startup.systray", func() {
 		defer func() {
 			if r := recover(); r != nil {
 				utils.Logger.Printf("Recovered from panic in systray: %v", r)
@@ -129,7 +140,7 @@ func (a *App) Startup(ctx context.Context) {
 			mOpen := systray.AddMenuItem("Open", "Show the app window")
 			mQuit := systray.AddMenuItem("Quit", "Exit app")
 
-			go func() {
+			utils.GoSafe("app.startup.systray.menu_loop", func() {
 				for {
 					select {
 					case <-mOpen.ClickedCh:
@@ -140,9 +151,9 @@ func (a *App) Startup(ctx context.Context) {
 						return
 					}
 				}
-			}()
+			})
 		}, func() {})
-	}()
+	})
 
 	// a.SyncService.Backblaze.Connect(a.ctx)
 }
@@ -250,14 +261,14 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	attendanceID := &attendance.ID
 
 	if model_user != nil && attendanceID != nil {
-		go func() {
+		utils.GoSafe("app.backend_firebase_sync.sync_attendance", func() {
 			services.FetchEmployeeDetails(a.ctx, model_user)
 			attendance, err := services.GetAttendanceFromID(*attendanceID)
 			if err != nil {
 				return
 			}
 			a.FirebaseSyncService.SyncAttendance(attendance)
-		}()
+		})
 	}
 
 	keyring.Set("refresh", email, refreshToken)
@@ -271,12 +282,12 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 	a.FirebaseSyncService.IssuedAt = &now
 
 	// TODO handle checking connection and only one connection attempt at a time
-	go func() {
+	utils.GoSafe("app.backend_firebase_sync.sync_user", func() {
 		a.FirebaseSyncService.Connect(a.ctx)
 		a.FirebaseSyncService.SyncUser(*authUser)
 		// a.SyncService.SyncTasks()
 
-	}()
+	})
 
 	// Syncing attendance
 	// attendance, err := services.GetAttendanceFromID(*attendanceID)
@@ -611,20 +622,46 @@ func (a *App) CheckForUpdates() UpdateInfo {
 		return UpdateInfo{Exists: false}
 	}
 
-	vCurrent := semver.MustParse(CurrentVersion)
+	vCurrent, err := semver.Parse(strings.TrimSpace(CurrentVersion))
+	if err != nil {
+		utils.Logger.Printf("check updates: invalid current version=%q err=%v", CurrentVersion, err)
+		return UpdateInfo{Exists: false}
+	}
+
 	// Handle cases where TagName might not have 'v' prefix
-	remoteTag := target.TagName
-	if remoteTag[0] == 'v' {
-		remoteTag = remoteTag[1:]
+	remoteTag := strings.TrimSpace(target.TagName)
+	if remoteTag == "" {
+		return UpdateInfo{Exists: false}
+	}
+
+	if strings.HasPrefix(strings.ToLower(remoteTag), "v") {
+		remoteTag = strings.TrimSpace(remoteTag[1:])
+	}
+
+	if remoteTag == "" {
+		return UpdateInfo{Exists: false}
 	}
 
 	vRemote, err := semver.Parse(remoteTag)
+	if err != nil {
+		utils.Logger.Printf("check updates: invalid remote version tag=%q err=%v", target.TagName, err)
+		return UpdateInfo{Exists: false}
+	}
 
-	if err == nil && vRemote.GT(vCurrent) && len(target.Assets) > 0 {
+	if len(target.Assets) == 0 {
+		return UpdateInfo{Exists: false}
+	}
+
+	downloadURL := strings.TrimSpace(target.Assets[0].BrowserDownloadURL)
+	if downloadURL == "" {
+		return UpdateInfo{Exists: false}
+	}
+
+	if vRemote.GT(vCurrent) {
 		return UpdateInfo{
 			Exists:      true,
 			Version:     target.TagName,
-			DownloadUrl: target.Assets[0].BrowserDownloadURL,
+			DownloadUrl: downloadURL,
 		}
 	}
 

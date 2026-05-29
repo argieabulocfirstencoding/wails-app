@@ -97,14 +97,14 @@ func (s *SyncService) KickoffAutoSyncOnLogin(attendance *models.Attendance) {
 		return
 	}
 
-	go func() {
+	utils.GoSafe("sync.auto_login_kickoff", func() {
 		if err := s.SyncAttendance(attendance); err != nil {
 			s.Logger.Printf("auto login attendance sync failed: %v", err)
 		}
 		if err := s.SyncUnsyncedRecords(); err != nil {
 			s.Logger.Printf("auto login unsynced records sync failed: %v", err)
 		}
-	}()
+	})
 }
 
 func (s *SyncService) SyncTasks() {
@@ -525,7 +525,7 @@ func (s *SyncService) startQueueWorker() {
 
 		s.queueCtx, s.queueCancel = context.WithCancel(workerCtx)
 		s.queue = make(chan *syncJob, 256)
-		go s.runQueueWorker()
+		utils.GoSafe("sync.queue_worker", s.runQueueWorker)
 	})
 }
 

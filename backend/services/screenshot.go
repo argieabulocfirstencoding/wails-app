@@ -136,11 +136,11 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	// File path where screenshots are saved
 	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots", s.FolderName))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	pictures := []string{}

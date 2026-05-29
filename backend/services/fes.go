@@ -485,8 +485,7 @@ func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[stri
 
 	response, ok := result["response"].(map[string]interface{})
 	if !ok {
-		log.Fatalf("Invalid response format")
-		return nil, err
+		return nil, fmt.Errorf("invalid response format")
 	}
 
 	return response, nil

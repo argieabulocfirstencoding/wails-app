@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,11 +22,16 @@ type TaskRecord = models.TaskRecord
 type Screenshot = models.Screenshot
 
 // Init initializes the database
-func Init(ctx context.Context) *gorm.DB {
+func Init(ctx context.Context) (*gorm.DB, error) {
 	// Use user config directory
-	dir, _ := os.UserConfigDir()
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve user config directory: %w", err)
+	}
 	appDir := filepath.Join(dir, "wails-app")
-	_ = os.MkdirAll(appDir, 0o755)
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create app directory: %w", err)
+	}
 
 	// Detect environment via Wails
 	env := runtime.Environment(ctx)
@@ -40,10 +44,9 @@ func Init(ctx context.Context) *gorm.DB {
 	}
 
 	// Open database
-	var err error
 	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("failed to connect database: %v", err)
+		return nil, fmt.Errorf("failed to connect database: %w", err)
 	}
 
 	// Run migrations
@@ -54,15 +57,15 @@ func Init(ctx context.Context) *gorm.DB {
 		&Screenshot{},
 		&models.Attendance{},
 	); err != nil {
-		log.Fatalf("failed to migrate: %v", err)
+		return nil, fmt.Errorf("failed to migrate: %w", err)
 	}
 
 	if err := repairUsersSchema(DB); err != nil {
-		log.Printf("warning: unable to repair users schema: %v", err)
+		return nil, fmt.Errorf("failed to repair users schema: %w", err)
 	}
 
 	fmt.Println("Database initialized at", dbPath)
-	return DB
+	return DB, nil
 }
 
 type tableInfoRow struct {
@@ -70,7 +73,7 @@ type tableInfoRow struct {
 	Type string `gorm:"column:type"`
 }
 
-func repairUsersSchema(database *gorm.DB) error {
+func repairUsersSchema(database *gorm.DB) (err error) {
 	if database == nil {
 		return nil
 	}
@@ -112,7 +115,7 @@ func repairUsersSchema(database *gorm.DB) error {
 	defer func() {
 		if r := recover(); r != nil {
 			_ = tx.Rollback()
-			panic(r)
+			err = fmt.Errorf("panic while repairing users schema: %v", r)
 		}
 	}()
 
