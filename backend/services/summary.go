@@ -43,7 +43,7 @@ func GetTodaySummary(dateStr string) ([]types.TaskSummary, error) {
 	utils.Logger.Printf("summary: attendance query matched count=%d", len(foundAttendance))
 
 	if len(foundAttendance) == 0 {
-		if err := db.DB.Where("date(time_in) = ? OR date(time_in, 'localtime') = ? OR date(time_in, '+8 hours') = ?", dateStr, dateStr, dateStr).Find(&foundAttendance).Error; err != nil {
+		if err := db.DB.Where("date(time_in) = ? OR date(time_in, '+8 hours') = ?", dateStr, dateStr).Find(&foundAttendance).Error; err != nil {
 			utils.Logger.Printf("summary: fallback attendance query failed date=%q err=%v", dateStr, err)
 			return nil, err
 		}

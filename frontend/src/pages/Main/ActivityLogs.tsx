@@ -30,23 +30,12 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
 import { secondsToHHMM } from "@/lib/utils";
+import { formatInManila, supportsManilaTimeZone, toManilaDateOnly } from "@/lib/timezone";
 
-const MANILA_TIMEZONE = "Asia/Manila";
 const RESYNC_WINDOW_MS = 48 * 60 * 60 * 1000;
 
 const toDateOnly = (input: Date): string => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: MANILA_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(input);
-
-  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
-  const month = parts.find((part) => part.type === "month")?.value ?? "00";
-  const day = parts.find((part) => part.type === "day")?.value ?? "00";
-
-  return `${year}-${month}-${day}`;
+  return toManilaDateOnly(input);
 };
 
 const logActivityUI = (
@@ -105,15 +94,13 @@ const formatTimestamp = (value: unknown) => {
   const parsed = parseDateTime(value);
   if (!parsed) return { date: "Invalid date", time: "" };
 
-  const date = parsed.toLocaleDateString("en-US", {
-    timeZone: MANILA_TIMEZONE,
+  const date = formatInManila(parsed, "en-US", {
     month: "2-digit",
     day: "2-digit",
     year: "numeric",
   });
 
-  const time = parsed.toLocaleTimeString("en-US", {
-    timeZone: MANILA_TIMEZONE,
+  const time = formatInManila(parsed, "en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -205,11 +192,12 @@ const ActivityLogs = () => {
       setLoadError("");
       setLoadWarning("");
       try {
-        const dateOnly = toDateOnly(targetDate);
-        logActivityUI("info", "Loading activity data", {
-          targetDateISO: targetDate.toISOString(),
-          queryDate: dateOnly,
-        });
+          const dateOnly = toDateOnly(targetDate);
+          logActivityUI("info", "Loading activity data", {
+            targetDateISO: targetDate.toISOString(),
+            queryDate: dateOnly,
+            manilaTimezoneSupported: supportsManilaTimeZone(),
+          });
 
         const [activitiesResult, summaryResult] = await Promise.allSettled([
           GetActivityLogRecord(dateOnly),

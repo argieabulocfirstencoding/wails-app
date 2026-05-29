@@ -2,6 +2,7 @@ import { useAuthStore } from "@/store/AuthContext";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { GetTotalClientRecords } from "@/../wailsjs/go/app/App";
+import { toManilaDateOnly } from "@/lib/timezone";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -19,9 +20,7 @@ export const fetchTodayClientSummary = async (optionalDate?: Date) => {
     if (!dateToUse) return;
 
     // Format date to 'yyyy-MM-dd' in Manila timezone
-    const dateOnly = dateToUse.toLocaleDateString("en-CA", {
-      timeZone: "Asia/Manila",
-    });
+    const dateOnly = toManilaDateOnly(dateToUse);
 
     // Call backend
     const results = await GetTotalClientRecords(dateOnly);
