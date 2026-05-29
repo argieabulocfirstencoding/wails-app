@@ -58,10 +58,7 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
 	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
-
-	if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
-		a.Logger.Printf("error syncing attendance on login")
-	}
+	a.TaskService.SyncService.KickoffAutoSyncOnLogin(attendance)
 
 	attendance.User.ID = *userId
 	attendance.User.Email = email

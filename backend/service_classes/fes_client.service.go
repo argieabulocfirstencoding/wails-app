@@ -10,9 +10,11 @@ import (
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"os/exec"
 	"time"
@@ -46,7 +48,7 @@ func NewFesClientService() *FesClientService {
 	return &FesClientService{
 		// baseUrl: "https://firstencoding.app/version-test/api/1.1/",
 		baseUrl:        baseUrl,
-		client:         &http.Client{},
+		client:         &http.Client{Timeout: 30 * time.Second},
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
 	}
@@ -95,15 +97,34 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	req.Header.Set("Authorization", "Bearer "+apiToken)
 	req.Header.Set("Content-Type", "application/json") // important for JSON
 
-	client := &http.Client{}
-	res, err := client.Do(req)
+	res, err := f.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 
+	rawBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		errMsg := http.StatusText(res.StatusCode)
+
+		var parsed map[string]any
+		if len(rawBody) > 0 && json.Unmarshal(rawBody, &parsed) == nil {
+			if msg, ok := parsed["message"].(string); ok && msg != "" {
+				errMsg = msg
+			}
+		} else if trimmed := strings.TrimSpace(string(rawBody)); trimmed != "" {
+			errMsg = trimmed
+		}
+
+		return nil, fmt.Errorf("fes api request failed (%d): %s", res.StatusCode, errMsg)
+	}
+
 	var result map[string]any
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(rawBody, &result); err != nil {
 		f.logger.Printlnf("Error decoding response: %v", err)
 		return nil, err
 	}

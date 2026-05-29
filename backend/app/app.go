@@ -157,6 +157,7 @@ func (a *App) Shutdown(ctx context.Context) {
 		runtime.LogPrintf(ctx, "Closing task: %s", *a.WorkingTaskID)
 	}
 
+	a.SyncService.Shutdown()
 	runtime.LogPrint(ctx, "App is shutdown")
 }
 
