@@ -57,10 +57,10 @@ Last updated: 2026-05-29
 - [x] Add "Export Diagnostic Bundle" action (logs + app version + OS + sanitized sync states).
 
 ### 8) Data integrity and migration safety
-- [ ] Add schema migration versioning and rollback strategy.
-- [ ] Add migration tests for upgrade paths from older released DB versions.
-- [ ] Add foreign key and index review for hot queries (`attendance`, `task_records`, `screenshots`).
-- [ ] Validate timezone handling consistency for activity logs and summaries.
+- [x] Add schema migration versioning and rollback strategy.
+- [x] Add migration tests for upgrade paths from older released DB versions.
+- [x] Add foreign key and index review for hot queries (`attendance`, `task_records`, `screenshots`).
+- [x] Validate timezone handling consistency for activity logs and summaries.
 
 ## P2 Security Hardening (Enterprise Controls)
 
@@ -128,4 +128,5 @@ Last updated: 2026-05-29
 - Done:
 - Validation evidence:
 - Follow-ups:
+
 

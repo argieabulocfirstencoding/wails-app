@@ -15,6 +15,7 @@ import (
 )
 
 var DB *gorm.DB
+var DBPath string
 
 type User = models.User
 type Task = models.Task
@@ -48,6 +49,16 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)
 	}
+	DBPath = dbPath
+
+	if err := DB.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	}
+
+	backupPath, err := createMigrationBackup(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pre-migration backup: %w", err)
+	}
 
 	// Run migrations
 	if err := DB.AutoMigrate(
@@ -60,8 +71,11 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to migrate: %w", err)
 	}
 
-	if err := repairUsersSchema(DB); err != nil {
-		return nil, fmt.Errorf("failed to repair users schema: %w", err)
+	if err := migrateSchema(DB); err != nil {
+		if backupPath != "" {
+			return nil, fmt.Errorf("failed to apply schema migrations: %w (rollback backup: %s)", err, backupPath)
+		}
+		return nil, fmt.Errorf("failed to apply schema migrations: %w", err)
 	}
 
 	fmt.Println("Database initialized at", dbPath)
@@ -73,7 +87,7 @@ type tableInfoRow struct {
 	Type string `gorm:"column:type"`
 }
 
-func repairUsersSchema(database *gorm.DB) (err error) {
+func repairUsersSchema(database *gorm.DB) error {
 	if database == nil {
 		return nil
 	}
@@ -107,25 +121,12 @@ func repairUsersSchema(database *gorm.DB) (err error) {
 		return nil
 	}
 
-	tx := database.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			_ = tx.Rollback()
-			err = fmt.Errorf("panic while repairing users schema: %v", r)
-		}
-	}()
-
-	if err := tx.Exec("PRAGMA foreign_keys = OFF").Error; err != nil {
-		_ = tx.Rollback()
+	if err := database.Exec("PRAGMA foreign_keys = OFF").Error; err != nil {
 		return err
 	}
+	defer database.Exec("PRAGMA foreign_keys = ON")
 
-	if err := tx.Exec("ALTER TABLE users RENAME TO users_legacy").Error; err != nil {
-		_ = tx.Rollback()
+	if err := database.Exec("ALTER TABLE users RENAME TO users_legacy").Error; err != nil {
 		return err
 	}
 
@@ -148,8 +149,7 @@ CREATE TABLE users (
 	employment_id TEXT
 )`
 
-	if err := tx.Exec(createUsersSQL).Error; err != nil {
-		_ = tx.Rollback()
+	if err := database.Exec(createUsersSQL).Error; err != nil {
 		return err
 	}
 
@@ -187,20 +187,12 @@ SELECT
 	` + selectExpr("employment_id") + `
 FROM users_legacy`
 
-	if err := tx.Exec(insertSQL).Error; err != nil {
-		_ = tx.Rollback()
+	if err := database.Exec(insertSQL).Error; err != nil {
 		return err
 	}
 
-	if err := tx.Exec("DROP TABLE users_legacy").Error; err != nil {
-		_ = tx.Rollback()
+	if err := database.Exec("DROP TABLE users_legacy").Error; err != nil {
 		return err
 	}
-
-	if err := tx.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-
-	return tx.Commit().Error
+	return nil
 }

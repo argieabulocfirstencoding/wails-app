@@ -8,28 +8,23 @@ import (
 )
 
 func GetAttendanceAndRecords(dateStr string) ([]models.ActivityLogRecord, error) {
-	loc, usedFallback, loadErr := resolveManilaLocation()
+	startOfDay, endOfDay, loc, usedFallback, loadErr, parseErr := parseAppDateRange(dateStr)
 	if loadErr != nil {
 		utils.Logger.Printf("activity_log: warning timezone load failed for Asia/Manila, using fallback zone: %v", loadErr)
 	}
 
-	// Parse the date string in the GMT+8 timezone
-	date, err := time.ParseInLocation("2006-01-02", dateStr, loc)
-	if err != nil {
-		utils.Logger.Printf("activity_log: failed parsing date. date=%q location=%q fallback=%t err=%v", dateStr, loc.String(), usedFallback, err)
-		return nil, err
+	now := utcNow()
+	if parseErr != nil {
+		utils.Logger.Printf("activity_log: failed parsing date. date=%q location=%q fallback=%t err=%v", dateStr, loc.String(), usedFallback, parseErr)
+		return nil, parseErr
 	}
-
-	startOfDay := date
-	endOfDay := date.Add(24 * time.Hour)
-	now := time.Now()
 
 	utils.Logger.Printf(
 		"activity_log: query start date=%q location=%q fallback=%t local_now=%s utc_now=%s start=%s end=%s start_utc=%s end_utc=%s",
 		dateStr,
 		loc.String(),
 		usedFallback,
-		now.Format(time.RFC3339),
+		now.In(loc).Format(time.RFC3339),
 		now.UTC().Format(time.RFC3339),
 		startOfDay.Format(time.RFC3339),
 		endOfDay.Format(time.RFC3339),
@@ -85,14 +80,4 @@ func GetAttendanceAndRecords(dateStr string) ([]models.ActivityLogRecord, error)
 	utils.Logger.Printf("activity_log: completed result_count=%d date=%q", len(activityLogRecords), dateStr)
 
 	return activityLogRecords, nil
-}
-
-func resolveManilaLocation() (*time.Location, bool, error) {
-	loc, err := time.LoadLocation("Asia/Manila")
-	if err == nil {
-		return loc, false, nil
-	}
-
-	// Keep activity logs functional even when IANA tz data is not available on the machine.
-	return time.FixedZone("Asia/Manila_Fallback", 8*60*60), true, err
 }
