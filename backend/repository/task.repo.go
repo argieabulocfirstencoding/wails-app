@@ -58,7 +58,7 @@ func (t *TaskRepository) BulkCreateClients(clients []models.Client) error {
 
 func (t *TaskRepository) GetTask(id string) (*models.Task, error) {
 	var task models.Task
-	if err := db.DB.Where("id = ?", id).First(&task).Error; err != nil {
+	if err := db.DB.Where("task_id = ?", id).First(&task).Error; err != nil {
 		return nil, err
 	}
 
@@ -90,7 +90,7 @@ func (t *TaskRepository) UpdateTask(oldTask, newTask *models.Task) error {
 }
 
 func (t *TaskRepository) DeleteTask(id string) error {
-	return db.DB.Model(&models.Task{}).Where("id = ?", id).Delete(&models.Task{}).Error
+	return db.DB.Model(&models.Task{}).Where("task_id = ?", id).Delete(&models.Task{}).Error
 }
 
 func (t *TaskRepository) CreateTaskRecord(record *models.TaskRecord) error {
