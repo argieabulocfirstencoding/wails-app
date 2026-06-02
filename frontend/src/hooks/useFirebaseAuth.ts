@@ -9,7 +9,16 @@ export function useFirebaseAuth() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+      // The app's login flow is backend-driven. Only hydrate Firebase users if
+      // one actually exists; do not clear the local session here.
+      if (user) {
+        setUser({
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName ?? undefined,
+          offline: false,
+        });
+      }
       setLoading(false);
     });
 

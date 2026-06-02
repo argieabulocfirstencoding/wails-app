@@ -42,8 +42,21 @@ type AuthState = {
   setInitializedTask: (initialized: boolean) => void;
 };
 
+const loadStoredUser = (): AuthUser | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return null;
+
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
+  user: loadStoredUser(),
   loading: true,
   online: navigator.onLine,
   taskID: null,
@@ -74,6 +87,9 @@ export const useAuthStore = create<AuthState>((set) => ({
       synced: false,
       attendanceSynced: false,
       initializedTask: false,
+      tasks: [],
+      summaries: [],
+      attendance: undefined,
     }),
   setInitializedTask: (initializedTask) => set({ initializedTask }),
 }));

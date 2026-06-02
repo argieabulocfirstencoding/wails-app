@@ -19,7 +19,7 @@ import {
   OpenUpwork,
   SetTaskRecordNotes,
 } from "@/../wailsjs/go/app/App";
-import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime";
+import { EventsOn } from "@/../wailsjs/runtime";
 import { EditWorkDialog } from "@/components/custom/EditWorkDialog";
 import { useAuthStore } from "@/store/AuthContext";
 import { models } from "wailsjs/go/models";
@@ -73,29 +73,67 @@ const Task = () => {
 
   const { setTaskID, tasks, online, synced } = useAuthStore();
 
+  async function refreshLastTaskRecord() {
+    if (!id) return undefined;
+
+    const response = await GetLastTaskRecord(id);
+    if (!response?.record) {
+      setLastTaskRecord(undefined);
+      setStart(false);
+      setStartTime(0);
+      setEndTime(undefined);
+      setSynced(false);
+      return undefined;
+    }
+
+    const record = response.record;
+    const started = new Date(record.started_at).getTime();
+    const ended = record.ended_at ? new Date(record.ended_at).getTime() : null;
+
+    setLastTaskRecord(record);
+    setStartTime(started);
+    setEndTime(ended ?? undefined);
+    setSynced(record.sync_status === "synced");
+    getMemoTagFromNotes(record.notes);
+
+    const isActive = !record.ended_at;
+    setStart(isActive);
+    setTaskID(isActive ? id : null);
+
+    if (response.screenshots && response.takenAt) {
+      setScreenshots({
+        date: response.takenAt,
+        pictures: response.screenshots,
+      });
+    }
+
+    return record;
+  }
+
   async function startTime() {
     if (!id) return;
 
     try {
       setSyncing(true);
       setStartError("");
-      resetTimer();
 
       const timeStart = Date.now();
       await StartTracking(id, JSON.stringify(timeStart), isPadagan);
-
-      if (lastTaskRecord) {
-        lastTaskRecord.padagan = isPadagan;
+      const record = await refreshLastTaskRecord();
+      if (record) {
+        await SetTaskRecordNotes(record.id, memo + " || " + tag);
       }
-
+      setTaskID(id);
       setStart(true);
       setStartTime(timeStart);
+      setEndTime(undefined);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to start tracking.";
       setStartError(message);
-      setStart(false);
-      setTaskID(null);
+      await refreshLastTaskRecord().catch((err) => {
+        console.error("Failed to restore task state after start error:", err);
+      });
     } finally {
       setSyncing(false);
     }
@@ -132,6 +170,7 @@ const Task = () => {
       setStart(false);
 
       setEndTime(timeStop);
+      await refreshLastTaskRecord();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to stop tracking.";
@@ -254,32 +293,7 @@ const Task = () => {
     async function init() {
       if (!id) return;
       try {
-        const response = await GetLastTaskRecord(id);
-        if (response?.record) {
-          const record = response.record;
-
-          const started = new Date(record.started_at).getTime();
-          const ended = record.ended_at
-            ? new Date(record.ended_at).getTime()
-            : null;
-
-          setLastTaskRecord(record);
-          setStartTime(started);
-          setEndTime(ended ?? undefined);
-          setSynced(record.sync_status === "synced");
-          getMemoTagFromNotes(record.notes);
-
-          const isActive = !record.ended_at;
-          setStart(isActive);
-          if (isActive) setTaskID(id);
-
-          if (response.screenshots && response.takenAt) {
-            setScreenshots({
-              date: response.takenAt,
-              pictures: response.screenshots,
-            });
-          }
-        }
+        await refreshLastTaskRecord();
       } catch (err) {
         console.error("Init error:", err);
       } finally {
@@ -304,7 +318,7 @@ const Task = () => {
         await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
       }
     })();
-  }, [memo, tag]);
+  }, [memo, tag, isStarted, lastTaskRecord?.id]);
 
   useEffect(() => {
     if (!EventsOn) return;

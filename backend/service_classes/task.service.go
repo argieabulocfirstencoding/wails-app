@@ -38,7 +38,6 @@ func NewTaskService(SyncService *SyncService, connectivity ...*ConnectivityState
 		connectivityState = NewConnectivityStateService()
 	}
 	screenshotService := NewScreenshotService(connectivityState)
-	screenshotService.SyncService = SyncService
 
 	return &TaskService{
 		TaskRepository:    repository.NewTaskRepository(),
@@ -52,7 +51,9 @@ func NewTaskService(SyncService *SyncService, connectivity ...*ConnectivityState
 
 func (t *TaskService) Connect(ctx context.Context) {
 	t.ctx = ctx
-	t.SyncService.Connect(ctx)
+	if t.SyncService != nil {
+		t.SyncService.Connect(ctx)
+	}
 }
 
 func (t *TaskService) CreateTask(title, client string) (*models.ExpTask, error) {
@@ -70,7 +71,7 @@ func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 		}
 	}
 
-	if t.Attendance == nil {
+	if t.Attendance == nil || *t.Attendance == nil {
 		return nil, fmt.Errorf("GetTasks error: AuthUser is nil")
 	}
 
@@ -99,7 +100,7 @@ func (t *TaskService) GetTaskRecord(id uint) (*models.TaskRecord, error) {
 }
 
 func (t *TaskService) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
-	if t.Attendance == nil {
+	if t.Attendance == nil || *t.Attendance == nil {
 		return nil, fmt.Errorf("GetLastTaskRecords error: AuthUser is nil")
 	}
 
@@ -129,7 +130,7 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 	attendanceId := (*t.Attendance).ID
 	t.Logger.Infof("op=task_start_record_local_start user_id=%s attendance_id=%d task_id=%s padagan=%t", userId, attendanceId, taskId, padagan)
 
-	if taskRecord, err := t.TaskRepository.CheckTaskRecord(userId, taskId); err == nil && taskRecord != nil {
+	if taskRecord, err := t.TaskRepository.CheckTaskRecordForAttendance(userId, attendanceId, taskId); err == nil && taskRecord != nil {
 		t.Logger.Infof("op=task_start_record_existing_active user_id=%s attendance_id=%d task_id=%s record_id=%d", userId, attendanceId, taskId, taskRecord.ID)
 		if err := t.updateRecord(taskRecord); err != nil {
 			t.Logger.Warnf("op=task_start_record_existing_stop_failed user_id=%s attendance_id=%d task_id=%s record_id=%d err=%v", userId, attendanceId, taskId, taskRecord.ID, err)
@@ -157,12 +158,15 @@ func (t *TaskService) StartTaskRecord(taskId string, padagan bool) (*db.TaskReco
 
 func (t *TaskService) StopTaskRecord(userId, taskId string) error {
 	var taskRecord models.TaskRecord
+	if t.Attendance == nil || *t.Attendance == nil {
+		return fmt.Errorf("stop task record failed: attendance is nil")
+	}
 
-	err := db.DB.Where("user_id = ? AND task_id = ? AND ended_at IS NULL", userId, taskId).
+	err := db.DB.Where("user_id = ? AND attendance_id = ? AND task_id = ? AND ended_at IS NULL", userId, (*t.Attendance).ID, taskId).
 		First(&taskRecord).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Stop is idempotent: no active local record is not a hard failure.
-		t.Logger.Printf("StopTaskRecord: no active task found for user %s task %s", userId, taskId)
+		t.Logger.Printf("StopTaskRecord: no active task found for user %s attendance %d task %s", userId, (*t.Attendance).ID, taskId)
 		return nil
 	}
 	if err != nil {
@@ -188,31 +192,22 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 		t.Logger.Println(err.Error())
 		return err
 	}
+	_ = localStorageValue
 	t.Logger.Infof("op=task_tracking_start_requested user_id=%s attendance_id=%d task_id=%s padagan=%t", (*t.Attendance).UserID, (*t.Attendance).ID, taskId, padagan)
 
-	// if t.ScreenshotService.Running {
-	// 	t.ScreenshotService.Stop()
-	// }
+	task, err := t.TaskRepository.GetTask(taskId)
+	if err != nil {
+		wrapped := types.WrapOperation("task.start.get_task", 0, (*t.Attendance).UserID, err)
+		t.Logger.Warnf("op=task_tracking_start_failed user_id=%s attendance_id=%d task_id=%s err=%v", (*t.Attendance).UserID, (*t.Attendance).ID, taskId, wrapped)
+		return wrapped
+	}
+
 	if err := t.TaskRepository.StopAllActiveRecords(*t.Attendance); err != nil {
 		wrapped := types.WrapOperation("task.start.stop_all_active_records", 0, (*t.Attendance).UserID, err)
 		t.Logger.Printf("error stopping active task record: %v", wrapped)
 		return wrapped
 	}
 	t.Logger.Infof("op=task_tracking_start_previous_records_closed user_id=%s attendance_id=%d task_id=%s", (*t.Attendance).UserID, (*t.Attendance).ID, taskId)
-
-	if t.ScreenshotService.TaskRecordID != nil && t.WorkingTaskID != nil {
-		record, err := t.GetTaskRecord(*t.ScreenshotService.TaskRecordID)
-
-		if err != nil {
-			fmt.Printf("Error on syncing record: %s", err)
-		} else {
-			t.syncTaskRecordAsync(record.ID)
-		}
-
-	}
-
-	t.ScreenshotService.FolderName = localStorageValue
-	t.ScreenshotService.TaskID = &taskId
 
 	record, err := t.StartTaskRecord(taskId, padagan)
 	if err != nil {
@@ -235,22 +230,10 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 		}
 	}
 
-	if t.WorkingTaskID != nil && *t.WorkingTaskID != nil {
-		t.ScreenshotService.TaskID = *t.WorkingTaskID
-	}
-	t.ScreenshotService.TaskRecordID = &record.ID
-
-	task, err := t.TaskRepository.GetTask(taskId)
-	if err != nil {
-		return nil
-	}
-
 	if task.ProjectName == "Break" {
-		t.syncTaskRecordAsync(record.ID)
 		return nil
 	}
 
-	t.ScreenshotService.Start(t.ctx)
 	t.Logger.Infof("op=task_tracking_start_success user_id=%s attendance_id=%d task_id=%s record_id=%d", (*t.Attendance).UserID, (*t.Attendance).ID, taskId, record.ID)
 	return nil
 }
@@ -271,8 +254,6 @@ func (t *TaskService) StopTracking(taskId string) error {
 	}
 	t.Logger.Infof("op=task_tracking_stop_local_success user_id=%s attendance_id=%d task_id=%s", userId, (*t.Attendance).ID, taskId)
 
-	t.ScreenshotService.Stop()
-
 	if t.WorkingTaskID != nil {
 		*t.WorkingTaskID = nil
 	}
@@ -281,7 +262,7 @@ func (t *TaskService) StopTracking(taskId string) error {
 	if t.Connectivity.IsOnline() {
 		// Retrieving TaskRecord from TaskRecordID
 		t.Logger.Print("Attempting to sync record")
-		taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)
+		taskRecord, err := t.TaskRepository.GetLastTaskRecordForAttendance(userId, (*t.Attendance).ID, taskId)
 		t.TaskRecord = taskRecord
 
 		if err != nil {
@@ -293,14 +274,12 @@ func (t *TaskService) StopTracking(taskId string) error {
 
 		if err != nil || taskRecord == nil {
 			t.TaskRecord = nil
-			t.ScreenshotService.TaskRecordID = nil
 			return nil
 		}
 		t.Logger.Printf("Syncing record: %v\n", taskRecord)
 		if err := db.DB.Model(taskRecord).Update("sync_status", "pending").Error; err != nil {
 			t.Logger.Printf("error updating sync status: %v", types.WrapOperation("task.stop.mark_pending", taskRecord.ID, userId, err))
 			t.TaskRecord = nil
-			t.ScreenshotService.TaskRecordID = nil
 			return nil
 		}
 
@@ -309,25 +288,39 @@ func (t *TaskService) StopTracking(taskId string) error {
 		t.TaskRecord = nil
 	}
 
-	t.ScreenshotService.TaskRecordID = nil
 	t.Logger.Infof("op=task_tracking_stop_success user_id=%s attendance_id=%d task_id=%s", userId, (*t.Attendance).ID, taskId)
 	return nil
 }
 
 func (t *TaskService) StopAllActiveRecords() error {
+	if t.Attendance == nil || *t.Attendance == nil {
+		return fmt.Errorf("stop all active records failed: attendance is nil")
+	}
 	attendance := (*t.Attendance)
 
 	return t.TaskRepository.StopAllActiveRecords(attendance)
 }
 
 func (t *TaskService) GetLastTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
-	return nil, nil
+	if t.Attendance != nil && *t.Attendance != nil {
+		return t.TaskRepository.GetLastTaskRecordForAttendance(userId, (*t.Attendance).ID, taskId)
+	}
+
+	return t.TaskRepository.GetLastTaskRecord(userId, taskId)
 }
 
 func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
 	if taskRecord, err := t.GetTaskRecord(taskRecordId); err != nil {
 		t.Logger.Println(err)
 	} else {
+		if t.Attendance == nil || *t.Attendance == nil {
+			t.Logger.Printf("skipping task record notes update without active attendance: record_id=%d", taskRecordId)
+			return
+		}
+		if taskRecord.UserID != (*t.Attendance).UserID || taskRecord.AttendanceID != (*t.Attendance).ID {
+			t.Logger.Printf("skipping task record notes update outside current attendance: record_id=%d user_id=%s attendance_id=%d", taskRecordId, taskRecord.UserID, taskRecord.AttendanceID)
+			return
+		}
 		taskRecord.Notes = notes
 		if err := t.TaskRepository.UpdateTaskRecord(taskRecord, taskRecord); err != nil {
 			t.Logger.Printf("error updating task record notes: %v", types.WrapOperation("task.set_notes", taskRecordId, taskRecord.UserID, err))
@@ -344,9 +337,15 @@ func (t *TaskService) SetTaskRecordNotes(taskRecordId uint, notes string) {
 }
 
 func (t *TaskService) GetActiveTaskRecord(userId string) (*models.ExpTaskRecord, error) {
-	attendance, err := t.AuthRepository.GetUserAttendance(userId)
-	if err != nil {
-		return nil, err
+	var attendance *models.Attendance
+	if t.Attendance != nil && *t.Attendance != nil {
+		attendance = *t.Attendance
+	} else {
+		var err error
+		attendance, err = t.AuthRepository.GetUserAttendance(userId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	taskRecord, err := t.TaskRepository.GetActiveTaskRecord(userId, attendance.ID)
@@ -409,17 +408,6 @@ func (t *TaskService) updateRecord(tr *models.TaskRecord) error {
 }
 
 func (t *TaskService) stopCurrentTaskRecord(userId, taskId string) error {
-	if t.ScreenshotService != nil && t.ScreenshotService.TaskRecordID != nil {
-		taskRecord, err := t.TaskRepository.GetTaskRecord(*t.ScreenshotService.TaskRecordID)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		if taskRecord != nil && taskRecord.ID != 0 && taskRecord.EndedAt == nil &&
-			taskRecord.UserID == userId && taskRecord.AttendanceID == (*t.Attendance).ID {
-			return t.TaskRepository.UpdateRecord(taskRecord)
-		}
-	}
-
 	return t.StopTaskRecord(userId, taskId)
 }
 

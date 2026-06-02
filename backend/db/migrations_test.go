@@ -209,3 +209,49 @@ func TestMigrateSchema_RepairsTaskTrackingForeignKeys(t *testing.T) {
 		t.Fatalf("expected repaired task_records schema without task foreign key, got: %s", taskRecordSQL)
 	}
 }
+
+func TestRepairLegacyTaskRecordUserIDs_BackfillsFromAttendance(t *testing.T) {
+	database := newMemoryDB(t)
+
+	if err := database.Exec(`CREATE TABLE users (
+		id TEXT PRIMARY KEY
+	);`).Error; err != nil {
+		t.Fatalf("create users table: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE attendances (
+		id INTEGER PRIMARY KEY,
+		user_id TEXT NOT NULL
+	);`).Error; err != nil {
+		t.Fatalf("create attendances table: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE task_records (
+		id INTEGER PRIMARY KEY,
+		user_id TEXT,
+		attendance_id INTEGER NOT NULL,
+		task_id TEXT NOT NULL
+	);`).Error; err != nil {
+		t.Fatalf("create task_records table: %v", err)
+	}
+
+	if err := database.Exec(`INSERT INTO users (id) VALUES ('user-1');`).Error; err != nil {
+		t.Fatalf("seed users row: %v", err)
+	}
+	if err := database.Exec(`INSERT INTO attendances (id, user_id) VALUES (1, 'user-1');`).Error; err != nil {
+		t.Fatalf("seed attendance row: %v", err)
+	}
+	if err := database.Exec(`INSERT INTO task_records (id, user_id, attendance_id, task_id) VALUES (1299, NULL, 1, 'task-1');`).Error; err != nil {
+		t.Fatalf("seed task record row: %v", err)
+	}
+
+	if err := repairLegacyTaskRecordUserIDs(database); err != nil {
+		t.Fatalf("repair legacy task record user IDs: %v", err)
+	}
+
+	var userID string
+	if err := database.Raw(`SELECT user_id FROM task_records WHERE id = 1299`).Scan(&userID).Error; err != nil {
+		t.Fatalf("read repaired task record: %v", err)
+	}
+	if userID != "user-1" {
+		t.Fatalf("expected task_records.user_id to be backfilled to user-1, got %q", userID)
+	}
+}

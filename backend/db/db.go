@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"fesapp/backend/db/models"
+	"fesapp/backend/utils"
 
 	sqlite "github.com/Tryanks/gorm-sqlite" // modernc.org/sqlite-based GORM driver
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -33,6 +34,7 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 	if err := os.MkdirAll(appDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create app directory: %w", err)
 	}
+	utils.Logger.Printf("db init: appDir=%s", appDir)
 
 	// Detect environment via Wails
 	env := runtime.Environment(ctx)
@@ -43,8 +45,10 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 	} else {
 		dbPath = filepath.Join(appDir, "fesapp.db")
 	}
+	utils.Logger.Printf("db init: buildType=%s dbPath=%s", env.BuildType, dbPath)
 
 	// Open database
+	utils.Logger.Printf("db init: opening database")
 	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)
@@ -59,8 +63,16 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pre-migration backup: %w", err)
 	}
+	if backupPath != "" {
+		utils.Logger.Printf("db init: migration backup created path=%s", backupPath)
+	}
+
+	if err := repairLegacyTaskRecordUserIDs(DB); err != nil {
+		return nil, fmt.Errorf("failed to repair legacy task records: %w", err)
+	}
 
 	// Run migrations
+	utils.Logger.Printf("db init: running AutoMigrate")
 	if err := DB.AutoMigrate(
 		&User{},
 		&Task{},
@@ -71,6 +83,7 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to migrate: %w", err)
 	}
 
+	utils.Logger.Printf("db init: running schema migrations")
 	if err := migrateSchema(DB); err != nil {
 		if backupPath != "" {
 			return nil, fmt.Errorf("failed to apply schema migrations: %w (rollback backup: %s)", err, backupPath)
@@ -78,8 +91,57 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to apply schema migrations: %w", err)
 	}
 
+	utils.Logger.Printf("db init: completed dbPath=%s", dbPath)
 	fmt.Println("Database initialized at", dbPath)
 	return DB, nil
+}
+
+func repairLegacyTaskRecordUserIDs(database *gorm.DB) error {
+	if database == nil {
+		return nil
+	}
+
+	if !database.Migrator().HasTable("task_records") {
+		return nil
+	}
+
+	var missingBefore int64
+	if err := database.Model(&models.TaskRecord{}).
+		Where("user_id IS NULL OR TRIM(user_id) = ''").
+		Count(&missingBefore).Error; err != nil {
+		return fmt.Errorf("count legacy task_records with missing user_id: %w", err)
+	}
+
+	if missingBefore == 0 {
+		return nil
+	}
+
+	utils.Logger.Printf("db init: repairing legacy task_records.user_id rows count=%d", missingBefore)
+
+	if err := database.Exec(`
+UPDATE task_records
+SET user_id = (
+	SELECT user_id
+	FROM attendances
+	WHERE attendances.id = task_records.attendance_id
+)
+WHERE user_id IS NULL OR TRIM(user_id) = ''
+`).Error; err != nil {
+		return fmt.Errorf("backfill task_records.user_id from attendances: %w", err)
+	}
+
+	var missingAfter int64
+	if err := database.Model(&models.TaskRecord{}).
+		Where("user_id IS NULL OR TRIM(user_id) = ''").
+		Count(&missingAfter).Error; err != nil {
+		return fmt.Errorf("recount legacy task_records with missing user_id: %w", err)
+	}
+
+	if missingAfter > 0 {
+		return fmt.Errorf("task_records still contains %d rows with missing user_id after backfill", missingAfter)
+	}
+
+	return nil
 }
 
 type tableInfoRow struct {

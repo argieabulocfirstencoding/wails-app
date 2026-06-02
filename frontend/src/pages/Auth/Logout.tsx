@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { LogoutUser } from "@/../wailsjs/go/app/App";
-import { auth } from "@/firebase";
-import { signOut } from "firebase/auth";
 import { useAuthStore } from "@/store/AuthContext";
 import { X } from "lucide-react";
 
@@ -11,6 +9,7 @@ const Logout = () => {
   const location = useLocation();
   const { reset } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   // Do NOT auto-open by default — only open when explicitly requested by navigation state or query param
   const [open, setOpen] = useState(false);
@@ -24,23 +23,22 @@ const Logout = () => {
 
   async function handleLogout() {
     setLoading(true);
-
-    // close modal/overlay immediately so UI isn't blocked
-    setOpen(false);
+    setErrorMsg("");
 
     try {
-      // best-effort server logout
-      await LogoutUser().catch((e) => {
-        console.warn("LogoutUser failed:", e);
-      });
-    } catch {}
-
-    // try {
-    //   // firebase sign out (best-effort)
-    //   await signOut(auth).catch((e) => {
-    //     console.warn("Firebase signOut failed:", e);
-    //   });
-    // } catch {}
+      await LogoutUser();
+      setOpen(false);
+    } catch (err) {
+      console.warn("LogoutUser failed:", err);
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : "Logout failed. Your local session is still active.",
+      );
+      setLoading(false);
+      setOpen(true);
+      return;
+    }
 
     try {
       // clear local client state BEFORE navigation
@@ -102,6 +100,9 @@ const Logout = () => {
               <p className="mt-2 text-sm text-gray-300">
                 Logging out means ending your shift. Do you wish to proceed?
               </p>
+              {errorMsg ? (
+                <p className="mt-3 text-sm text-red-400">{errorMsg}</p>
+              ) : null}
             </div>
 
             <button

@@ -734,7 +734,15 @@ func (s *SyncService) enqueueAndWait(job *syncJob) error {
 	case s.queue <- &wrapped:
 	}
 
-	return <-wrapped.result
+	select {
+	case err := <-wrapped.result:
+		return err
+	case <-s.queueCtx.Done():
+		if claimed {
+			s.releasePending(job.key)
+		}
+		return fmt.Errorf("sync queue is unavailable: %w", s.queueCtx.Err())
+	}
 }
 
 func (s *SyncService) executeQueuedJob(job *syncJob) (err error) {

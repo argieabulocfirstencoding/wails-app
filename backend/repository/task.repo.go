@@ -119,6 +119,16 @@ func (t *TaskRepository) CheckTaskRecord(userId, taskId string) (*models.TaskRec
 	return &taskRecord, nil
 }
 
+func (t *TaskRepository) CheckTaskRecordForAttendance(userId string, attendanceId uint, taskId string) (*models.TaskRecord, error) {
+	var taskRecord models.TaskRecord
+	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND task_id = ? AND ended_at IS NULL", userId, attendanceId, taskId).
+		First(&taskRecord).Error; err != nil {
+		return nil, err
+	}
+
+	return &taskRecord, nil
+}
+
 // ==================== TASK RECORD ===========================
 
 func (t *TaskRepository) GetTaskRecord(id uint) (*models.TaskRecord, error) {
@@ -173,6 +183,21 @@ func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.TaskR
 	}
 
 	// taskRecordExp := taskRecord.ToExp()
+	return &taskRecord, nil
+}
+
+func (t *TaskRepository) GetLastTaskRecordForAttendance(userId string, attendanceId uint, taskId string) (*models.TaskRecord, error) {
+	var taskRecord models.TaskRecord
+	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND task_id = ?", userId, attendanceId, taskId).
+		Order("started_at DESC").
+		First(&taskRecord).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
 	return &taskRecord, nil
 }
 

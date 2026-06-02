@@ -36,7 +36,6 @@ import (
 // App struct
 type App struct {
 	ctx                 context.Context
-	ScreenshotService   *service_classes.ScreenshotService
 	FirebaseSyncService *services.FirebaseSyncService
 	AuthService         *service_classes.AuthService
 	SyncService         *service_classes.SyncService
@@ -78,12 +77,10 @@ func NewApp() *App {
 	firebaseSyncService := services.NewFirebaseSyncService()
 	logger := utils.NewLoggerService()
 
-	screenshotService := service_classes.NewScreenshotService(connectivity)
 	syncService := service_classes.NewSyncService(connectivity)
 	authService := service_classes.NewAuthService(connectivity)
 
 	app := &App{
-		ScreenshotService:   screenshotService,
 		FirebaseSyncService: firebaseSyncService,
 		SyncService:         syncService,
 		AuthService:         authService,
@@ -96,9 +93,7 @@ func NewApp() *App {
 	authService.TaskService.Connect(app.ctx)
 	authService.TaskService.WorkingTaskID = &app.WorkingTaskID
 	authService.TaskService.Attendance = &app.Attendance
-	authService.TaskService.ScreenshotService = screenshotService
 	authService.TaskService.SyncService = syncService
-	screenshotService.SyncService = syncService
 
 	syncService.Connect(app.ctx)
 
@@ -112,28 +107,38 @@ var trayIcon []byte
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	env := runtime.Environment(ctx)
+	bootstrapLogger := log.New(os.Stderr, "FES_BOOT: ", log.Ldate|log.Ltime|log.Lshortfile)
+
+	bootstrapLogger.Printf("startup begin buildType=%s", env.BuildType)
+
+	if err := utils.ConfigureLogger(env.BuildType); err != nil {
+		bootstrapLogger.Printf("failed to configure file logger before db init: %v", err)
+		runtime.LogErrorf(ctx, "failed to configure file logger before db init: %v", err)
+		utils.Logger.Printf("failed to configure file logger before db init: %v", err)
+	} else {
+		bootstrapLogger.Printf("file logger configured before db init path=%s", utils.CurrentLogPath())
+		runtime.LogPrint(ctx, "file logger configured before db init")
+	}
 
 	if _, err := db.Init(ctx); err != nil {
+		bootstrapLogger.Printf("database initialization failed: %v", err)
 		runtime.LogErrorf(ctx, "database initialization failed: %v", err)
 		utils.Logger.Printf("database initialization failed: %v", err)
 		_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 			Type:    runtime.ErrorDialog,
 			Title:   "Startup Error",
-			Message: "Unable to initialize local database. The app will now close.",
+			Message: fmt.Sprintf("Unable to initialize local database.\n\nDetails: %v\n\nThe app will now close.", err),
 		})
 		runtime.Quit(ctx)
 		return
 	}
+	bootstrapLogger.Printf("database initialization succeeded path=%s", db.DBPath)
 	db.DB.Exec("PRAGMA journal_mode = WAL;")
 	db.DB.Exec("PRAGMA busy_timeout = 5000;")
 
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
-
-	env := runtime.Environment(ctx)
-	if err := utils.ConfigureLogger(env.BuildType); err != nil {
-		runtime.LogErrorf(ctx, "failed to configure file logger: %v", err)
-	}
 
 	utils.GoSafe("app.startup.systray", func() {
 		defer func() {
@@ -181,8 +186,12 @@ func (a *App) Shutdown(ctx context.Context) {
 	// cleanup logic here
 	runtime.EventsEmit(ctx, "app_shutdown")
 	if a.WorkingTaskID != nil {
-		a.StopTracking(*a.WorkingTaskID)
-		runtime.LogPrintf(ctx, "Closing task: %s", *a.WorkingTaskID)
+		taskID := *a.WorkingTaskID
+		if err := a.StopTracking(taskID); err != nil {
+			runtime.LogErrorf(ctx, "failed to close task on shutdown: %v", err)
+		} else {
+			runtime.LogPrintf(ctx, "Closing task: %s", taskID)
+		}
 	}
 
 	a.SyncService.Shutdown()
@@ -227,10 +236,13 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.Connectivity.SetOnline(false)
 
 	a.AttendanceID = &attendance.ID
+	a.Attendance = attendance
 	a.AuthUser = authUser
 	a.AuthService.TaskService.SyncService.AuthUser = authUser
 	a.AuthService.TaskService.Attendance = &attendance
 	a.AuthService.TaskService.Connect(a.ctx)
+	a.SyncService.AuthUser = authUser
+	a.SyncService.Attendance = &a.Attendance
 	a.Logger.Infof("op=login_offline_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
 	return offlineData, nil
@@ -339,6 +351,10 @@ func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, exp
 }
 
 func (a *App) FetchUserDetails() (*models.AuthUser, error) {
+	if a.AuthUser == nil {
+		return nil, types.NewStableError("AUTH_REQUIRED", "cannot fetch user details without authenticated user")
+	}
+
 	user, err := services.GetUserFromId(a.AuthUser.LocalID)
 	if err != nil {
 		return nil, err
@@ -362,14 +378,25 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 func (a *App) LogoutUser() error {
 	//TODO logout logic involves saving and syncing data to firebase if available as well as store logout time
 	err := a.AuthService.Logout()
-	if err == nil {
-		a.Connectivity.SetOnline(false)
+	if err != nil {
+		return err
 	}
+
+	a.Connectivity.SetOnline(false)
+	a.WorkingTaskID = nil
+	a.AttendanceID = nil
+	a.Attendance = nil
+	a.AuthUser = nil
 	return err
 }
 
 func (a *App) GetActiveTaskRecord() *string {
 	// NOTE this needs to be refactor, no logic should be applied here
+	if a.AuthUser == nil {
+		utils.Logger.Print("No authenticated user for active record lookup")
+		return nil
+	}
+
 	taskRecord, err := a.AuthService.TaskService.GetActiveTaskRecord(a.AuthUser.LocalID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -383,26 +410,33 @@ func (a *App) GetActiveTaskRecord() *string {
 
 	if taskRecord != nil {
 		a.WorkingTaskID = &taskRecord.TaskID
-		a.ScreenshotService.TaskID = a.WorkingTaskID
-		a.ScreenshotService.TaskRecordID = &taskRecord.ID
-		a.ScreenshotService.FolderName = fmt.Sprintf("%d", time.Now().UnixMilli())
-		a.ScreenshotService.Start(a.ctx)
 	}
 
 	return a.WorkingTaskID
 }
 
 func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {
-	record, _ := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
-	// Removed erro handling for record beause most times when screenshots are deleted they throws an error here messing up "break".
-	// So move forward disregarding if break is found or not.
-	if record != nil {
-		if record.Record.EndedAt == nil {
-			a.WorkingTaskID = &record.Record.TaskID
-		}
+	if a.AuthUser == nil {
+		return nil, types.NewStableError("AUTH_REQUIRED", "cannot fetch task record without authenticated user")
 	}
 
-	return record, nil
+	record, err := a.AuthService.TaskService.GetLastTaskRecord(a.AuthUser.LocalID, taskId)
+	if err != nil {
+		return nil, a.stableClientError("get_last_task_record", types.WrapOperation("task_record.get_last", 0, a.safeUserID(), err))
+	}
+	if record == nil {
+		return nil, nil
+	}
+
+	if record.EndedAt == nil {
+		a.WorkingTaskID = &record.TaskID
+	}
+
+	expRecord := record.ToExp()
+	return &models.TaskRecordWithScreenshots{
+		Record:      &expRecord,
+		Screenshots: []string{},
+	}, nil
 }
 
 func (a *App) SetTaskRecordNotes(taskRecordId uint, notes string) {
@@ -607,15 +641,14 @@ func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 }
 
 func (a *App) AddMemo(memo, notes string) {
-	a.ScreenshotService.AddMemo(memo, notes)
 }
 
 func (a *App) GetFolderSize() (int64, error) {
-	return services.GetScreenshotStorageSize(a.ctx)
+	return 0, nil
 }
 
 func (a *App) ClearScreenshots() error {
-	return services.ClearScreenshots(a.ctx)
+	return nil
 }
 
 // ----------------------------------------------------

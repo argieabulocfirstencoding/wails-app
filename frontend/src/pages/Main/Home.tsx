@@ -5,7 +5,6 @@ import {
   RotateCcw, // Changed from RefreshCcw
   CheckCircle,
   TriangleAlert,
-  ArrowDownUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -114,17 +113,19 @@ const Home = () => {
       const user = useAuthStore.getState().user;
       if (!user) {
         navigate("/login");
+        return;
       }
+
+      await fetchInitialTasks();
     }
 
-    fetchInitialTasks(); // initial load uses 'loading'
     fetchUser();
     // fetchActiveRecord moved into fetchInitialTasks
   }, []);
 
   // Initial page load (full page loader)
   async function fetchInitialTasks() {
-    if (!online || initializedTask) return;
+    if (initializedTask) return;
 
     // Initial task boolean helper that is stored in context so that it wont repeat on rerender
     setInitializedTask(true);
@@ -148,7 +149,7 @@ const Home = () => {
   }
 
   async function fetchActiveRecord() {
-    if (online && !fetchedActiveRecord) {
+    if (!fetchedActiveRecord) {
       const taskID = await GetActiveTaskRecord();
       if (taskID) {
         setTaskID(taskID);
@@ -158,12 +159,15 @@ const Home = () => {
   }
 
   async function fetchCurrentAttendance() {
-    await GetCurrentAttendance().then((attendance) => {
+    try {
+      const attendance = await GetCurrentAttendance();
       if (attendance) {
         console.log(attendance);
         setAttendanceSynced(attendance.sync_status === "synced");
       }
-    });
+    } catch (error) {
+      console.error("Error fetching current attendance:", error);
+    }
   }
 
   // This checks in each render to see if user current attendance session is fully synced

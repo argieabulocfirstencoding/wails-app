@@ -99,11 +99,12 @@ func (a *AuthService) Logout() error {
 	a.Logger.Infof("op=logout_local_start user_id=%s attendance_id=%d has_working_task=%t", userID, attendanceID, workingTaskID != nil && *workingTaskID != nil)
 
 	if workingTaskID != nil && *workingTaskID != nil {
-		if err := a.TaskService.StopTracking(**workingTaskID); err != nil {
-			a.Logger.Warnf("op=logout_local_task_stop_failed user_id=%s attendance_id=%d task_id=%s err=%v", userID, attendanceID, **workingTaskID, err)
+		taskID := **workingTaskID
+		if err := a.TaskService.StopTracking(taskID); err != nil {
+			a.Logger.Warnf("op=logout_local_task_stop_failed user_id=%s attendance_id=%d task_id=%s err=%v", userID, attendanceID, taskID, err)
 			return err
 		}
-		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
+		a.Logger.Printf("WorkingTaskID: %s", taskID)
 	}
 
 	if attendance != nil && *attendance != nil {
@@ -120,7 +121,7 @@ func (a *AuthService) Logout() error {
 		if err := a.TaskService.SyncService.SyncAttendance(*attendance); err != nil {
 			a.Logger.Printf("error syncing attendance on logout: %v", err)
 			a.Logger.Warnf("op=logout_sync_failed_after_local_save user_id=%s attendance_id=%d err=%v", userID, attendanceID, err)
-			return fmt.Errorf("logout sync failed: %w", err)
+			return nil
 		}
 		a.Logger.Infof("op=logout_sync_success user_id=%s attendance_id=%d", userID, attendanceID)
 	} else {

@@ -12,7 +12,6 @@ import Logout from "./pages/Auth/Logout";
 
 import { CheckForUpdates, DownloadAndInstall, StopTracking } from "../wailsjs/go/app/App";
 import { EventsOn } from "../wailsjs/runtime";
-import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { useAuthStore } from "./store/AuthContext";
 import OfflineLogin from "./pages/Auth/OfflineLogin";
@@ -30,7 +29,6 @@ interface UpdateInfo {
 }
 
 function App() {
-  useFirebaseAuth();
   useOnlineStatus();
 
   const { taskID } = useAuthStore();
@@ -72,8 +70,12 @@ function App() {
     const off = EventsOn("app_shutdown", async () => {
       console.log("SHUTTING DOWN EVENT RECEIVED!");
       if (taskID) {
-        await StopTracking(taskID);
-        console.log("SHUTDOWN LOGGED OFF TRACKER");
+        try {
+          await StopTracking(taskID);
+          console.log("SHUTDOWN LOGGED OFF TRACKER");
+        } catch (error) {
+          console.error("Failed to stop tracking on shutdown:", error);
+        }
       }
     });
 
