@@ -236,8 +236,10 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 	}
 
 	if !s.Connectivity.IsOnline() {
+		err := fmt.Errorf("cannot sync task record while offline")
 		_ = s.updateTaskRecordSyncState(taskRecord, syncStateInProgress, nil)
-		return s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, fmt.Errorf("cannot sync task record while offline"))
+		_ = s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, err)
+		return err
 	}
 
 	if err := s.updateTaskRecordSyncState(taskRecord, syncStateInProgress, nil); err != nil {
@@ -305,6 +307,8 @@ func (s *SyncService) syncTaskInNow(taskRecord *models.TaskRecord, attendance *m
 			"task_time":            taskRecord.Duration,
 			"login_logout":         attendance.LoginLogoutID,
 			"activity_description": taskRecord.Notes,
+			"local_task_record_id": fmt.Sprintf("%d", taskRecord.ID),
+			"local_attendance_id":  fmt.Sprintf("%d", attendance.ID),
 		},
 	})
 	if err != nil {
@@ -344,6 +348,7 @@ func (s *SyncService) syncTaskOutNow(taskRecord *models.TaskRecord) error {
 			"productivity":         taskRecord.Productivity,
 			"total_task_time":      taskRecord.Duration,
 			"task_out":             taskRecord.EndedAt.UnixMilli(),
+			"local_task_record_id": fmt.Sprintf("%d", taskRecord.ID),
 		},
 	})
 	if err != nil {
@@ -447,8 +452,10 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 	}
 
 	if !s.Connectivity.IsOnline() {
+		err := fmt.Errorf("cannot sync attendance while offline")
 		_ = s.updateAttendanceSyncState(attendance, syncStateInProgress, nil)
-		return s.updateAttendanceSyncState(attendance, syncStateBlocked, fmt.Errorf("cannot sync attendance while offline"))
+		_ = s.updateAttendanceSyncState(attendance, syncStateBlocked, err)
+		return err
 	}
 
 	if err := s.updateAttendanceSyncState(attendance, syncStateInProgress, nil); err != nil {
@@ -456,47 +463,12 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 	}
 
 	if attendance.TimeOut != nil && attendance.LoginLogoutID != nil {
-		email := ""
-		if s.AuthUser != nil {
-			email = s.AuthUser.Email
-		}
-
-		if email == "" {
-			user, userErr := s.UserRepository.GetUserFromId(attendance.UserID)
-			if userErr != nil {
-				return fmt.Errorf("unable to resolve user email for logout sync: %w", userErr)
-			}
-			email = user.Email
-		}
-
-		if email == "" {
-			return fmt.Errorf("unable to resolve user email for logout sync")
-		}
-
-		if resp, err := s.FesClientService.Request(types.Request{
-			Url:    "wf/logout",
-			Method: "POST",
-			Body: map[string]any{
-				"email":        email,
-				"login_logout": *attendance.LoginLogoutID,
-				"date_logout":  attendance.TimeOut.UnixMilli(),
-				"duration":     int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),
-			},
-		}); err != nil {
-			_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
-			return err
-		} else {
-			if err := rejectFailedRemoteResponse(resp); err != nil {
-				_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
-				return err
-			}
-			s.Logger.Printlnf("Sync Attendance Response: %v", resp)
-			return s.updateAttendanceSyncState(attendance, syncStateSynced, nil)
-		}
+		return s.syncAttendanceLogoutNow(attendance)
 	}
 
 	body := map[string]any{
-		"login": attendance.TimeIn.UnixMilli(),
+		"login":               attendance.TimeIn.UnixMilli(),
+		"local_attendance_id": fmt.Sprintf("%d", attendance.ID),
 	}
 
 	if attendance.LoginLogoutID != nil {
@@ -528,6 +500,10 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 				attendance.TimeIn = timeIn
 			}
 
+			if attendance.TimeOut != nil {
+				return s.syncAttendanceLogoutNow(attendance)
+			}
+
 			return s.updateAttendanceSyncState(attendance, syncStateSynced, nil)
 		}
 	}
@@ -535,6 +511,62 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 	err := fmt.Errorf("attendance sync response missing login_logout")
 	_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
 	return err
+}
+
+func (s *SyncService) syncAttendanceLogoutNow(attendance *models.Attendance) error {
+	email := ""
+	if s.AuthUser != nil {
+		email = s.AuthUser.Email
+	}
+
+	if email == "" {
+		user, userErr := s.UserRepository.GetUserFromId(attendance.UserID)
+		if userErr != nil {
+			err := fmt.Errorf("unable to resolve user email for logout sync: %w", userErr)
+			_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+			return err
+		}
+		email = user.Email
+	}
+
+	if email == "" {
+		err := fmt.Errorf("unable to resolve user email for logout sync")
+		_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+		return err
+	}
+
+	if attendance.TimeOut == nil {
+		err := fmt.Errorf("cannot sync logout without time_out")
+		_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+		return err
+	}
+	if attendance.LoginLogoutID == nil || strings.TrimSpace(*attendance.LoginLogoutID) == "" {
+		err := fmt.Errorf("cannot sync logout without login_logout id")
+		_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+		return err
+	}
+
+	if resp, err := s.FesClientService.Request(types.Request{
+		Url:    "wf/logout",
+		Method: "POST",
+		Body: map[string]any{
+			"email":               email,
+			"login_logout":        *attendance.LoginLogoutID,
+			"date_logout":         attendance.TimeOut.UnixMilli(),
+			"duration":            int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),
+			"local_attendance_id": fmt.Sprintf("%d", attendance.ID),
+		},
+	}); err != nil {
+		_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+		return err
+	} else {
+		if err := rejectFailedRemoteResponse(resp); err != nil {
+			_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+			return err
+		}
+		s.Logger.Printlnf("Sync Attendance Response: %v", resp)
+		return s.updateAttendanceSyncState(attendance, syncStateSynced, nil)
+	}
 }
 
 func (s *SyncService) SyncActiveTaskRecord() (*models.TaskRecord, error) {

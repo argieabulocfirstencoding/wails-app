@@ -64,14 +64,18 @@ func (a *AttendanceRepository) LogoutAttendance(attendance *models.Attendance) e
 	}
 
 	now := time.Now()
-	a.logger.Infof("op=attendance_local_logout_start user_id=%s attendance_id=%d time_out=%s", attendance.UserID, attendance.ID, now.Format(time.RFC3339))
-	attendance.TimeOut = &now
+	timeOut := now
+	if attendance.TimeOut != nil {
+		timeOut = *attendance.TimeOut
+	}
+	a.logger.Infof("op=attendance_local_logout_start user_id=%s attendance_id=%d time_out=%s already_timed_out=%t", attendance.UserID, attendance.ID, timeOut.Format(time.RFC3339), attendance.TimeOut != nil)
+	attendance.TimeOut = &timeOut
 	attendance.SyncStatus = "pending"
 	attendance.SyncedAt = nil
 	attendance.LastError = ""
 
 	if err := db.DB.Model(attendance).Updates(map[string]any{
-		"time_out":    now,
+		"time_out":    timeOut,
 		"sync_status": "pending",
 		"synced_at":   nil,
 		"last_error":  "",
@@ -80,7 +84,7 @@ func (a *AttendanceRepository) LogoutAttendance(attendance *models.Attendance) e
 		return err
 	}
 
-	a.logger.Infof("op=attendance_local_logout_saved user_id=%s attendance_id=%d time_out=%s sync_status=%s", attendance.UserID, attendance.ID, now.Format(time.RFC3339), attendance.SyncStatus)
+	a.logger.Infof("op=attendance_local_logout_saved user_id=%s attendance_id=%d time_out=%s sync_status=%s", attendance.UserID, attendance.ID, timeOut.Format(time.RFC3339), attendance.SyncStatus)
 	return nil
 }
 
