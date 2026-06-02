@@ -6,3 +6,5 @@ backend/screenshots
 .gitattributes
 .env
 log.txt
+.gocache
+__debug_bin.*
