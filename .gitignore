@@ -7,3 +7,4 @@ backend/screenshots
 .env
 log.txt
 .gocache
+__debug_bin.*

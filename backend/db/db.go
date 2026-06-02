@@ -59,14 +59,6 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
 
-	backupPath, err := createMigrationBackup(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create pre-migration backup: %w", err)
-	}
-	if backupPath != "" {
-		utils.Logger.Printf("db init: migration backup created path=%s", backupPath)
-	}
-
 	if err := repairLegacyTaskRecordUserIDs(DB); err != nil {
 		return nil, fmt.Errorf("failed to repair legacy task records: %w", err)
 	}
@@ -85,9 +77,6 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 
 	utils.Logger.Printf("db init: running schema migrations")
 	if err := migrateSchema(DB); err != nil {
-		if backupPath != "" {
-			return nil, fmt.Errorf("failed to apply schema migrations: %w (rollback backup: %s)", err, backupPath)
-		}
 		return nil, fmt.Errorf("failed to apply schema migrations: %w", err)
 	}
 
