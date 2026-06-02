@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
+	"fesapp/backend/utils"
 	"fmt"
 	"time"
 
@@ -13,11 +14,13 @@ import (
 
 type TaskRepository struct {
 	AttendanceRepository *AttendanceRepository
+	logger               *utils.LoggerService
 }
 
 func NewTaskRepository() *TaskRepository {
 	return &TaskRepository{
 		AttendanceRepository: NewAttendanceRepository(),
+		logger:               utils.NewLoggerService(),
 	}
 }
 
@@ -91,7 +94,16 @@ func (t *TaskRepository) DeleteTask(id string) error {
 }
 
 func (t *TaskRepository) CreateTaskRecord(record *models.TaskRecord) error {
-	return db.DB.Create(record).Error
+	if record == nil {
+		return fmt.Errorf("create task record: record is nil")
+	}
+	t.logger.Infof("op=task_local_in_start user_id=%s attendance_id=%d task_id=%s started_at=%s", record.UserID, record.AttendanceID, record.TaskID, record.StartedAt.Format(time.RFC3339))
+	if err := db.DB.Create(record).Error; err != nil {
+		t.logger.Warnf("op=task_local_in_failed user_id=%s attendance_id=%d task_id=%s err=%v", record.UserID, record.AttendanceID, record.TaskID, err)
+		return err
+	}
+	t.logger.Infof("op=task_local_in_saved user_id=%s attendance_id=%d task_id=%s record_id=%d started_at=%s sync_status=%s", record.UserID, record.AttendanceID, record.TaskID, record.ID, record.StartedAt.Format(time.RFC3339), record.SyncStatus)
+	return nil
 }
 
 func (t *TaskRepository) UpdateTaskRecord(oldRecord, newRecord *models.TaskRecord) error {
@@ -112,7 +124,7 @@ func (t *TaskRepository) CheckTaskRecord(userId, taskId string) (*models.TaskRec
 func (t *TaskRepository) GetTaskRecord(id uint) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 
-	if err := db.DB.Find(&taskRecord, id).Error; err != nil {
+	if err := db.DB.First(&taskRecord, id).Error; err != nil {
 		return nil, err
 	}
 	return &taskRecord, nil
@@ -136,10 +148,13 @@ func (t *TaskRepository) StopAllActiveRecords(attendance *models.Attendance) err
 			taskRecord.SyncStatus = "pending"
 			taskRecord.EndedAt = &now
 			taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
+			t.logger.Infof("op=task_local_auto_out_start user_id=%s attendance_id=%d task_id=%s record_id=%d ended_at=%s duration=%d", taskRecord.UserID, taskRecord.AttendanceID, taskRecord.TaskID, taskRecord.ID, now.Format(time.RFC3339), taskRecord.Duration)
 
 			if err := tx.Save(&taskRecord).Error; err != nil {
+				t.logger.Warnf("op=task_local_auto_out_failed user_id=%s attendance_id=%d task_id=%s record_id=%d err=%v", taskRecord.UserID, taskRecord.AttendanceID, taskRecord.TaskID, taskRecord.ID, err)
 				return err
 			}
+			t.logger.Infof("op=task_local_auto_out_saved user_id=%s attendance_id=%d task_id=%s record_id=%d ended_at=%s duration=%d sync_status=%s", taskRecord.UserID, taskRecord.AttendanceID, taskRecord.TaskID, taskRecord.ID, now.Format(time.RFC3339), taskRecord.Duration, taskRecord.SyncStatus)
 		}
 		return nil
 	})
@@ -182,12 +197,21 @@ func (t *TaskRepository) UpdateRecord(tr *models.TaskRecord) error {
 		duration := int32(now.Sub(tr.StartedAt).Seconds())
 		tr.Duration = duration
 	}
+	t.logger.Infof("op=task_local_out_start user_id=%s attendance_id=%d task_id=%s record_id=%d ended_at=%s duration=%d", tr.UserID, tr.AttendanceID, tr.TaskID, tr.ID, now.Format(time.RFC3339), tr.Duration)
 
 	// This part updates the database
-	return db.DB.Model(tr).Updates(models.TaskRecord{
-		EndedAt:  tr.EndedAt,
-		Duration: tr.Duration,
-	}).Error
+	if err := db.DB.Model(tr).Updates(map[string]any{
+		"ended_at":    tr.EndedAt,
+		"duration":    tr.Duration,
+		"sync_status": "pending",
+		"synced_at":   nil,
+		"last_error":  "",
+	}).Error; err != nil {
+		t.logger.Warnf("op=task_local_out_failed user_id=%s attendance_id=%d task_id=%s record_id=%d err=%v", tr.UserID, tr.AttendanceID, tr.TaskID, tr.ID, err)
+		return err
+	}
+	t.logger.Infof("op=task_local_out_saved user_id=%s attendance_id=%d task_id=%s record_id=%d ended_at=%s duration=%d sync_status=pending", tr.UserID, tr.AttendanceID, tr.TaskID, tr.ID, now.Format(time.RFC3339), tr.Duration)
+	return nil
 }
 
 func (t *TaskRepository) GetAllPreviousTasksRecords(userID string) ([]models.TaskRecord, error) {

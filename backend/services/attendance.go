@@ -4,13 +4,15 @@ import (
 	"errors"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
-	"fmt"
+	"fesapp/backend/utils"
 	"time"
 
 	"gorm.io/gorm"
 )
 
 var LoginAttendance = func(userId string) (*models.Attendance, error) {
+	logger := utils.NewLoggerService()
+	logger.Infof("op=attendance_local_login_start user_id=%s", userId)
 	// TODO sync in firebase
 	// TODO add firebase check for the last synced attendance
 
@@ -33,26 +35,48 @@ var LoginAttendance = func(userId string) (*models.Attendance, error) {
 			}
 
 			if err := db.DB.Create(&lastAttendance).Error; err != nil {
+				logger.Warnf("op=attendance_local_login_failed user_id=%s err=%v", userId, err)
 				return nil, err
 			}
 
-			fmt.Print("Create new attendance session")
+			logger.Infof("op=attendance_local_login_created user_id=%s attendance_id=%d time_in=%s", userId, lastAttendance.ID, lastAttendance.TimeIn.Format(time.RFC3339))
 		} else {
-			fmt.Print("Error creating new attendance session" + err.Error())
+			logger.Warnf("op=attendance_local_login_failed user_id=%s err=%v", userId, err)
 			return nil, err
 		}
 
+	} else {
+		logger.Infof("op=attendance_local_login_reused user_id=%s attendance_id=%d time_in=%s", userId, lastAttendance.ID, lastAttendance.TimeIn.Format(time.RFC3339))
 	}
 
 	return &lastAttendance, nil
 }
 
 var LogoutAttendance = func(attendance *models.Attendance) error {
+	logger := utils.NewLoggerService()
+	if attendance == nil {
+		logger.Warn("op=attendance_local_logout_skipped reason=nil_attendance")
+		return nil
+	}
+
 	now := time.Now()
-	if err := db.DB.Model(&attendance).Update("time_out", now).Error; err != nil {
+	logger.Infof("op=attendance_local_logout_start user_id=%s attendance_id=%d time_out=%s", attendance.UserID, attendance.ID, now.Format(time.RFC3339))
+	attendance.TimeOut = &now
+	attendance.SyncStatus = "pending"
+	attendance.SyncedAt = nil
+	attendance.LastError = ""
+
+	if err := db.DB.Model(attendance).Updates(map[string]any{
+		"time_out":    now,
+		"sync_status": "pending",
+		"synced_at":   nil,
+		"last_error":  "",
+	}).Error; err != nil {
+		logger.Warnf("op=attendance_local_logout_failed user_id=%s attendance_id=%d err=%v", attendance.UserID, attendance.ID, err)
 		return err
 	}
 
+	logger.Infof("op=attendance_local_logout_saved user_id=%s attendance_id=%d time_out=%s sync_status=%s", attendance.UserID, attendance.ID, now.Format(time.RFC3339), attendance.SyncStatus)
 	return nil
 }
 

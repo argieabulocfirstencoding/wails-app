@@ -69,6 +69,7 @@ const Task = () => {
   const [isSyncing, setSyncing] = useState(false);
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
+  const [startError, setStartError] = useState("");
 
   const { setTaskID, tasks, online, synced } = useAuthStore();
 
@@ -77,6 +78,7 @@ const Task = () => {
 
     try {
       setSyncing(true);
+      setStartError("");
       resetTimer();
 
       const timeStart = Date.now();
@@ -88,6 +90,12 @@ const Task = () => {
 
       setStart(true);
       setStartTime(timeStart);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to start tracking.";
+      setStartError(message);
+      setStart(false);
+      setTaskID(null);
     } finally {
       setSyncing(false);
     }
@@ -112,16 +120,25 @@ const Task = () => {
   }
 
   async function stopTime() {
-    setSyncing(true);
-    if (id) {
-      await StopTracking(id);
+    try {
+      setSyncing(true);
+      setStartError("");
+      if (id) {
+        await StopTracking(id);
+      }
+
+      setTaskID(null);
+      const timeStop = Date.now();
+      setStart(false);
+
+      setEndTime(timeStop);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to stop tracking.";
+      setStartError(message);
+    } finally {
+      setSyncing(false);
     }
-
-    setTaskID(null);
-    const timeStop = Date.now();
-    setStart(false);
-
-    setEndTime(timeStop);
   }
 
   function getFormattedTime() {
@@ -414,6 +431,9 @@ const Task = () => {
               >
                 {lastTaskRecord?.padagan ? "Padagan" : ""}
               </p>
+              {startError ? (
+                <p className="text-xs sm:text-sm text-red-500">{startError}</p>
+              ) : null}
             </div>
 
             <div className="flex flex-col items-end gap-2">

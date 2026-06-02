@@ -11,7 +11,7 @@ type TaskRecord struct {
 	AttendanceID  uint       `gorm:"not null;index:idx_task_records_user_attendance_ended,priority:2;index:idx_task_records_attendance_sync_started,priority:1"`
 	Attendance    Attendance `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	TaskID        string     `gorm:"not null;index:idx_task_records_task_started,priority:1"` // foreign key
-	Task          Task       `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Task          Task       `gorm:"-:all"`
 	StartedAt     time.Time  `gorm:"autoCreateTime;index:idx_task_records_task_started,priority:2;index:idx_task_records_attendance_sync_started,priority:3"`
 	Padagan       bool       `gorm:"not null;default:false"`
 	Notes         string     `gorm:"not null;default:''"`

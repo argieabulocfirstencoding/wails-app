@@ -28,6 +28,7 @@ const (
 )
 
 var errSyncBlocked = errors.New("sync blocked")
+var errSyncAlreadyQueued = errors.New("sync already queued")
 
 type syncJob struct {
 	key    string
@@ -163,6 +164,20 @@ func (s *SyncService) SyncTasks() {
 func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	correlationID := utils.NewCorrelationID("task_sync")
 	s.Logger.Infof("op=task_sync_start correlation_id=%s record_id=%d", correlationID, taskRecordId)
+
+	taskRecord, lookupErr := s.TaskRepository.GetTaskRecord(taskRecordId)
+	if lookupErr != nil {
+		s.Logger.Warnf("op=task_sync_failed correlation_id=%s record_id=%d err=%v", correlationID, taskRecordId, lookupErr)
+		s.emit("record-synced", false)
+		return lookupErr
+	}
+
+	if depErr := s.enqueueAttendanceDependencySync(taskRecord.AttendanceID); depErr != nil {
+		s.Logger.Warnf("op=task_sync_failed correlation_id=%s record_id=%d err=%v", correlationID, taskRecordId, depErr)
+		s.emit("record-synced", false)
+		return depErr
+	}
+
 	job := &syncJob{
 		key:  fmt.Sprintf("task-record:%d", taskRecordId),
 		name: fmt.Sprintf("sync_task_record_%d", taskRecordId),
@@ -173,6 +188,10 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 
 	err = s.enqueueAndWait(job)
 	if err != nil {
+		if errors.Is(err, errSyncAlreadyQueued) {
+			s.Logger.Infof("op=task_sync_queued correlation_id=%s record_id=%d", correlationID, taskRecordId)
+			return err
+		}
 		s.Logger.Warnf("op=task_sync_failed correlation_id=%s record_id=%d err=%v", correlationID, taskRecordId, err)
 		s.Logger.Println("Failed to sync task record:", err)
 		s.emit("record-synced", false)
@@ -182,6 +201,32 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	s.Logger.Infof("op=task_sync_success correlation_id=%s record_id=%d", correlationID, taskRecordId)
 	s.emit("record-synced", true)
 	return nil
+}
+
+func (s *SyncService) enqueueAttendanceDependencySync(attendanceID uint) error {
+	attendance, err := s.AuthRepository.GetAttendanceFromID(attendanceID)
+	if err != nil {
+		return err
+	}
+
+	if attendanceReadyForTaskSync(attendance) {
+		return nil
+	}
+
+	key := fmt.Sprintf("attendance:%d:%t", attendance.ID, attendance.TimeOut != nil)
+	if attendance.TimeOut != nil {
+		key = fmt.Sprintf("%s:%d", key, attendance.TimeOut.UnixMilli())
+	}
+
+	job := &syncJob{
+		key:  key,
+		name: fmt.Sprintf("sync_attendance_dependency_%d", attendance.ID),
+		fn: func(ctx context.Context) error {
+			return s.syncAttendanceNow(attendance)
+		},
+	}
+
+	return s.enqueueAndWait(job)
 }
 
 func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) error {
@@ -211,31 +256,29 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 		return err
 	}
 
-	if taskRecord.EndedAt != nil {
-		s.Logger.Printlnf("Syncing TASK OUT")
-
-		if resp, err := s.FesClientService.Request(types.Request{
-			Url:    "wf/task_out",
-			Method: "POST",
-			Body: map[string]any{
-				"activity_description": strings.ReplaceAll(taskRecord.Notes, "||", "-"),
-				"productivity":         taskRecord.Productivity,
-				"total_task_time":      taskRecord.Duration,
-				"task_out":             taskRecord.EndedAt.UnixMilli(),
-			},
-		}); err != nil {
+	if taskRecord.Productivity == nil || strings.TrimSpace(*taskRecord.Productivity) == "" {
+		if err := s.syncTaskInNow(taskRecord, attendance, user); err != nil {
 			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 			return err
-		} else {
-			s.Logger.Printlnf("Sync Task Record Response: %v", resp)
-			if err := s.reconcileTaskRecord(taskRecord, attendance); err != nil {
-				_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
-				return err
-			}
-			return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
 		}
 	}
 
+	if taskRecord.EndedAt != nil {
+		if err := s.syncTaskOutNow(taskRecord); err != nil {
+			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
+			return err
+		}
+		return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
+	}
+
+	if err := s.reconcileTaskRecord(taskRecord, attendance); err != nil {
+		_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
+		return err
+	}
+	return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
+}
+
+func (s *SyncService) syncTaskInNow(taskRecord *models.TaskRecord, attendance *models.Attendance, user *models.User) error {
 	padagan := "No"
 	if taskRecord.Padagan {
 		padagan = "Yes"
@@ -244,12 +287,11 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 	task, err := s.TaskRepository.GetTaskFromTaskID(taskRecord.TaskID)
 	if err != nil {
 		s.Logger.Printlnf("Task not found on syncing task record, important for determining of upwork account. err: %v", err)
-		_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 		return err
 	}
 
 	s.Logger.Printlnf("Syncing TASK IN")
-	if resp, err := s.FesClientService.Request(types.Request{
+	resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/task_in",
 		Method: "POST",
 		Body: map[string]any{
@@ -264,75 +306,83 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 			"login_logout":         attendance.LoginLogoutID,
 			"activity_description": taskRecord.Notes,
 		},
-	}); err != nil {
-		_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
+	})
+	if err != nil {
 		return err
-	} else {
-		s.Logger.Printlnf("Sync Task Record Response: %v", resp)
-		s.Logger.Printlnf("PRODUCTIVITY ID: %v", resp["productivity"])
-
-		if productivity, ok := resp["productivity"].(string); ok {
-			taskRecord.Productivity = &productivity
-		}
-
-		if err := s.reconcileTaskRecord(taskRecord, attendance); err != nil {
-			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
-			return err
-		}
-		return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
 	}
+	if err := rejectFailedRemoteResponse(resp); err != nil {
+		return err
+	}
+
+	s.Logger.Printlnf("Sync Task Record Response: %v", resp)
+	s.Logger.Printlnf("PRODUCTIVITY ID: %v", resp["productivity"])
+
+	productivity, ok := resp["productivity"].(string)
+	if !ok || strings.TrimSpace(productivity) == "" {
+		return fmt.Errorf("task_in response missing productivity")
+	}
+
+	taskRecord.Productivity = &productivity
+	return db.DB.Model(taskRecord).Update("productivity", productivity).Error
+}
+
+func (s *SyncService) syncTaskOutNow(taskRecord *models.TaskRecord) error {
+	if taskRecord.EndedAt == nil {
+		return fmt.Errorf("cannot sync task_out without ended_at")
+	}
+	if taskRecord.Productivity == nil || strings.TrimSpace(*taskRecord.Productivity) == "" {
+		return fmt.Errorf("cannot sync task_out without remote productivity id")
+	}
+
+	s.Logger.Printlnf("Syncing TASK OUT")
+
+	resp, err := s.FesClientService.Request(types.Request{
+		Url:    "wf/task_out",
+		Method: "POST",
+		Body: map[string]any{
+			"activity_description": strings.ReplaceAll(taskRecord.Notes, "||", "-"),
+			"productivity":         taskRecord.Productivity,
+			"total_task_time":      taskRecord.Duration,
+			"task_out":             taskRecord.EndedAt.UnixMilli(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if err := rejectFailedRemoteResponse(resp); err != nil {
+		return err
+	}
+
+	s.Logger.Printlnf("Sync Task Record Response: %v", resp)
+	return nil
 }
 
 func (s *SyncService) ensureAttendanceReadyForTaskSync(ctx context.Context, attendanceID uint) (*models.Attendance, error) {
-	const waitInterval = 3 * time.Second
-	const maxAttempts = 3
-
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		if ctx != nil {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			default:
-			}
-		}
-
-		attendance, err := s.AuthRepository.GetAttendanceFromID(attendanceID)
-		if err != nil {
-			return nil, err
-		}
-
-		if attendanceReadyForTaskSync(attendance) {
-			return attendance, nil
-		}
-
-		s.Logger.Printf(
-			"task sync waiting for attendance dependency. attendance_id=%d sync_status=%q has_login_logout_id=%t",
-			attendance.ID,
-			attendance.SyncStatus,
-			attendance.LoginLogoutID != nil && strings.TrimSpace(*attendance.LoginLogoutID) != "",
-		)
-
-		if err := s.syncAttendanceNow(attendance); err != nil {
-			s.Logger.Printf("task sync dependency attendance sync attempt failed. attendance_id=%d err=%v", attendance.ID, err)
-		}
-
-		if attempt == maxAttempts {
-			return nil, fmt.Errorf("attendance dependency still unsatisfied for attendance_id=%d", attendance.ID)
-		}
-
-		if ctx == nil {
-			time.Sleep(waitInterval)
-			continue
-		}
-
+	if ctx != nil {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(waitInterval):
+		default:
 		}
 	}
 
-	return nil, fmt.Errorf("attendance dependency still unsatisfied for attendance_id=%d", attendanceID)
+	attendance, err := s.AuthRepository.GetAttendanceFromID(attendanceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if attendanceReadyForTaskSync(attendance) {
+		return attendance, nil
+	}
+
+	s.Logger.Printf(
+		"task sync waiting for attendance dependency. attendance_id=%d sync_status=%q has_login_logout_id=%t",
+		attendance.ID,
+		attendance.SyncStatus,
+		attendance.LoginLogoutID != nil && strings.TrimSpace(*attendance.LoginLogoutID) != "",
+	)
+
+	return nil, fmt.Errorf("attendance dependency still unsatisfied for attendance_id=%d", attendance.ID)
 }
 
 func attendanceReadyForTaskSync(attendance *models.Attendance) bool {
@@ -340,11 +390,12 @@ func attendanceReadyForTaskSync(attendance *models.Attendance) bool {
 		return false
 	}
 
-	if attendance.LoginLogoutID != nil && strings.TrimSpace(*attendance.LoginLogoutID) != "" {
-		return true
+	// Hard dependency: attendance must be fully synced first before task sync.
+	if !strings.EqualFold(attendance.SyncStatus, syncStateSynced) {
+		return false
 	}
 
-	return strings.EqualFold(attendance.SyncStatus, "synced")
+	return attendance.LoginLogoutID != nil && strings.TrimSpace(*attendance.LoginLogoutID) != ""
 }
 
 func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) {
@@ -375,6 +426,10 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 
 	err = s.enqueueAndWait(job)
 	if err != nil {
+		if errors.Is(err, errSyncAlreadyQueued) {
+			s.Logger.Infof("op=attendance_sync_queued correlation_id=%s attendance_id=%d", correlationID, attendance.ID)
+			return err
+		}
 		s.Logger.Warnf("op=attendance_sync_failed correlation_id=%s attendance_id=%d err=%v", correlationID, attendance.ID, err)
 		s.Logger.Println("Failed to sync attendance:", err)
 		s.emit("attendance-synced", false)
@@ -431,6 +486,10 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 			_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
 			return err
 		} else {
+			if err := rejectFailedRemoteResponse(resp); err != nil {
+				_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+				return err
+			}
 			s.Logger.Printlnf("Sync Attendance Response: %v", resp)
 			return s.updateAttendanceSyncState(attendance, syncStateSynced, nil)
 		}
@@ -453,6 +512,10 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 		_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
 		return err
 	} else {
+		if err := rejectFailedRemoteResponse(resp); err != nil {
+			_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+			return err
+		}
 		s.Logger.Println("Sync Attendance Response:", resp)
 		if loginLogout, ok := resp["login_logout"].(string); ok {
 			s.Logger.Println("LOGIN ID: ", loginLogout)
@@ -543,15 +606,36 @@ func (s *SyncService) SyncUnsyncedRecords() error {
 }
 
 func (s *SyncService) syncUnsyncedRecordsNow() error {
+	syncableStates := []string{syncStatePending, syncStateFailed, syncStateBlocked, syncStateInProgress}
+
+	var unsyncedAttendances []models.Attendance
+	if err := db.DB.
+		Where("user_id = ? AND sync_status IN ?", s.AuthUser.LocalID, syncableStates).
+		Order("time_in ASC").
+		Find(&unsyncedAttendances).Error; err != nil {
+		return err
+	}
+
+	var firstErr error
+	for i := range unsyncedAttendances {
+		if err := s.syncAttendanceNow(&unsyncedAttendances[i]); err != nil {
+			s.emit("attendance-synced", false)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		s.emit("attendance-synced", true)
+	}
+
 	var unsynced []models.TaskRecord
 	if err := db.DB.
-		Where("user_id = ? AND sync_status IN ?", s.AuthUser.LocalID, []string{syncStatePending, syncStateFailed, syncStateBlocked}).
+		Where("user_id = ? AND sync_status IN ?", s.AuthUser.LocalID, syncableStates).
 		Order("started_at ASC").
 		Find(&unsynced).Error; err != nil {
 		return err
 	}
 
-	var firstErr error
 	for i := range unsynced {
 		if err := s.syncTaskRecordNow(s.queueCtx, unsynced[i].ID); err != nil {
 			s.emit("record-synced", false)
@@ -561,17 +645,6 @@ func (s *SyncService) syncUnsyncedRecordsNow() error {
 			continue
 		}
 		s.emit("record-synced", true)
-	}
-
-	if s.Attendance != nil && *s.Attendance != nil {
-		if err := s.syncAttendanceNow(*s.Attendance); err != nil {
-			s.emit("attendance-synced", false)
-			if firstErr == nil {
-				firstErr = err
-			}
-		} else {
-			s.emit("attendance-synced", true)
-		}
 	}
 
 	return firstErr
@@ -638,7 +711,7 @@ func (s *SyncService) enqueueAndWait(job *syncJob) error {
 	if job.key != "" {
 		if !s.claimPending(job.key) {
 			s.Logger.Printf("Skipping duplicate sync job key=%s", job.key)
-			return nil
+			return errSyncAlreadyQueued
 		}
 		claimed = true
 	}
@@ -727,6 +800,9 @@ func isRetryableSyncError(err error) bool {
 	if errors.Is(err, errSyncBlocked) {
 		return false
 	}
+	if errors.Is(err, errSyncAlreadyQueued) {
+		return false
+	}
 
 	var netErr net.Error
 	if errors.As(err, &netErr) {
@@ -792,6 +868,7 @@ func (s *SyncService) updateTaskRecordSyncState(taskRecord *models.TaskRecord, s
 	if err := db.DB.Save(taskRecord).Error; err != nil {
 		return err
 	}
+	s.Logger.Infof("op=task_sync_state_saved user_id=%s attendance_id=%d task_id=%s record_id=%d sync_status=%s attempt_count=%d last_error=%q", taskRecord.UserID, taskRecord.AttendanceID, taskRecord.TaskID, taskRecord.ID, taskRecord.SyncStatus, taskRecord.AttemptCount, taskRecord.LastError)
 	return nil
 }
 
@@ -819,6 +896,7 @@ func (s *SyncService) updateAttendanceSyncState(attendance *models.Attendance, s
 	if err := db.DB.Save(attendance).Error; err != nil {
 		return err
 	}
+	s.Logger.Infof("op=attendance_sync_state_saved user_id=%s attendance_id=%d sync_status=%s attempt_count=%d last_error=%q", attendance.UserID, attendance.ID, attendance.SyncStatus, attendance.AttemptCount, attendance.LastError)
 	return nil
 }
 
@@ -839,6 +917,29 @@ func (s *SyncService) reconcileTaskRecord(taskRecord *models.TaskRecord, attenda
 	}
 
 	return nil
+}
+
+func rejectFailedRemoteResponse(resp map[string]any) error {
+	if resp == nil {
+		return fmt.Errorf("empty remote response")
+	}
+
+	raw, ok := resp["error"]
+	if !ok {
+		return nil
+	}
+
+	message, ok := raw.(string)
+	if !ok {
+		return fmt.Errorf("remote response error: %v", raw)
+	}
+
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" || strings.EqualFold(trimmed, "Successful") {
+		return nil
+	}
+
+	return fmt.Errorf("remote response error: %s", trimmed)
 }
 
 func (s *SyncService) emit(eventName string, payload any) {

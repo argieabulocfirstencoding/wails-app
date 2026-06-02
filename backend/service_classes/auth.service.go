@@ -8,6 +8,7 @@ import (
 	"fesapp/backend/utils"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type AuthService struct {
@@ -89,23 +90,42 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 func (a *AuthService) Logout() error {
 	attendance := a.TaskService.Attendance
 	workingTaskID := a.TaskService.WorkingTaskID
+	userID := ""
+	attendanceID := uint(0)
+	if attendance != nil && *attendance != nil {
+		userID = (*attendance).UserID
+		attendanceID = (*attendance).ID
+	}
+	a.Logger.Infof("op=logout_local_start user_id=%s attendance_id=%d has_working_task=%t", userID, attendanceID, workingTaskID != nil && *workingTaskID != nil)
 
 	if workingTaskID != nil && *workingTaskID != nil {
-		a.TaskService.StopTracking(**workingTaskID)
+		if err := a.TaskService.StopTracking(**workingTaskID); err != nil {
+			a.Logger.Warnf("op=logout_local_task_stop_failed user_id=%s attendance_id=%d task_id=%s err=%v", userID, attendanceID, **workingTaskID, err)
+			return err
+		}
 		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
 	}
 
 	if attendance != nil && *attendance != nil {
 		if err := services.LogoutAttendance(*attendance); err != nil {
+			a.Logger.Warnf("op=logout_local_failed user_id=%s attendance_id=%d err=%v", userID, attendanceID, err)
 			return err
 		}
+		timeOut := ""
+		if (*attendance).TimeOut != nil {
+			timeOut = (*attendance).TimeOut.Format(time.RFC3339)
+		}
+		a.Logger.Infof("op=logout_local_saved user_id=%s attendance_id=%d time_out=%s sync_status=%s", userID, attendanceID, timeOut, (*attendance).SyncStatus)
 
 		if err := a.TaskService.SyncService.SyncAttendance(*attendance); err != nil {
 			a.Logger.Printf("error syncing attendance on logout: %v", err)
+			a.Logger.Warnf("op=logout_sync_failed_after_local_save user_id=%s attendance_id=%d err=%v", userID, attendanceID, err)
 			return fmt.Errorf("logout sync failed: %w", err)
 		}
+		a.Logger.Infof("op=logout_sync_success user_id=%s attendance_id=%d", userID, attendanceID)
 	} else {
 		a.Logger.Println("No active AttendanceID")
+		a.Logger.Warn("op=logout_local_skipped reason=no_active_attendance")
 	}
 
 	return nil

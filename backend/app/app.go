@@ -52,7 +52,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.4.2"
+var CurrentVersion = "2.5.0"
 
 const attendanceResyncWindow = 48 * time.Hour
 
@@ -193,13 +193,12 @@ func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
 }
 
-func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
-	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
-
+func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) error {
+	return a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
 }
 
-func (a *App) StopTracking(taskId string) {
-	a.AuthService.TaskService.StopTracking(taskId)
+func (a *App) StopTracking(taskId string) error {
+	return a.AuthService.TaskService.StopTracking(taskId)
 }
 
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
@@ -398,7 +397,9 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 	// Removed erro handling for record beause most times when screenshots are deleted they throws an error here messing up "break".
 	// So move forward disregarding if break is found or not.
 	if record != nil {
-		a.WorkingTaskID = &record.Record.TaskID
+		if record.Record.EndedAt == nil {
+			a.WorkingTaskID = &record.Record.TaskID
+		}
 	}
 
 	return record, nil

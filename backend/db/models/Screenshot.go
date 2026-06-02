@@ -7,7 +7,7 @@ type Screenshot struct {
 	TaskRecordID uint       `gorm:"not null;index:idx_screenshots_task_record_taken,priority:1"`
 	TaskRecord   TaskRecord `gorm:"foreignKey:TaskRecordID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	TaskID       string     `gorm:"not null;index:idx_screenshots_task_taken,priority:1"`
-	Task         Task       `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Task         Task       `gorm:"-:all"`
 	Memo         string     `gorm:"not null;default:''"`
 	Notes        string     `gorm:"not null;default:''"`
 	FilePath     string     `gorm:"type:text"`

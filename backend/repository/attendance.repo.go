@@ -21,7 +21,7 @@ func NewAttendanceRepository() *AttendanceRepository {
 }
 
 func (a *AttendanceRepository) CreateAttendance(userId string) (*models.Attendance, error) {
-
+	a.logger.Infof("op=attendance_local_login_start user_id=%s", userId)
 	cutoff := time.Now().Add(-20 * time.Hour)
 
 	var lastAttendance models.Attendance
@@ -40,26 +40,47 @@ func (a *AttendanceRepository) CreateAttendance(userId string) (*models.Attendan
 			}
 
 			if err := db.DB.Create(&lastAttendance).Error; err != nil {
+				a.logger.Warnf("op=attendance_local_login_failed user_id=%s err=%v", userId, err)
 				return nil, err
 			}
 
-			a.logger.Print("Create new attendance session")
+			a.logger.Infof("op=attendance_local_login_created user_id=%s attendance_id=%d time_in=%s", userId, lastAttendance.ID, lastAttendance.TimeIn.Format(time.RFC3339))
 		} else {
-			a.logger.Print("Error creating new attendance session" + err.Error())
+			a.logger.Warnf("op=attendance_local_login_failed user_id=%s err=%v", userId, err)
 			return nil, err
 		}
 
+	} else {
+		a.logger.Infof("op=attendance_local_login_reused user_id=%s attendance_id=%d time_in=%s", userId, lastAttendance.ID, lastAttendance.TimeIn.Format(time.RFC3339))
 	}
 
 	return &lastAttendance, nil
 }
 
 func (a *AttendanceRepository) LogoutAttendance(attendance *models.Attendance) error {
+	if attendance == nil {
+		a.logger.Warn("op=attendance_local_logout_skipped reason=nil_attendance")
+		return nil
+	}
+
 	now := time.Now()
-	if err := db.DB.Model(&attendance).Update("time_out", now).Error; err != nil {
+	a.logger.Infof("op=attendance_local_logout_start user_id=%s attendance_id=%d time_out=%s", attendance.UserID, attendance.ID, now.Format(time.RFC3339))
+	attendance.TimeOut = &now
+	attendance.SyncStatus = "pending"
+	attendance.SyncedAt = nil
+	attendance.LastError = ""
+
+	if err := db.DB.Model(attendance).Updates(map[string]any{
+		"time_out":    now,
+		"sync_status": "pending",
+		"synced_at":   nil,
+		"last_error":  "",
+	}).Error; err != nil {
+		a.logger.Warnf("op=attendance_local_logout_failed user_id=%s attendance_id=%d err=%v", attendance.UserID, attendance.ID, err)
 		return err
 	}
 
+	a.logger.Infof("op=attendance_local_logout_saved user_id=%s attendance_id=%d time_out=%s sync_status=%s", attendance.UserID, attendance.ID, now.Format(time.RFC3339), attendance.SyncStatus)
 	return nil
 }
 
