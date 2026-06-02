@@ -22,6 +22,9 @@ type migrationStep struct {
 	name    string
 	up      func(tx *gorm.DB) error
 	down    func(tx *gorm.DB) error
+	// Some SQLite schema repairs need to toggle PRAGMA foreign_keys and rebuild tables.
+	// Those operations must run outside an explicit transaction.
+	transactional bool
 }
 
 func migrationPlan() []migrationStep {
@@ -35,12 +38,14 @@ func migrationPlan() []migrationStep {
 			down: func(tx *gorm.DB) error {
 				return nil
 			},
+			transactional: true,
 		},
 		{
 			version: 2,
 			name:    "hot_query_indexes",
 			up:      applyHotQueryIndexes,
 			down:    dropHotQueryIndexes,
+			transactional: true,
 		},
 		{
 			version: 3,
@@ -49,6 +54,7 @@ func migrationPlan() []migrationStep {
 			down: func(tx *gorm.DB) error {
 				return nil
 			},
+			transactional: false,
 		},
 	}
 }
@@ -277,11 +283,6 @@ func currentSchemaVersion(database *gorm.DB) (int, error) {
 }
 
 func runMigrationStep(database *gorm.DB, step migrationStep) error {
-	tx := database.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-
 	appliedAt := time.Now().UTC()
 	record := schemaMigration{
 		Version:    step.version,
@@ -289,25 +290,48 @@ func runMigrationStep(database *gorm.DB, step migrationStep) error {
 		AppliedAt:  appliedAt,
 		Successful: false,
 	}
-	if err := tx.Create(&record).Error; err != nil {
-		_ = tx.Rollback()
+	if step.transactional {
+		tx := database.Begin()
+		if tx.Error != nil {
+			return tx.Error
+		}
+
+		if err := tx.Create(&record).Error; err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("create migration record v%d: %w", step.version, err)
+		}
+
+		if err := step.up(tx); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("apply migration v%d (%s): %w", step.version, step.name, err)
+		}
+
+		if err := tx.Model(&schemaMigration{}).
+			Where("version = ?", step.version).
+			Update("successful", true).Error; err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("mark migration v%d successful: %w", step.version, err)
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return fmt.Errorf("commit migration v%d: %w", step.version, err)
+		}
+
+		return nil
+	}
+
+	if err := database.Create(&record).Error; err != nil {
 		return fmt.Errorf("create migration record v%d: %w", step.version, err)
 	}
 
-	if err := step.up(tx); err != nil {
-		_ = tx.Rollback()
+	if err := step.up(database); err != nil {
 		return fmt.Errorf("apply migration v%d (%s): %w", step.version, step.name, err)
 	}
 
-	if err := tx.Model(&schemaMigration{}).
+	if err := database.Model(&schemaMigration{}).
 		Where("version = ?", step.version).
 		Update("successful", true).Error; err != nil {
-		_ = tx.Rollback()
 		return fmt.Errorf("mark migration v%d successful: %w", step.version, err)
-	}
-
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("commit migration v%d: %w", step.version, err)
 	}
 
 	return nil

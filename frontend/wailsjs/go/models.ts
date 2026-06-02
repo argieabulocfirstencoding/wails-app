@@ -113,7 +113,7 @@ export namespace models {
 	    ProjectName: string;
 	    ClientID: string;
 	    Client: Client;
-	    TaskRecord: TaskRecord[];
+	    TaskRecords: TaskRecord[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Task(source);
@@ -127,7 +127,7 @@ export namespace models {
 	        this.ProjectName = source["ProjectName"];
 	        this.ClientID = source["ClientID"];
 	        this.Client = this.convertValues(source["Client"], Client);
-	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
+	        this.TaskRecords = this.convertValues(source["TaskRecords"], TaskRecord);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
