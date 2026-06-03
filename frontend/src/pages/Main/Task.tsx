@@ -77,17 +77,19 @@ const Task = () => {
 
     try {
       setSyncing(true);
-      resetTimer();
 
       const timeStart = Date.now();
       await StartTracking(id, JSON.stringify(timeStart), isPadagan);
 
+      resetTimer();
       if (lastTaskRecord) {
         lastTaskRecord.padagan = isPadagan;
       }
 
       setStart(true);
       setStartTime(timeStart);
+    } catch (error) {
+      console.error("StartTracking failed:", error);
     } finally {
       setSyncing(false);
     }

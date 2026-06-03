@@ -193,9 +193,8 @@ func (a *App) GetMonitorCount() int {
 	return services.GetMonitorCount()
 }
 
-func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) {
-	a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
-
+func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) error {
+	return a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
 }
 
 func (a *App) StopTracking(taskId string) {

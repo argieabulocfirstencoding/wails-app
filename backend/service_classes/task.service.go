@@ -175,10 +175,11 @@ func (t *TaskService) StopTaskRecord(userId, taskId string) error {
 	return nil
 }
 
-func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bool) {
+func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bool) error {
 	if t.Attendance == nil || *t.Attendance == nil {
-		t.Logger.Println("StartTracking error: Attendance is nil")
-		return
+		err := fmt.Errorf("StartTracking error: Attendance is nil")
+		t.Logger.Println(err)
+		return err
 	}
 
 	// if t.ScreenshotService.Running {
@@ -201,6 +202,17 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 
 	}
 
+	record, err := t.StartTaskRecord(taskId, padagan)
+	if err != nil {
+		t.Logger.Printf("error starting task record: %v", err)
+		return err
+	}
+	if record == nil {
+		err := fmt.Errorf("error starting task record: record is nil")
+		t.Logger.Printf("%v", err)
+		return err
+	}
+
 	t.ScreenshotService.FolderName = localStorageValue
 	t.ScreenshotService.TaskID = &taskId
 
@@ -215,16 +227,6 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 		}
 	}
 
-	record, err := t.StartTaskRecord(taskId, padagan)
-	if err != nil {
-		t.Logger.Printf("error starting task record: %v", err)
-		return
-	}
-	if record == nil {
-		t.Logger.Printf("error starting task record: record is nil")
-		return
-	}
-
 	t.TaskRecord = record
 
 	if t.WorkingTaskID != nil && *t.WorkingTaskID != nil {
@@ -234,15 +236,16 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 
 	task, err := t.TaskRepository.GetTask(taskId)
 	if err != nil {
-		return
+		return err
 	}
 
 	if task.ProjectName == "Break" {
 		t.SyncService.SyncTaskRecord(record.ID)
-		return
+		return nil
 	}
 
 	t.ScreenshotService.Start(t.ctx)
+	return nil
 }
 
 func (t *TaskService) StopTracking(taskId string) {

@@ -24,9 +24,7 @@ export namespace models {
 	export class Screenshot {
 	    ID: number;
 	    TaskRecordID: number;
-	    TaskRecord: TaskRecord;
 	    TaskID: string;
-	    Task: Task;
 	    Memo: string;
 	    Notes: string;
 	    FilePath: string;
@@ -42,9 +40,7 @@ export namespace models {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
 	        this.TaskRecordID = source["TaskRecordID"];
-	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
 	        this.TaskID = source["TaskID"];
-	        this.Task = this.convertValues(source["Task"], Task);
 	        this.Memo = source["Memo"];
 	        this.Notes = source["Notes"];
 	        this.FilePath = source["FilePath"];
@@ -113,7 +109,6 @@ export namespace models {
 	    ProjectName: string;
 	    ClientID: string;
 	    Client: Client;
-	    TaskRecord: TaskRecord[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Task(source);
@@ -127,7 +122,6 @@ export namespace models {
 	        this.ProjectName = source["ProjectName"];
 	        this.ClientID = source["ClientID"];
 	        this.Client = this.convertValues(source["Client"], Client);
-	        this.TaskRecord = this.convertValues(source["TaskRecord"], TaskRecord);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
