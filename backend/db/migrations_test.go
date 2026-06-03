@@ -3,6 +3,7 @@ package db
 import (
 	"testing"
 
+	"fesapp/backend/db/models"
 	sqlite "github.com/Tryanks/gorm-sqlite"
 	"gorm.io/gorm"
 )
@@ -172,5 +173,65 @@ func TestRepairTaskRecordsSchema_BackfillsMissingUserID(t *testing.T) {
 	}
 	if userID != "user-1" {
 		t.Fatalf("expected repaired user_id user-1, got %q", userID)
+	}
+}
+
+func TestAutoMigrateScreenshot_DoesNotTouchTaskRecords(t *testing.T) {
+	database := newMemoryDB(t)
+
+	if err := database.Exec(`CREATE TABLE users (id TEXT PRIMARY KEY);`).Error; err != nil {
+		t.Fatalf("create users: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE attendances (id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, time_in DATETIME, sync_status TEXT);`).Error; err != nil {
+		t.Fatalf("create attendances: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE tasks (task_id TEXT PRIMARY KEY, title TEXT, project_name TEXT, client_id TEXT);`).Error; err != nil {
+		t.Fatalf("create tasks: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE task_records (id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, attendance_id INTEGER NOT NULL, task_id TEXT NOT NULL, started_at DATETIME NOT NULL, sync_status TEXT);`).Error; err != nil {
+		t.Fatalf("create task_records: %v", err)
+	}
+
+	if err := database.AutoMigrate(&models.Screenshot{}); err != nil {
+		t.Fatalf("auto migrate screenshot: %v", err)
+	}
+
+	if !database.Migrator().HasTable("screenshots") {
+		t.Fatalf("expected screenshots table to be created")
+	}
+	if !database.Migrator().HasColumn("screenshots", "task_record_id") {
+		t.Fatalf("expected screenshots.task_record_id column")
+	}
+	if !database.Migrator().HasColumn("screenshots", "task_id") {
+		t.Fatalf("expected screenshots.task_id column")
+	}
+}
+
+func TestAutoMigrateTask_DoesNotTouchTaskRecords(t *testing.T) {
+	database := newMemoryDB(t)
+
+	if err := database.Exec(`CREATE TABLE users (id TEXT PRIMARY KEY);`).Error; err != nil {
+		t.Fatalf("create users: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT UNIQUE, title TEXT, project_name TEXT, client_id TEXT);`).Error; err != nil {
+		t.Fatalf("create tasks: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE attendances (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL);`).Error; err != nil {
+		t.Fatalf("create attendances: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE task_records (id INTEGER PRIMARY KEY, user_id TEXT, attendance_id INTEGER, task_id TEXT, started_at DATETIME, sync_status TEXT);`).Error; err != nil {
+		t.Fatalf("create task_records: %v", err)
+	}
+
+	if err := database.AutoMigrate(&models.Task{}); err != nil {
+		t.Fatalf("auto migrate task: %v", err)
+	}
+
+	var columns []tableInfoRow
+	if err := database.Raw("PRAGMA table_info(task_records)").Scan(&columns).Error; err != nil {
+		t.Fatalf("inspect task_records columns: %v", err)
+	}
+	if len(columns) != 6 {
+		t.Fatalf("expected task_records to remain unchanged with 6 columns, got %d", len(columns))
 	}
 }

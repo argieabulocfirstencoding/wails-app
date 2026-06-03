@@ -23,8 +23,8 @@ type TaskRecord struct {
 	AttemptCount  int32  `gorm:"not null;default:0"`
 	LastError     string `gorm:"type:text;not null;default:''"`
 	LastAttemptAt *time.Time
-	Gap           int32 `gorm:"not null;default:0"`
-	Screenshots   []Screenshot
+	Gap           int32        `gorm:"not null;default:0"`
+	Screenshots   []Screenshot `gorm:"-"`
 }
 
 type ExpTaskRecord struct {

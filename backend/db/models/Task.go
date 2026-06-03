@@ -11,8 +11,7 @@ type Task struct {
 	Title       string `validate:"required"`
 	ProjectName string `validate:"required"`
 	ClientID    string
-	Client      Client       `gorm:"foreignKey:ClientID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	TaskRecord  []TaskRecord `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Client      Client `gorm:"foreignKey:ClientID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type ExpTask struct {

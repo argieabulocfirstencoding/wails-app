@@ -8,3 +8,7 @@ backend/screenshots
 log.txt
 .gocache
 __debug_bin.*
+backend/db/migrations_test.go.*
+backend/db/models/Screenshot.go.*
+backend/db/models/Task.go.*
+backend/db/models/TaskRecord.go.*
