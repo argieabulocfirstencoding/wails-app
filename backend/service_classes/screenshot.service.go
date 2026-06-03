@@ -41,6 +41,8 @@ type ScreenshotService struct {
 	syncRetry   int
 }
 
+const screenshotsEnabled = false
+
 func NewScreenshotService(connectivity ...*ConnectivityStateService) *ScreenshotService {
 	var connectivityState *ConnectivityStateService
 	if len(connectivity) > 0 {
@@ -58,6 +60,10 @@ func NewScreenshotService(connectivity ...*ConnectivityStateService) *Screenshot
 }
 
 func (s *ScreenshotService) Screenshot() ([]string, error) {
+	if !screenshotsEnabled {
+		return nil, nil
+	}
+
 	s.mu.Lock()
 	ctx := s.ctx
 	folderName := s.FolderName
@@ -143,6 +149,10 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 }
 
 func (s *ScreenshotService) Start(ctx context.Context) {
+	if !screenshotsEnabled {
+		return
+	}
+
 	s.mu.Lock()
 	if s.Running {
 		s.mu.Unlock()
@@ -205,6 +215,10 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 }
 
 func (s *ScreenshotService) Stop() {
+	if !screenshotsEnabled {
+		return
+	}
+
 	s.mu.Lock()
 	cancel := s.cancel
 	done := s.workerDone
@@ -272,6 +286,10 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 }
 
 func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []string) {
+	if !screenshotsEnabled {
+		return
+	}
+
 	if taskScreenshot == nil || s.SyncService == nil {
 		return
 	}

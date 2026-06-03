@@ -53,6 +53,8 @@ type ScreenshotService struct {
 	SyncService  *FirebaseSyncService
 }
 
+const legacyScreenshotsEnabled = false
+
 func NewScreenshotService(sync *FirebaseSyncService) *ScreenshotService {
 	return &ScreenshotService{
 		stopChan:    make(chan struct{}),
@@ -68,6 +70,10 @@ func (s *ScreenshotService) AddMemo(memo, notes string) {
 }
 
 func (s *ScreenshotService) Start(ctx context.Context) {
+	if !legacyScreenshotsEnabled {
+		return
+	}
+
 	s.ctx = ctx
 	taskRecordIDCopy := *s.TaskRecordID
 	env := runtime.Environment(s.ctx)
@@ -117,6 +123,10 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 }
 
 func (s *ScreenshotService) Stop() {
+	if !legacyScreenshotsEnabled {
+		return
+	}
+
 	fmt.Println("Stopped Screenshot Tracking")
 	// Retrieving TaskRecord from TaskRecordID
 	if s.Running {
@@ -128,6 +138,10 @@ func (s *ScreenshotService) Stop() {
 }
 
 func (s *ScreenshotService) Screenshot() ([]string, error) {
+	if !legacyScreenshotsEnabled {
+		return nil, nil
+	}
+
 	taskRecordIDCopy := *s.TaskRecordID
 	taskIDCopy := *s.TaskID
 	n := GetMonitorCount()
@@ -276,6 +290,10 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 }
 
 func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
+	if !legacyScreenshotsEnabled {
+		return
+	}
+
 	if s.SyncService != nil && s.SyncService.isConnected {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")

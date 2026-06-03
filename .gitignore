@@ -12,3 +12,6 @@ backend/db/migrations_test.go.*
 backend/db/models/Screenshot.go.*
 backend/db/models/Task.go.*
 backend/db/models/TaskRecord.go.*
+backend/app/app.go.*
+backend/service_classes/task.service.go.*
+backend/app/active_task_cache_test.go.*

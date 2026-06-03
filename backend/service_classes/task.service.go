@@ -44,6 +44,7 @@ func NewTaskService(SyncService *SyncService, connectivity ...*ConnectivityState
 		TaskRepository:    repository.NewTaskRepository(),
 		ScreenshotService: screenshotService,
 		SyncService:       SyncService,
+		AuthRepository:    repository.NewAuthRepository(),
 		Connectivity:      connectivityState,
 		Logger:            utils.NewLoggerService(),
 	}
@@ -255,6 +256,15 @@ func (t *TaskService) StopTracking(taskId string) {
 	}
 	userId := (*t.Attendance).UserID
 
+	clearActiveTaskCache := func() {
+		if t.WorkingTaskID != nil {
+			*t.WorkingTaskID = nil
+		}
+		t.ScreenshotService.TaskID = nil
+		t.ScreenshotService.TaskRecordID = nil
+		t.TaskRecord = nil
+	}
+
 	t.ScreenshotService.Stop()
 	err := t.StopTaskRecord(
 		userId,
@@ -262,6 +272,7 @@ func (t *TaskService) StopTracking(taskId string) {
 	)
 	if err != nil {
 		t.Logger.Println("StopTaskRecord error:", err)
+		clearActiveTaskCache()
 		return
 	}
 
@@ -280,15 +291,13 @@ func (t *TaskService) StopTracking(taskId string) {
 		}
 
 		if err != nil || taskRecord == nil {
-			t.TaskRecord = nil
-			t.ScreenshotService.TaskRecordID = nil
+			clearActiveTaskCache()
 			return
 		}
 		t.Logger.Printf("Syncing record: %v\n", taskRecord)
 		if err := db.DB.Model(taskRecord).Update("sync_status", "pending").Error; err != nil {
 			t.Logger.Printf("error updating sync status: %v", types.WrapOperation("task.stop.mark_pending", taskRecord.ID, userId, err))
-			t.TaskRecord = nil
-			t.ScreenshotService.TaskRecordID = nil
+			clearActiveTaskCache()
 			return
 		}
 
@@ -299,7 +308,7 @@ func (t *TaskService) StopTracking(taskId string) {
 		t.TaskRecord = nil
 	}
 
-	t.ScreenshotService.TaskRecordID = nil
+	clearActiveTaskCache()
 }
 
 func (t *TaskService) StopAllActiveRecords() error {

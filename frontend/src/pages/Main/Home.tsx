@@ -91,19 +91,25 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    async function fetchAllTaskRecords() {
-      const task_records = await GetLastTaskRecords();
+    refreshTaskRecords();
+    refreshActiveRecord(true);
+  }, []);
 
-      console.log("Task Records: ", task_records);
-      setTaskRecords(task_records);
-    }
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("record-synced", () => {
+      refreshTaskRecords();
+      refreshActiveRecord(true);
+    });
 
-    fetchAllTaskRecords();
+    return () => off();
   }, []);
 
   useEffect(() => {
     const off = EventsOn("attendance-synced", (synced: boolean) => {
       setAttendanceSynced(synced);
+      fetchCurrentAttendance();
+      refreshActiveRecord(true);
     });
 
     return () => off();
@@ -124,10 +130,12 @@ const Home = () => {
 
   // Initial page load (full page loader)
   async function fetchInitialTasks() {
-    if (!online || initializedTask) return;
+    if (!online) return;
 
     // Initial task boolean helper that is stored in context so that it wont repeat on rerender
-    setInitializedTask(true);
+    if (!initializedTask) {
+      setInitializedTask(true);
+    }
     setLoading(true);
     try {
       if (typeof GetTasks !== "function") {
@@ -139,7 +147,7 @@ const Home = () => {
         const fetchedTasks: any = await GetTasks(false);
         if (fetchedTasks) setTasks(fetchedTasks);
       }
-      await fetchActiveRecord();
+      await refreshActiveRecord(true);
     } catch (error) {
       console.log("Error fetching initial tasks:", error);
     } finally {
@@ -147,12 +155,28 @@ const Home = () => {
     }
   }
 
-  async function fetchActiveRecord() {
-    if (online && !fetchedActiveRecord) {
-      const taskID = await GetActiveTaskRecord();
-      if (taskID) {
-        setTaskID(taskID);
-      }
+  async function refreshTaskRecords() {
+    const task_records = await GetLastTaskRecords();
+
+    console.log("Task Records: ", task_records);
+    setTaskRecords(task_records);
+    await refreshActiveRecord(true);
+  }
+
+  async function refreshActiveRecord(force = false) {
+    const { online: currentOnline, fetchedActiveRecord: currentFetchedActiveRecord } =
+      useAuthStore.getState();
+
+    if (!currentOnline) return;
+
+    if (!force && currentFetchedActiveRecord) {
+      return;
+    }
+
+    const taskID = await GetActiveTaskRecord();
+    setTaskID(taskID || null);
+
+    if (!force) {
       setFetchedActiveRecord(true);
     }
   }
@@ -202,7 +226,7 @@ const Home = () => {
         }
       }
 
-      await fetchActiveRecord();
+      await refreshActiveRecord(true);
     } catch (error) {
       console.error("Error fetching tasks:", error);
     } finally {

@@ -374,19 +374,32 @@ func (a *App) GetActiveTaskRecord() *string {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Logger.Print("No active record")
-
+			a.WorkingTaskID = nil
+			if a.ScreenshotService != nil {
+				a.ScreenshotService.TaskID = nil
+				a.ScreenshotService.TaskRecordID = nil
+				a.ScreenshotService.Stop()
+			}
+			return nil
 		} else {
 			utils.Logger.Printf("Error getting active record %v", err)
+			a.WorkingTaskID = nil
+			if a.ScreenshotService != nil {
+				a.ScreenshotService.TaskID = nil
+				a.ScreenshotService.TaskRecordID = nil
+			}
 			return nil
 		}
 	}
 
 	if taskRecord != nil {
 		a.WorkingTaskID = &taskRecord.TaskID
-		a.ScreenshotService.TaskID = a.WorkingTaskID
-		a.ScreenshotService.TaskRecordID = &taskRecord.ID
-		a.ScreenshotService.FolderName = fmt.Sprintf("%d", time.Now().UnixMilli())
-		a.ScreenshotService.Start(a.ctx)
+		if a.ScreenshotService != nil {
+			a.ScreenshotService.TaskID = a.WorkingTaskID
+			a.ScreenshotService.TaskRecordID = &taskRecord.ID
+			a.ScreenshotService.FolderName = fmt.Sprintf("%d", time.Now().UnixMilli())
+			a.ScreenshotService.Start(a.ctx)
+		}
 	}
 
 	return a.WorkingTaskID
@@ -396,10 +409,6 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 	record, _ := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
 	// Removed erro handling for record beause most times when screenshots are deleted they throws an error here messing up "break".
 	// So move forward disregarding if break is found or not.
-	if record != nil {
-		a.WorkingTaskID = &record.Record.TaskID
-	}
-
 	return record, nil
 }
 

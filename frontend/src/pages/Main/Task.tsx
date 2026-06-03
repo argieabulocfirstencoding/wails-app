@@ -102,15 +102,15 @@ const Task = () => {
   }
 
   function getMemoTagFromNotes(note: string) {
-    if (!note) return;
-
-    let notes = note.split("||");
-
-    for (let i = 0; i < notes.length; i++) {
-      notes[i] = notes[i].trim();
+    if (!note) {
+      setMemo("");
+      setTag("");
+      return;
     }
-    setMemo(notes[0]);
-    setTag(notes[1]);
+
+    const notes = note.split("||").map((part) => part.trim());
+    setMemo(notes[0] || "");
+    setTag(notes[1] || "");
   }
 
   async function stopTime() {
@@ -148,6 +148,56 @@ const Task = () => {
   async function countMonitor() {
     const monitorCount = await GetMonitorCount();
     setMonitor(monitorCount);
+  }
+
+  async function hydrateTaskRecord() {
+    if (!id) return;
+
+    try {
+      const response = await GetLastTaskRecord(id);
+      const record = response?.record;
+
+      if (!record || !record.started_at) {
+        setLastTaskRecord(undefined);
+        setSynced(false);
+        setStart(false);
+        setStartTime(0);
+        setEndTime(undefined);
+        setScreenshots(null);
+        setMemo("");
+        setTag("");
+        setTaskID(null);
+        return;
+      }
+
+      const started = new Date(record.started_at).getTime();
+      const ended = record.ended_at
+        ? new Date(record.ended_at).getTime()
+        : null;
+
+      setLastTaskRecord(record);
+      setStartTime(started);
+      setEndTime(ended ?? undefined);
+      setSynced(record.sync_status === "synced");
+      getMemoTagFromNotes(record.notes ?? "");
+
+      const isActive = !record.ended_at;
+      setStart(isActive);
+      setTaskID(isActive ? (id ?? null) : null);
+
+      if (response.screenshots && response.takenAt) {
+        setScreenshots({
+          date: response.takenAt,
+          pictures: response.screenshots,
+        });
+      } else {
+        setScreenshots(null);
+      }
+    } catch (err) {
+      console.error("Refresh error:", err);
+    } finally {
+      setHydrated(true);
+    }
   }
 
   function getLastScreenshotTime() {
@@ -236,42 +286,7 @@ const Task = () => {
   }, [isStarted, timeStarted]);
 
   useEffect(() => {
-    async function init() {
-      if (!id) return;
-      try {
-        const response = await GetLastTaskRecord(id);
-        if (response?.record) {
-          const record = response.record;
-
-          const started = new Date(record.started_at).getTime();
-          const ended = record.ended_at
-            ? new Date(record.ended_at).getTime()
-            : null;
-
-          setLastTaskRecord(record);
-          setStartTime(started);
-          setEndTime(ended ?? undefined);
-          setSynced(record.sync_status === "synced");
-          getMemoTagFromNotes(record.notes);
-
-          const isActive = !record.ended_at;
-          setStart(isActive);
-          if (isActive) setTaskID(id);
-
-          if (response.screenshots && response.takenAt) {
-            setScreenshots({
-              date: response.takenAt,
-              pictures: response.screenshots,
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Init error:", err);
-      } finally {
-        setHydrated(true); // ← moved here, single source of truth
-      }
-    }
-    init();
+    hydrateTaskRecord();
   }, [id]);
 
   useEffect(() => {
@@ -304,13 +319,14 @@ const Task = () => {
 
   useEffect(() => {
     if (!EventsOn) return;
-    const off = EventsOn("record-synced", (synced: boolean) => {
+    const off = EventsOn("record-synced", async (synced: boolean) => {
       setSynced(synced);
       setSyncing(false);
+      await hydrateTaskRecord();
     });
 
     return () => off();
-  }, []);
+  }, [id]);
 
   const titleLower = taskDetails?.title?.toLowerCase() ?? "";
 
@@ -576,7 +592,7 @@ const Task = () => {
               <div className="space-y-1 text-xs sm:text-sm">
                 <p className="flex gap-1.5">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    📌 <strong>Memo:</strong>
+                    Memo:
                   </span>
                   <span className="truncate text-neutral-800 dark:text-neutral-50">
                     {memo || "No memo set."}
@@ -584,7 +600,7 @@ const Task = () => {
                 </p>
                 <p className="flex gap-1.5 line-clamp-3">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    🏷️ <strong>Activity tag:</strong>
+                    Activity tag:
                   </span>
                   <span className="text-neutral-800 dark:text-neutral-50">
                     {tag || "No tag set."}
@@ -692,3 +708,4 @@ function StopButton({ onClick }: ButtonProps) {
     </button>
   );
 }
+
