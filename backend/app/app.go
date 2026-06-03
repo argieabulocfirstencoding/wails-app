@@ -113,6 +113,11 @@ var trayIcon []byte
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 
+	env := runtime.Environment(ctx)
+	if err := utils.ConfigureLogger(env.BuildType); err != nil {
+		runtime.LogErrorf(ctx, "failed to configure file logger: %v", err)
+	}
+
 	if _, err := db.Init(ctx); err != nil {
 		runtime.LogErrorf(ctx, "database initialization failed: %v", err)
 		utils.Logger.Printf("database initialization failed: %v", err)
@@ -129,11 +134,6 @@ func (a *App) Startup(ctx context.Context) {
 
 	runtime.LogPrint(ctx, "App is starting")
 	a.windowOpen = true
-
-	env := runtime.Environment(ctx)
-	if err := utils.ConfigureLogger(env.BuildType); err != nil {
-		runtime.LogErrorf(ctx, "failed to configure file logger: %v", err)
-	}
 
 	utils.GoSafe("app.startup.systray", func() {
 		defer func() {

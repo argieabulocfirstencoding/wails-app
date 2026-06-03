@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -30,6 +29,18 @@ func init() {
 func ConfigureLogger(buildType string) error {
 	loggerMu.Lock()
 	defer loggerMu.Unlock()
+
+	if loggerFile != nil {
+		_ = loggerFile.Close()
+		loggerFile = nil
+	}
+
+	if buildType == "dev" {
+		loggerPath = ""
+		Logger.SetOutput(os.Stdout)
+		Logger.Printf("Logger initialized. buildType=%s output=stdout", buildType)
+		return nil
+	}
 
 	candidates, err := candidateLogPaths(buildType)
 	if err != nil {
@@ -65,13 +76,10 @@ func ConfigureLogger(buildType string) error {
 		return fmt.Errorf("failed to open any log file path: %s", strings.Join(openErrs, " | "))
 	}
 
-	if loggerFile != nil {
-		_ = loggerFile.Close()
-	}
 	loggerFile = file
 	loggerPath = selectedPath
 
-	Logger.SetOutput(io.MultiWriter(os.Stdout, file))
+	Logger.SetOutput(file)
 	Logger.Printf("Logger initialized. buildType=%s path=%s", buildType, selectedPath)
 	return nil
 }
