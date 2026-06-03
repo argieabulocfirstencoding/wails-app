@@ -64,11 +64,17 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 	if err := DB.AutoMigrate(
 		&User{},
 		&Task{},
-		&TaskRecord{},
-		&Screenshot{},
 		&models.Attendance{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate: %w", err)
+	}
+
+	if err := repairTaskRecordsSchema(DB); err != nil {
+		return nil, fmt.Errorf("failed to repair task_records schema: %w", err)
+	}
+
+	if err := DB.AutoMigrate(&Screenshot{}); err != nil {
+		return nil, fmt.Errorf("failed to migrate screenshots: %w", err)
 	}
 
 	if err := migrateSchema(DB); err != nil {

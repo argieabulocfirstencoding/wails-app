@@ -97,3 +97,80 @@ func TestMigrateSchema_CreatesHotQueryIndexes(t *testing.T) {
 		}
 	}
 }
+
+func TestRepairTaskRecordsSchema_BackfillsMissingUserID(t *testing.T) {
+	database := newMemoryDB(t)
+
+	if err := database.Exec(`CREATE TABLE users (id TEXT PRIMARY KEY);`).Error; err != nil {
+		t.Fatalf("create users: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE attendances (id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, time_in DATETIME, sync_status TEXT);`).Error; err != nil {
+		t.Fatalf("create attendances: %v", err)
+	}
+	if err := database.Exec(`CREATE TABLE tasks (task_id TEXT PRIMARY KEY, title TEXT, project_name TEXT, client_id TEXT);`).Error; err != nil {
+		t.Fatalf("create tasks: %v", err)
+	}
+	if err := database.Exec(`
+		CREATE TABLE task_records (
+			id INTEGER PRIMARY KEY,
+			user_id TEXT,
+			attendance_id INTEGER,
+			task_id TEXT,
+			started_at DATETIME,
+			padagan INTEGER,
+			notes TEXT,
+			ended_at DATETIME,
+			duration INTEGER,
+			synced_at DATETIME,
+			productivity TEXT,
+			sync_status TEXT,
+			attempt_count INTEGER,
+			last_error TEXT,
+			last_attempt_at DATETIME,
+			gap INTEGER
+		);`).Error; err != nil {
+		t.Fatalf("create task_records: %v", err)
+	}
+
+	if err := database.Exec(`INSERT INTO users (id) VALUES ('user-1');`).Error; err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if err := database.Exec(`INSERT INTO attendances (id, user_id, time_in, sync_status) VALUES (1, 'user-1', CURRENT_TIMESTAMP, 'pending');`).Error; err != nil {
+		t.Fatalf("insert attendance: %v", err)
+	}
+	if err := database.Exec(`INSERT INTO tasks (task_id, title, project_name, client_id) VALUES ('task-1', 'Title', 'Project', 'client-1');`).Error; err != nil {
+		t.Fatalf("insert task: %v", err)
+	}
+	if err := database.Exec(`
+		INSERT INTO task_records (
+			id, user_id, attendance_id, task_id, started_at, padagan, notes,
+			ended_at, duration, synced_at, productivity, sync_status,
+			attempt_count, last_error, last_attempt_at, gap
+		) VALUES (
+			1, NULL, 1, 'task-1', CURRENT_TIMESTAMP, 0, '',
+			NULL, 0, NULL, NULL, 'pending',
+			0, '', NULL, 0
+		);`).Error; err != nil {
+		t.Fatalf("insert legacy task_record: %v", err)
+	}
+
+	if err := repairTaskRecordsSchema(database); err != nil {
+		t.Fatalf("repair task records schema: %v", err)
+	}
+
+	var count int64
+	if err := database.Table("task_records").Count(&count).Error; err != nil {
+		t.Fatalf("count repaired task records: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 task record after repair, got %d", count)
+	}
+
+	var userID string
+	if err := database.Table("task_records").Select("user_id").Where("id = ?", 1).Scan(&userID).Error; err != nil {
+		t.Fatalf("load repaired user_id: %v", err)
+	}
+	if userID != "user-1" {
+		t.Fatalf("expected repaired user_id user-1, got %q", userID)
+	}
+}
