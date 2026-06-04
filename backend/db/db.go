@@ -55,26 +55,30 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
 
-	backupPath, err := createMigrationBackup(dbPath)
+	needsBackup, err := needsMigrationBackup(DB)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pre-migration backup: %w", err)
+		return nil, fmt.Errorf("failed to evaluate migration backup requirement: %w", err)
 	}
 
-	// Run migrations
-	if err := DB.AutoMigrate(
-		&User{},
-		&Task{},
-		&models.Attendance{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate: %w", err)
+	backupPath := ""
+	if needsBackup {
+		backupPath, err = createMigrationBackup(dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create pre-migration backup: %w", err)
+		}
+	}
+
+	// Bootstrap core tables without relationship-driven rewrites.
+	if err := bootstrapCoreSchema(DB); err != nil {
+		return nil, fmt.Errorf("failed to bootstrap core schema: %w", err)
 	}
 
 	if err := repairTaskRecordsSchema(DB); err != nil {
 		return nil, fmt.Errorf("failed to repair task_records schema: %w", err)
 	}
 
-	if err := DB.AutoMigrate(&Screenshot{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate screenshots: %w", err)
+	if err := bootstrapScreenshotSchema(DB); err != nil {
+		return nil, fmt.Errorf("failed to bootstrap screenshots schema: %w", err)
 	}
 
 	if err := migrateSchema(DB); err != nil {
@@ -98,32 +102,11 @@ func repairUsersSchema(database *gorm.DB) error {
 		return nil
 	}
 
-	if !database.Migrator().HasTable("users") {
-		return nil
-	}
-
-	var columns []tableInfoRow
-	if err := database.Raw("PRAGMA table_info(users)").Scan(&columns).Error; err != nil {
+	columnMap, err := userSchemaColumnMap(database)
+	if err != nil {
 		return err
 	}
-
-	if len(columns) == 0 {
-		return nil
-	}
-
-	columnMap := make(map[string]string, len(columns))
-	for _, col := range columns {
-		columnMap[strings.ToLower(col.Name)] = strings.ToUpper(strings.TrimSpace(col.Type))
-	}
-
-	idType, hasID := columnMap["id"]
-	_, hasBirthdate := columnMap["birthdate"]
-	_, hasBirthday := columnMap["birthday"]
-
-	needsRebuild := !hasID || strings.Contains(idType, "INT") || strings.Contains(idType, "REAL") || strings.Contains(idType, "NUM")
-	needsBirthdateRepair := !hasBirthdate && hasBirthday
-
-	if !needsRebuild && !needsBirthdateRepair {
+	if !usersSchemaNeedsRepair(database) {
 		return nil
 	}
 
@@ -201,4 +184,51 @@ FROM users_legacy`
 		return err
 	}
 	return nil
+}
+
+func usersSchemaNeedsRepair(database *gorm.DB) bool {
+	if database == nil || !database.Migrator().HasTable("users") {
+		return false
+	}
+
+	var columns []tableInfoRow
+	if err := database.Raw("PRAGMA table_info(users)").Scan(&columns).Error; err != nil {
+		return false
+	}
+
+	if len(columns) == 0 {
+		return false
+	}
+
+	columnMap := buildUserSchemaColumnMap(columns)
+
+	idType, hasID := columnMap["id"]
+	_, hasBirthdate := columnMap["birthdate"]
+	_, hasBirthday := columnMap["birthday"]
+
+	needsRebuild := !hasID || strings.Contains(idType, "INT") || strings.Contains(idType, "REAL") || strings.Contains(idType, "NUM")
+	needsBirthdateRepair := !hasBirthdate && hasBirthday
+
+	return needsRebuild || needsBirthdateRepair
+}
+
+func userSchemaColumnMap(database *gorm.DB) (map[string]string, error) {
+	if database == nil || !database.Migrator().HasTable("users") {
+		return map[string]string{}, nil
+	}
+
+	var columns []tableInfoRow
+	if err := database.Raw("PRAGMA table_info(users)").Scan(&columns).Error; err != nil {
+		return nil, err
+	}
+
+	return buildUserSchemaColumnMap(columns), nil
+}
+
+func buildUserSchemaColumnMap(columns []tableInfoRow) map[string]string {
+	columnMap := make(map[string]string, len(columns))
+	for _, col := range columns {
+		columnMap[strings.ToLower(col.Name)] = strings.ToUpper(strings.TrimSpace(col.Type))
+	}
+	return columnMap
 }

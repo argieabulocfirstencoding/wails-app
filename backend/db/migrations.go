@@ -5,9 +5,10 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-const latestSchemaVersion = 2
+const latestSchemaVersion = 3
 
 type schemaMigration struct {
 	Version    int       `gorm:"primaryKey"`
@@ -17,17 +18,19 @@ type schemaMigration struct {
 }
 
 type migrationStep struct {
-	version int
-	name    string
-	up      func(tx *gorm.DB) error
-	down    func(tx *gorm.DB) error
+	version       int
+	name          string
+	up            func(tx *gorm.DB) error
+	down          func(tx *gorm.DB) error
+	transactional bool
 }
 
 func migrationPlan() []migrationStep {
 	return []migrationStep{
 		{
-			version: 1,
-			name:    "repair_users_schema",
+			version:       1,
+			name:          "repair_users_schema",
+			transactional: true,
 			up: func(tx *gorm.DB) error {
 				return repairUsersSchema(tx)
 			},
@@ -36,10 +39,20 @@ func migrationPlan() []migrationStep {
 			},
 		},
 		{
-			version: 2,
-			name:    "hot_query_indexes",
-			up:      applyHotQueryIndexes,
-			down:    dropHotQueryIndexes,
+			version:       2,
+			name:          "hot_query_indexes",
+			transactional: true,
+			up:            applyHotQueryIndexes,
+			down:          dropHotQueryIndexes,
+		},
+		{
+			version:       3,
+			name:          "repair_task_and_screenshot_foreign_keys",
+			transactional: false,
+			up:            repairTaskAndScreenshotSchemas,
+			down: func(tx *gorm.DB) error {
+				return nil
+			},
 		},
 	}
 }
@@ -89,6 +102,10 @@ func currentSchemaVersion(database *gorm.DB) (int, error) {
 }
 
 func runMigrationStep(database *gorm.DB, step migrationStep) error {
+	if !step.transactional {
+		return runNonTransactionalMigrationStep(database, step)
+	}
+
 	tx := database.Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -120,6 +137,34 @@ func runMigrationStep(database *gorm.DB, step migrationStep) error {
 
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("commit migration v%d: %w", step.version, err)
+	}
+
+	return nil
+}
+
+func runNonTransactionalMigrationStep(database *gorm.DB, step migrationStep) error {
+	record := schemaMigration{
+		Version:    step.version,
+		Name:       step.name,
+		AppliedAt:  time.Now().UTC(),
+		Successful: false,
+	}
+
+	if err := database.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "version"}},
+		UpdateAll: true,
+	}).Create(&record).Error; err != nil {
+		return fmt.Errorf("create migration record v%d: %w", step.version, err)
+	}
+
+	if err := step.up(database); err != nil {
+		return fmt.Errorf("apply migration v%d (%s): %w", step.version, step.name, err)
+	}
+
+	if err := database.Model(&schemaMigration{}).
+		Where("version = ?", step.version).
+		Update("successful", true).Error; err != nil {
+		return fmt.Errorf("mark migration v%d successful: %w", step.version, err)
 	}
 
 	return nil
