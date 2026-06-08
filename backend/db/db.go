@@ -81,6 +81,10 @@ func Init(ctx context.Context) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to bootstrap screenshots schema: %w", err)
 	}
 
+	if err := repairTaskAndScreenshotSchemas(DB); err != nil {
+		return nil, fmt.Errorf("failed to repair task and screenshot schemas: %w", err)
+	}
+
 	if err := migrateSchema(DB); err != nil {
 		if backupPath != "" {
 			return nil, fmt.Errorf("failed to apply schema migrations: %w (rollback backup: %s)", err, backupPath)

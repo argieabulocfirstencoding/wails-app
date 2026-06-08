@@ -52,7 +52,7 @@ func setupActiveTaskCacheTestDB(t *testing.T) (*gorm.DB, *models.User, *models.C
 		TaskID:      "task-1",
 		Title:       "Test Task",
 		ProjectName: "Test Project",
-		ClientID:    client.ID,
+		ClientID:    models.StringPtr(client.ID),
 	}
 	if err := testDB.Create(task).Error; err != nil {
 		t.Fatal(err)

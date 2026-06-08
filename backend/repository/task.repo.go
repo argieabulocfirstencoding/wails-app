@@ -53,6 +53,22 @@ func (t *TaskRepository) BulkCreateClients(clients []models.Client) error {
 	}).Create(&clients).Error
 }
 
+func (t *TaskRepository) ClientExists(id string) (bool, error) {
+	if id == "" {
+		return false, nil
+	}
+
+	var count int64
+	if err := db.DB.Model(&models.Client{}).
+		Where("id = ?", id).
+		Limit(1).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func (t *TaskRepository) GetTask(id string) (*models.Task, error) {
 	var task models.Task
 	if err := db.DB.Where("id = ?", id).First(&task).Error; err != nil {

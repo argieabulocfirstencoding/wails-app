@@ -84,6 +84,21 @@ const ProfileBar = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!EventsOn) return;
+
+    const off = EventsOn("tasks-sync-warning", (message: string) => {
+      setOpenSyncDialog(true);
+      setSyncErrorMsg(
+        `Task sync warning: ${
+          typeof message === "string" ? message : String(message)
+        }`,
+      );
+    });
+
+    return () => off();
+  }, []);
+
   const finishLogout = () => {
     const currentTheme = localStorage.getItem("theme");
 

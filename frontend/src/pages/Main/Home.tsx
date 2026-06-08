@@ -34,6 +34,7 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [taskSyncWarning, setTaskSyncWarning] = useState("");
   const [taskRecords, setTaskRecords] = useState<models.ExpTaskRecord[]>();
   const [nowTick, setNowTick] = useState<number>(Date.now());
   const {
@@ -116,6 +117,18 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    if (!EventsOn) return;
+
+    const off = EventsOn("tasks-sync-warning", (message: string) => {
+      setTaskSyncWarning(
+        typeof message === "string" ? message : String(message),
+      );
+    });
+
+    return () => off();
+  }, []);
+
+  useEffect(() => {
     async function fetchUser() {
       const user = useAuthStore.getState().user;
       if (!user) {
@@ -131,6 +144,7 @@ const Home = () => {
   // Initial page load (full page loader)
   async function fetchInitialTasks() {
     if (!online) return;
+    setTaskSyncWarning("");
 
     // Initial task boolean helper that is stored in context so that it wont repeat on rerender
     if (!initializedTask) {
@@ -211,6 +225,7 @@ const Home = () => {
   // Refresh (button)
   async function fetchTasks() {
     if (!online) return;
+    setTaskSyncWarning("");
     setIsRefreshing(true);
     try {
       if (typeof GetTasks !== "function") {
@@ -332,6 +347,11 @@ const Home = () => {
 
   return (
     <MainLayout>
+      {taskSyncWarning && (
+        <div className="mx-4 mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          Task sync warning: {taskSyncWarning}
+        </div>
+      )}
       {/* Full-screen refresh overlay – now covers the whole app */}
       {isRefreshing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

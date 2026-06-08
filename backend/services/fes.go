@@ -103,10 +103,15 @@ func FetchTasksFromFES() ([]models.ExpTask, error) {
 		clientId, _ := record["Client"].(string)
 		account, _ := record["Account"].(string)
 
+		var clientID *string
+		if trimmed := strings.TrimSpace(clientId); trimmed != "" {
+			clientID = models.StringPtr(trimmed)
+		}
+
 		tasks = append(tasks, models.Task{
 			TaskID:   id,
 			Title:    account,
-			ClientID: clientId,
+			ClientID: clientID,
 		})
 	}
 
@@ -282,10 +287,15 @@ func FetchProjects() error {
 			account, _ := record["Account"].(string)
 			projectName, _ := record["Project name"].(string)
 
+			var clientID *string
+			if trimmed := strings.TrimSpace(clientId); trimmed != "" {
+				clientID = models.StringPtr(trimmed)
+			}
+
 			tasks = append(tasks, models.Task{
 				TaskID:      id,
 				Title:       account,
-				ClientID:    clientId,
+				ClientID:    clientID,
 				ProjectName: projectName,
 			})
 		}

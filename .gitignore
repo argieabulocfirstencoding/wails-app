@@ -16,6 +16,7 @@ log.txt
 __debug_bin.*
 *.test
 *.out
+*.go.[0-9]*
 
 # Wails and platform build artifacts
 fesapp-res.syso

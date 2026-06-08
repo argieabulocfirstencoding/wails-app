@@ -33,7 +33,7 @@ type bootstrapTask struct {
 	TaskID      string `gorm:"type:char(36);unique"`
 	Title       string
 	ProjectName string
-	ClientID    string
+	ClientID    *string
 }
 
 func (bootstrapTask) TableName() string {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	db "fesapp/backend/db/models"
 	"fesapp/backend/repository"
 	"fesapp/backend/types"
@@ -180,15 +181,17 @@ func (f *FesClientService) OpenFesWebApp() error {
 
 // ========================== CLIENTS & PROJECTS ===============================
 func (f *FesClientService) SyncClientsAndProjects() error {
+	var syncErrs []error
+
 	if err := f.fetchClients(); err != nil {
-		return err
+		syncErrs = append(syncErrs, fmt.Errorf("clients sync failed: %w", err))
 	}
 
 	if err := f.fetchProjects(); err != nil {
-		return err
+		syncErrs = append(syncErrs, fmt.Errorf("projects sync failed: %w", err))
 	}
 
-	return nil
+	return errors.Join(syncErrs...)
 }
 
 // FetchClients retrieves clients in bubble and store them directly in the database
@@ -249,6 +252,11 @@ func (f *FesClientService) fetchClients() error {
 			id, _ := record["_id"].(string)
 			fullName, _ := record["Full name"].(string)
 			companyName, _ := record["Company Name"].(string)
+
+			if strings.TrimSpace(id) == "" {
+				f.logger.Printf("skipping client row with empty id")
+				continue
+			}
 
 			clients = append(clients, db.Client{
 				ID:          id,
@@ -337,10 +345,29 @@ func (f *FesClientService) fetchProjects() error {
 			account, _ := record["Account"].(string)
 			projectName, _ := record["Project name"].(string)
 
+			if strings.TrimSpace(id) == "" {
+				f.logger.Printf("skipping task row with empty id")
+				continue
+			}
+
+			var clientID *string
+			trimmedClientID := strings.TrimSpace(clientId)
+			if trimmedClientID != "" {
+				exists, err := f.TaskRepository.ClientExists(trimmedClientID)
+				if err != nil {
+					return fmt.Errorf("validate client %s for task %s: %w", trimmedClientID, id, err)
+				}
+				if exists {
+					clientID = db.StringPtr(trimmedClientID)
+				} else {
+					f.logger.Printf("missing local client %s for task %s; storing task without client link", trimmedClientID, id)
+				}
+			}
+
 			tasks = append(tasks, db.Task{
 				TaskID:      id,
 				Title:       account,
-				ClientID:    clientId,
+				ClientID:    clientID,
 				ProjectName: projectName,
 			})
 		}

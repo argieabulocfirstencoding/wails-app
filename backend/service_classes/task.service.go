@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
 )
 
@@ -67,6 +68,9 @@ func (t *TaskService) GetTasks(isOnline bool) ([]models.ExpTask, error) {
 	if t.Connectivity.IsOnline() && isOnline {
 		if err := t.SyncService.FesClientService.SyncClientsAndProjects(); err != nil {
 			t.Logger.Printf("error fetching tasks from fes: %v", err)
+			if t.ctx != nil {
+				runtime.EventsEmit(t.ctx, "tasks-sync-warning", err.Error())
+			}
 		}
 	}
 

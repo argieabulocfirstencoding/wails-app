@@ -390,6 +390,36 @@ func TestBootstrapSchemasMatchRuntimeModels(t *testing.T) {
 	assertStructParity(t, bootstrapScreenshot{}, models.Screenshot{}, nil)
 }
 
+func TestTaskModel_AllowsNilClientIDAndFormatsFallbackTitle(t *testing.T) {
+	database := newMemoryDB(t)
+
+	if err := database.AutoMigrate(&models.Client{}, &models.Task{}); err != nil {
+		t.Fatalf("auto migrate task schema: %v", err)
+	}
+
+	task := models.Task{
+		TaskID:      "task-1",
+		Title:       "Title",
+		ProjectName: "Project",
+	}
+	if err := database.Create(&task).Error; err != nil {
+		t.Fatalf("create task without client: %v", err)
+	}
+
+	var loaded models.Task
+	if err := database.Preload("Client").Where("task_id = ?", "task-1").First(&loaded).Error; err != nil {
+		t.Fatalf("load task without client: %v", err)
+	}
+	if loaded.ClientID != nil {
+		t.Fatalf("expected nil client id, got %v", *loaded.ClientID)
+	}
+
+	exp := loaded.ToExpTask()
+	if exp.Title != "Title - Project" {
+		t.Fatalf("expected fallback title %q, got %q", "Title - Project", exp.Title)
+	}
+}
+
 func assertStructParity(t *testing.T, bootstrap, runtime any, ignored []string) {
 	t.Helper()
 
