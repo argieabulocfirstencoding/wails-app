@@ -280,38 +280,39 @@ func (t *TaskService) StopTracking(taskId string) {
 		return
 	}
 
-	// Syncing TaskRecord to Firebase
+	taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)
+	t.TaskRecord = taskRecord
+	if err != nil {
+		t.Logger.Printf("error retrieving task record: %v\n", err)
+		clearActiveTaskCache()
+		return
+	}
+	if taskRecord == nil {
+		t.Logger.Printf("error retrieving task record: no record found for user %s task %s\n", userId, taskId)
+		clearActiveTaskCache()
+		return
+	}
+
+	if err := db.DB.Model(taskRecord).Updates(map[string]any{
+		"sync_status": syncStatePending,
+		"last_error":  "",
+		"synced_at":   nil,
+	}).Error; err != nil {
+		t.Logger.Printf("error updating sync status: %v", types.WrapOperation("task.stop.mark_pending", taskRecord.ID, userId, err))
+		clearActiveTaskCache()
+		return
+	}
+
+	// Syncing TaskRecord to the active production sync service.
 	if t.Connectivity.IsOnline() {
-		// Retrieving TaskRecord from TaskRecordID
 		t.Logger.Print("Attempting to sync record")
-		taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)
-		t.TaskRecord = taskRecord
-
-		if err != nil {
-			t.Logger.Printf("error retrieving task record: %v\n", err)
-		}
-		if taskRecord == nil {
-			t.Logger.Printf("error retrieving task record: no record found for user %s task %s\n", userId, taskId)
-		}
-
-		if err != nil || taskRecord == nil {
-			clearActiveTaskCache()
-			return
-		}
 		t.Logger.Printf("Syncing record: %v\n", taskRecord)
-		if err := db.DB.Model(taskRecord).Update("sync_status", "pending").Error; err != nil {
-			t.Logger.Printf("error updating sync status: %v", types.WrapOperation("task.stop.mark_pending", taskRecord.ID, userId, err))
-			clearActiveTaskCache()
-			return
-		}
-
 		if err := t.SyncService.SyncTaskRecord(taskRecord.ID); err != nil {
 			t.Logger.Printf("error syncing task_record: %v", err)
 		}
-
-		t.TaskRecord = nil
 	}
 
+	t.TaskRecord = nil
 	clearActiveTaskCache()
 }
 

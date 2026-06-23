@@ -27,7 +27,6 @@ import (
 	"github.com/getlantern/systray"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
-	"github.com/zalando/go-keyring"
 	"gorm.io/gorm"
 
 	"github.com/blang/semver"
@@ -92,15 +91,14 @@ func NewApp() *App {
 	}
 
 	authService.SyncService = syncService
-
-	authService.TaskService.Connect(app.ctx)
+	authService.AttendanceService.SyncService = syncService
 	authService.TaskService.WorkingTaskID = &app.WorkingTaskID
 	authService.TaskService.Attendance = &app.Attendance
 	authService.TaskService.ScreenshotService = screenshotService
 	authService.TaskService.SyncService = syncService
 	screenshotService.SyncService = syncService
-
-	syncService.Connect(app.ctx)
+	syncService.Attendance = &app.Attendance
+	syncService.TaskRecord = &authService.TaskService.TaskRecord
 
 	return app
 }
@@ -112,6 +110,7 @@ var trayIcon []byte
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	a.AuthService.TaskService.Connect(ctx)
 
 	env := runtime.Environment(ctx)
 	if err := utils.ConfigureLogger(env.BuildType); err != nil {
@@ -178,15 +177,28 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) Shutdown(ctx context.Context) {
 	a.ctx = ctx
 
-	// cleanup logic here
-	runtime.EventsEmit(ctx, "app_shutdown")
+	if a.ScreenshotService != nil {
+		a.ScreenshotService.Stop()
+	}
+
+	// Shutdown should stop local tracking once and leave the record retryable on next launch.
+	a.Connectivity.SetOnline(false)
 	if a.WorkingTaskID != nil {
-		a.StopTracking(*a.WorkingTaskID)
-		runtime.LogPrintf(ctx, "Closing task: %s", *a.WorkingTaskID)
+		taskID := *a.WorkingTaskID
+		a.StopTracking(taskID)
+		safeRuntimeLogPrintf(ctx, "Closing task: %s", taskID)
 	}
 
 	a.SyncService.Shutdown()
-	runtime.LogPrint(ctx, "App is shutdown")
+
+	func() {
+		defer func() {
+			_ = recover()
+		}()
+		systray.Quit()
+	}()
+
+	safeRuntimeLogPrint(ctx, "App is shutdown")
 }
 
 func (a *App) GetMonitorCount() int {
@@ -194,25 +206,14 @@ func (a *App) GetMonitorCount() int {
 }
 
 func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) error {
-	return a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan)
+	if err := a.AuthService.TaskService.StartTracking(taskId, localStorageValue, padagan); err != nil {
+		return a.stableClientError("start_tracking", err)
+	}
+	return nil
 }
 
 func (a *App) StopTracking(taskId string) {
 	a.AuthService.TaskService.StopTracking(taskId)
-}
-
-func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
-	// NOTE this needs to be refactor, no logic should be applied here
-	dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type:    runtime.QuestionDialog,
-		Title:   "Quit?",
-		Message: "Are you sure you want to quit? \n\nNote:Leaving will stop working task.",
-	})
-
-	if err != nil {
-		return false
-	}
-	return dialog != "Yes"
 }
 
 // NOTE this is offline login
@@ -227,9 +228,12 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.Connectivity.SetOnline(false)
 
 	a.AttendanceID = &attendance.ID
+	a.Attendance = attendance
 	a.AuthUser = authUser
-	a.AuthService.TaskService.SyncService.AuthUser = authUser
-	a.AuthService.TaskService.Attendance = &attendance
+	a.SyncService.AuthUser = authUser
+	a.SyncService.Attendance = &a.Attendance
+	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
+	a.AuthService.TaskService.Attendance = &a.Attendance
 	a.AuthService.TaskService.Connect(a.ctx)
 	a.Logger.Infof("op=login_offline_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
@@ -249,8 +253,10 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	a.AuthUser = authUser
 
 	a.Connectivity.SetOnline(true)
+	a.AuthService.TaskService.Attendance = &a.Attendance
 	a.SyncService.AuthUser = authUser
 	a.SyncService.Attendance = &a.Attendance
+	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
 	a.SyncService.KickoffAutoSyncOnLogin(attendance)
 	a.Logger.Infof("op=login_online_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
@@ -260,91 +266,21 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 // REFACTOR this is not used anymore, was used on firebase integration
 // TODO recheck if this will sustain online login method
 func (a *App) BackendFirebaseSync(user_id, email, accessToken, refreshToken, expiresIn string) (*models.Attendance, error) {
-	correlationID := utils.NewCorrelationID("firebase_sync")
-	a.Logger.Infof("op=firebase_sync_start correlation_id=%s user_id=%s", correlationID, strings.TrimSpace(user_id))
-	// NOTE this needs to be refactor, no logic should be applied here
-	user := &models.FirebaseLoginResponse{
-		LocalID:      user_id,
-		Email:        email,
-		IDToken:      accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    expiresIn,
-	}
-
-	// Creates a local representation of your account
-	model_user, err := services.CreateUser(user.LocalID, user.Email)
-	if err != nil {
-		fmt.Printf("error creating account %s\n", err)
-		a.Logger.Warnf("op=firebase_sync_failed correlation_id=%s stage=create_user err=%v", correlationID, err)
-		return nil, err
-	}
-
-	authUser := &models.AuthUser{
-		LocalID: user.LocalID,
-		Email:   user.Email,
-	}
-
-	attendance, err := services.LoginAttendance(authUser.LocalID)
-	if attendance == nil {
-		a.Logger.Warnf("op=firebase_sync_failed correlation_id=%s stage=login_attendance err=%v", correlationID, err)
-		return nil, err
-	}
-
-	attendanceID := &attendance.ID
-
-	if model_user != nil && attendanceID != nil {
-		utils.GoSafe("app.backend_firebase_sync.sync_attendance", func() {
-			services.FetchEmployeeDetails(a.ctx, model_user)
-			attendance, err := services.GetAttendanceFromID(*attendanceID)
-			if err != nil {
-				return
-			}
-			a.FirebaseSyncService.SyncAttendance(attendance)
-		})
-	}
-
-	keyring.Set("refresh", email, refreshToken)
-	now := time.Now()
-
-	a.AttendanceID = attendanceID
-	a.AuthUser = authUser
-	// a.SyncService.Backblaze.AuthUser = user
-	a.FirebaseSyncService.AuthUser = user
-	a.FirebaseSyncService.IdToken = &user.IDToken
-	a.FirebaseSyncService.IssuedAt = &now
-
-	// TODO handle checking connection and only one connection attempt at a time
-	utils.GoSafe("app.backend_firebase_sync.sync_user", func() {
-		a.FirebaseSyncService.Connect(a.ctx)
-		a.FirebaseSyncService.SyncUser(*authUser)
-		// a.SyncService.SyncTasks()
-
-	})
-
-	// Syncing attendance
-	// attendance, err := services.GetAttendanceFromID(*attendanceID)
-	// if err != nil {
-	// 	fmt.Printf("error on sync connection %s", err)
-	// }
-
-	// services.NewSyncService().SyncAttendance(attendance)
-
-	a.Connectivity.SetOnline(true)
-	if err := services.AutoCloseStuckSessions(authUser.LocalID); err != nil {
-		a.Logger.Warnf("op=firebase_sync_failed correlation_id=%s stage=auto_close_sessions err=%v", correlationID, err)
-		return nil, err
-	}
-	a.Logger.Infof("op=firebase_sync_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
-	return attendance, nil
+	return nil, types.NewStableError("LEGACY_SYNC_DISABLED", "Legacy Firebase sync is disabled in this release.")
 }
 
 func (a *App) FetchUserDetails() (*models.AuthUser, error) {
-	user, err := services.GetUserFromId(a.AuthUser.LocalID)
+	authUser, err := a.requireAuthenticatedUser()
 	if err != nil {
 		return nil, err
 	}
 
-	authUser := &models.AuthUser{
+	user, err := services.GetUserFromId(authUser.LocalID)
+	if err != nil {
+		return nil, a.stableClientError("fetch_user_details", err)
+	}
+
+	details := &models.AuthUser{
 		LocalID:   user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
@@ -356,7 +292,7 @@ func (a *App) FetchUserDetails() (*models.AuthUser, error) {
 		FESID:     user.FESID,
 	}
 
-	return authUser, nil
+	return details, nil
 }
 
 func (a *App) LogoutUser() error {
@@ -364,30 +300,27 @@ func (a *App) LogoutUser() error {
 	err := a.AuthService.Logout()
 	if err == nil {
 		a.Connectivity.SetOnline(false)
+		a.clearSessionState()
 	}
 	return err
 }
 
 func (a *App) GetActiveTaskRecord() *string {
+	if _, err := a.requireAuthenticatedUser(); err != nil {
+		a.clearActiveTaskState(true)
+		return nil
+	}
+
 	// NOTE this needs to be refactor, no logic should be applied here
 	taskRecord, err := a.AuthService.TaskService.GetActiveTaskRecord(a.AuthUser.LocalID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Logger.Print("No active record")
-			a.WorkingTaskID = nil
-			if a.ScreenshotService != nil {
-				a.ScreenshotService.TaskID = nil
-				a.ScreenshotService.TaskRecordID = nil
-				a.ScreenshotService.Stop()
-			}
+			a.clearActiveTaskState(true)
 			return nil
 		} else {
 			utils.Logger.Printf("Error getting active record %v", err)
-			a.WorkingTaskID = nil
-			if a.ScreenshotService != nil {
-				a.ScreenshotService.TaskID = nil
-				a.ScreenshotService.TaskRecordID = nil
-			}
+			a.clearActiveTaskState(false)
 			return nil
 		}
 	}
@@ -406,7 +339,15 @@ func (a *App) GetActiveTaskRecord() *string {
 }
 
 func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {
-	record, _ := a.ScreenshotService.GetLatestRecordsWithScreenshots(a.AuthUser.LocalID, taskId)
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+
+	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(authUser.LocalID, taskId)
+	if err != nil {
+		return nil, a.stableClientError("get_last_task_record", err)
+	}
 	// Removed erro handling for record beause most times when screenshots are deleted they throws an error here messing up "break".
 	// So move forward disregarding if break is found or not.
 	return record, nil
@@ -417,10 +358,14 @@ func (a *App) SetTaskRecordNotes(taskRecordId uint, notes string) {
 }
 
 func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
-
-	task, err := services.CreateTask(a.AuthUser.LocalID, title, client, nil)
+	authUser, err := a.requireAuthenticatedUser()
 	if err != nil {
 		return nil, err
+	}
+
+	task, err := services.CreateTask(authUser.LocalID, title, client, nil)
+	if err != nil {
+		return nil, a.stableClientError("create_task", err)
 	}
 
 	expTask := task.ToExpTask()
@@ -428,10 +373,21 @@ func (a *App) CreateTask(title, client string) (*models.ExpTask, error) {
 }
 
 func (a *App) GetTasks(isOnline bool) ([]models.ExpTask, error) {
-	return a.AuthService.TaskService.GetTasks(isOnline)
+	tasks, err := a.AuthService.TaskService.GetTasks(isOnline)
+	if err != nil {
+		return nil, a.stableClientError("get_tasks", err)
+	}
+	return tasks, nil
 }
 
 func (a *App) FetchActiveTask() error {
+	if _, err := a.requireAuthenticatedUser(); err != nil {
+		return err
+	}
+	if a.Attendance == nil {
+		return types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
+	}
+
 	_, err := a.SyncService.SyncActiveTaskRecord()
 	if err != nil {
 		return a.stableClientError("fetch_active_task", err)
@@ -483,11 +439,7 @@ func (a *App) GetAccounts() ([]models.User, error) {
 
 // Not used yet
 func (a *App) SyncAttendance() error {
-	if err := a.FirebaseSyncService.SyncAllAttendance(); err != nil {
-		return err
-	}
-
-	return nil
+	return a.SyncUnsyncedAttendance()
 }
 
 // Not used yet
@@ -610,7 +562,11 @@ func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error)
 // This is used to get the tasks that have recently used so that it can be quickly seen.
 // Tasks Records displayed will be ordered by how recent they are
 func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
-	return a.AuthService.TaskService.GetLastTaskRecords()
+	records, err := a.AuthService.TaskService.GetLastTaskRecords()
+	if err != nil {
+		return nil, a.stableClientError("get_last_task_records", err)
+	}
+	return records, nil
 }
 
 func (a *App) AddMemo(memo, notes string) {
@@ -830,7 +786,14 @@ func (a *App) DownloadAndInstall(url string) error {
 	a.logUpdaterDecision("download_install_execute_started", map[string]any{
 		"path": tempPath,
 	})
-	os.Exit(0)
+
+	if a.ctx != nil {
+		go func(ctx context.Context) {
+			time.Sleep(250 * time.Millisecond)
+			runtime.Quit(ctx)
+		}(a.ctx)
+	}
+
 	return nil
 }
 
@@ -991,4 +954,60 @@ func (a *App) safeUserID() string {
 		return ""
 	}
 	return a.AuthUser.LocalID
+}
+
+func (a *App) requireAuthenticatedUser() (*models.AuthUser, error) {
+	if a.AuthUser == nil || strings.TrimSpace(a.AuthUser.LocalID) == "" {
+		return nil, types.NewStableError("AUTH_REQUIRED", "Login required.")
+	}
+	return a.AuthUser, nil
+}
+
+func (a *App) clearActiveTaskState(stopScreenshot bool) {
+	a.WorkingTaskID = nil
+
+	if a.AuthService != nil && a.AuthService.TaskService != nil {
+		a.AuthService.TaskService.TaskRecord = nil
+	}
+
+	if a.ScreenshotService != nil {
+		if stopScreenshot {
+			a.ScreenshotService.Stop()
+		}
+		a.ScreenshotService.TaskID = nil
+		a.ScreenshotService.TaskRecordID = nil
+	}
+}
+
+func (a *App) clearSessionState() {
+	a.clearActiveTaskState(true)
+	a.Attendance = nil
+	a.AttendanceID = nil
+	a.AuthUser = nil
+
+	if a.SyncService != nil {
+		a.SyncService.AuthUser = nil
+	}
+}
+
+func safeRuntimeLogPrint(ctx context.Context, message string) {
+	if ctx == nil {
+		return
+	}
+
+	defer func() {
+		_ = recover()
+	}()
+	runtime.LogPrint(ctx, message)
+}
+
+func safeRuntimeLogPrintf(ctx context.Context, format string, args ...any) {
+	if ctx == nil {
+		return
+	}
+
+	defer func() {
+		_ = recover()
+	}()
+	runtime.LogPrintf(ctx, format, args...)
 }

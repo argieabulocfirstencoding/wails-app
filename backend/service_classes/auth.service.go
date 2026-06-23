@@ -63,7 +63,11 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	}
 
 	// NOTE INITIALIZATIONS
-	a.TaskService.Attendance = &attendance
+	if a.TaskService.Attendance != nil {
+		*a.TaskService.Attendance = attendance
+	} else {
+		a.TaskService.Attendance = &attendance
+	}
 	a.TaskService.SyncService.AuthUser = authUser
 
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance

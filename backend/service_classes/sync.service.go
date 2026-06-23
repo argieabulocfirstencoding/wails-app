@@ -58,6 +58,7 @@ type SyncService struct {
 	queueCtx        context.Context
 	queueCancel     context.CancelFunc
 	queueWorkerOnce sync.Once
+	workerDone      chan struct{}
 
 	lifecycleMu sync.RWMutex
 	stopped     bool
@@ -88,9 +89,11 @@ func NewSyncService(connectivity ...*ConnectivityStateService) *SyncService {
 }
 
 func (s *SyncService) Connect(ctx context.Context) error {
-	if ctx != nil {
-		s.ctx = ctx
+	if ctx == nil {
+		return nil
 	}
+
+	s.ctx = ctx
 	s.startQueueWorker()
 	return nil
 }
@@ -107,6 +110,16 @@ func (s *SyncService) Shutdown() {
 
 	if cancel != nil {
 		cancel()
+	}
+
+	if done := s.workerDone; done != nil {
+		timer := time.NewTimer(3 * time.Second)
+		defer timer.Stop()
+
+		select {
+		case <-done:
+		case <-timer.C:
+		}
 	}
 }
 
@@ -195,6 +208,14 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 		return s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, fmt.Errorf("cannot sync task record while offline"))
 	}
 
+	if taskRecord.EndedAt == nil && taskRecordHasRemoteProductivity(taskRecord) {
+		return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
+	}
+
+	if taskRecord.EndedAt != nil && strings.EqualFold(taskRecord.SyncStatus, syncStateSynced) {
+		return nil
+	}
+
 	if err := s.updateTaskRecordSyncState(taskRecord, syncStateInProgress, nil); err != nil {
 		return err
 	}
@@ -212,30 +233,29 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 	}
 
 	if taskRecord.EndedAt != nil {
-		s.Logger.Printlnf("Syncing TASK OUT")
-
-		if resp, err := s.FesClientService.Request(types.Request{
-			Url:    "wf/task_out",
-			Method: "POST",
-			Body: map[string]any{
-				"activity_description": strings.ReplaceAll(taskRecord.Notes, "||", "-"),
-				"productivity":         taskRecord.Productivity,
-				"total_task_time":      taskRecord.Duration,
-				"task_out":             taskRecord.EndedAt.UnixMilli(),
-			},
-		}); err != nil {
-			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
-			return err
-		} else {
-			s.Logger.Printlnf("Sync Task Record Response: %v", resp)
-			if err := s.reconcileTaskRecord(taskRecord, attendance); err != nil {
+		if !taskRecordHasRemoteProductivity(taskRecord) {
+			if err := s.syncTaskIn(taskRecord, attendance, user); err != nil {
 				_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 				return err
 			}
-			return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
 		}
+
+		if err := s.syncTaskOut(taskRecord); err != nil {
+			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
+			return err
+		}
+		return nil
 	}
 
+	if err := s.syncTaskIn(taskRecord, attendance, user); err != nil {
+		_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *models.Attendance, user *models.User) error {
 	padagan := "No"
 	if taskRecord.Padagan {
 		padagan = "Yes"
@@ -244,7 +264,6 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 	task, err := s.TaskRepository.GetTaskFromTaskID(taskRecord.TaskID)
 	if err != nil {
 		s.Logger.Printlnf("Task not found on syncing task record, important for determining of upwork account. err: %v", err)
-		_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 		return err
 	}
 
@@ -265,7 +284,6 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 			"activity_description": taskRecord.Notes,
 		},
 	}); err != nil {
-		_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 		return err
 	} else {
 		s.Logger.Printlnf("Sync Task Record Response: %v", resp)
@@ -276,11 +294,34 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 		}
 
 		if err := s.reconcileTaskRecord(taskRecord, attendance); err != nil {
-			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 			return err
 		}
 		return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
 	}
+}
+
+func (s *SyncService) syncTaskOut(taskRecord *models.TaskRecord) error {
+	if !taskRecordHasRemoteProductivity(taskRecord) {
+		return fmt.Errorf("cannot sync task out without a remote productivity identifier")
+	}
+
+	s.Logger.Printlnf("Syncing TASK OUT")
+	resp, err := s.FesClientService.Request(types.Request{
+		Url:    "wf/task_out",
+		Method: "POST",
+		Body: map[string]any{
+			"activity_description": strings.ReplaceAll(taskRecord.Notes, "||", "-"),
+			"productivity":         taskRecord.Productivity,
+			"total_task_time":      taskRecord.Duration,
+			"task_out":             taskRecord.EndedAt.UnixMilli(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	s.Logger.Printlnf("Sync Task Record Response: %v", resp)
+	return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
 }
 
 func (s *SyncService) ensureAttendanceReadyForTaskSync(ctx context.Context, attendanceID uint) (*models.Attendance, error) {
@@ -396,46 +437,75 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 		return s.updateAttendanceSyncState(attendance, syncStateBlocked, fmt.Errorf("cannot sync attendance while offline"))
 	}
 
+	if attendance.TimeOut != nil && attendanceLogoutAlreadySynced(attendance) {
+		return nil
+	}
+
+	if attendance.TimeOut == nil && attendanceLoginAlreadySynced(attendance) {
+		return nil
+	}
+
 	if err := s.updateAttendanceSyncState(attendance, syncStateInProgress, nil); err != nil {
 		return err
 	}
 
-	if attendance.TimeOut != nil && attendance.LoginLogoutID != nil {
-		email := ""
-		if s.AuthUser != nil {
-			email = s.AuthUser.Email
-		}
-
-		if email == "" {
-			user, userErr := s.UserRepository.GetUserFromId(attendance.UserID)
-			if userErr != nil {
-				return fmt.Errorf("unable to resolve user email for logout sync: %w", userErr)
+	if attendance.TimeOut != nil {
+		if !attendanceHasRemoteLoginLogout(attendance) {
+			if err := s.syncAttendanceLogin(attendance); err != nil {
+				return err
 			}
-			email = user.Email
 		}
 
-		if email == "" {
-			return fmt.Errorf("unable to resolve user email for logout sync")
-		}
-
-		if resp, err := s.FesClientService.Request(types.Request{
-			Url:    "wf/logout",
-			Method: "POST",
-			Body: map[string]any{
-				"email":        email,
-				"login_logout": *attendance.LoginLogoutID,
-				"date_logout":  attendance.TimeOut.UnixMilli(),
-				"duration":     int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),
-			},
-		}); err != nil {
-			_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
-			return err
-		} else {
-			s.Logger.Printlnf("Sync Attendance Response: %v", resp)
-			return s.updateAttendanceSyncState(attendance, syncStateSynced, nil)
-		}
+		return s.syncAttendanceLogout(attendance)
 	}
 
+	return s.syncAttendanceLogin(attendance)
+}
+
+func (s *SyncService) syncAttendanceLogout(attendance *models.Attendance) error {
+	if attendance == nil || attendance.TimeOut == nil {
+		return fmt.Errorf("cannot sync logout without a completed attendance")
+	}
+	if !attendanceHasRemoteLoginLogout(attendance) {
+		return fmt.Errorf("cannot sync logout without login_logout")
+	}
+
+	email := ""
+	if s.AuthUser != nil {
+		email = s.AuthUser.Email
+	}
+
+	if email == "" {
+		user, userErr := s.UserRepository.GetUserFromId(attendance.UserID)
+		if userErr != nil {
+			return fmt.Errorf("unable to resolve user email for logout sync: %w", userErr)
+		}
+		email = user.Email
+	}
+
+	if email == "" {
+		return fmt.Errorf("unable to resolve user email for logout sync")
+	}
+
+	if resp, err := s.FesClientService.Request(types.Request{
+		Url:    "wf/logout",
+		Method: "POST",
+		Body: map[string]any{
+			"email":        email,
+			"login_logout": *attendance.LoginLogoutID,
+			"date_logout":  attendance.TimeOut.UnixMilli(),
+			"duration":     int(attendance.TimeOut.Sub(attendance.TimeIn).Seconds()),
+		},
+	}); err != nil {
+		_ = s.updateAttendanceSyncState(attendance, syncStateFailed, err)
+		return err
+	} else {
+		s.Logger.Printlnf("Sync Attendance Response: %v", resp)
+		return s.updateAttendanceSyncState(attendance, syncStateSynced, nil)
+	}
+}
+
+func (s *SyncService) syncAttendanceLogin(attendance *models.Attendance) error {
 	body := map[string]any{
 		"login": attendance.TimeIn.UnixMilli(),
 	}
@@ -589,19 +659,31 @@ func (s *SyncService) RefreshAccessToken() {
 }
 
 func (s *SyncService) startQueueWorker() {
-	s.queueWorkerOnce.Do(func() {
-		workerCtx := s.ctx
-		if workerCtx == nil {
-			workerCtx = context.Background()
-		}
+	s.lifecycleMu.RLock()
+	stopped := s.stopped
+	s.lifecycleMu.RUnlock()
+	if stopped {
+		return
+	}
+	if s.ctx == nil {
+		return
+	}
 
-		s.queueCtx, s.queueCancel = context.WithCancel(workerCtx)
+	s.queueWorkerOnce.Do(func() {
+		s.queueCtx, s.queueCancel = context.WithCancel(s.ctx)
 		s.queue = make(chan *syncJob, 256)
+		s.workerDone = make(chan struct{})
 		utils.GoSafe("sync.queue_worker", s.runQueueWorker)
 	})
 }
 
 func (s *SyncService) runQueueWorker() {
+	defer func() {
+		if s.workerDone != nil {
+			close(s.workerDone)
+		}
+	}()
+
 	for {
 		select {
 		case <-s.queueCtx.Done():
@@ -609,6 +691,13 @@ func (s *SyncService) runQueueWorker() {
 		case job := <-s.queue:
 			if job == nil {
 				continue
+			}
+			if s.queueCtx.Err() != nil {
+				if job.result != nil {
+					job.result <- s.queueCtx.Err()
+					close(job.result)
+				}
+				return
 			}
 
 			err := s.executeQueuedJob(job)
@@ -626,6 +715,9 @@ func (s *SyncService) enqueueAndWait(job *syncJob) error {
 	}
 
 	s.startQueueWorker()
+	if s.queueCtx == nil || s.queue == nil {
+		return fmt.Errorf("sync queue is unavailable")
+	}
 
 	s.lifecycleMu.RLock()
 	stopped := s.stopped
@@ -864,4 +956,36 @@ func (s *SyncService) releasePending(key string) {
 	s.pendingMu.Lock()
 	delete(s.pendingSet, key)
 	s.pendingMu.Unlock()
+}
+
+func attendanceHasRemoteLoginLogout(attendance *models.Attendance) bool {
+	if attendance == nil || attendance.LoginLogoutID == nil {
+		return false
+	}
+
+	return strings.TrimSpace(*attendance.LoginLogoutID) != ""
+}
+
+func attendanceLoginAlreadySynced(attendance *models.Attendance) bool {
+	return attendanceHasRemoteLoginLogout(attendance) && strings.EqualFold(attendance.SyncStatus, syncStateSynced)
+}
+
+func attendanceLogoutAlreadySynced(attendance *models.Attendance) bool {
+	if attendance == nil || attendance.TimeOut == nil {
+		return false
+	}
+	if !strings.EqualFold(attendance.SyncStatus, syncStateSynced) {
+		return false
+	}
+	if attendance.SyncedAt == nil {
+		return false
+	}
+	return !attendance.SyncedAt.Before(*attendance.TimeOut)
+}
+
+func taskRecordHasRemoteProductivity(taskRecord *models.TaskRecord) bool {
+	if taskRecord == nil || taskRecord.Productivity == nil {
+		return false
+	}
+	return strings.TrimSpace(*taskRecord.Productivity) != ""
 }

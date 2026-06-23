@@ -201,8 +201,9 @@ func (t *TaskRepository) UpdateRecord(tr *models.TaskRecord) error {
 
 	// This part updates the database
 	return db.DB.Model(tr).Updates(models.TaskRecord{
-		EndedAt:  tr.EndedAt,
-		Duration: tr.Duration,
+		EndedAt:    tr.EndedAt,
+		Duration:   tr.Duration,
+		SyncStatus: "pending",
 	}).Error
 }
 
