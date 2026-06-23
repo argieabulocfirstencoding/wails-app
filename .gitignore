@@ -6,3 +6,7 @@ backend/screenshots
 .gitattributes
 .env
 log.txt
+.gocache
+.gomodcache
+.tmp
+*.go.*
