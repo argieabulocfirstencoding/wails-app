@@ -53,6 +53,22 @@ func (t *TaskRepository) BulkCreateClients(clients []models.Client) error {
 	}).Create(&clients).Error
 }
 
+func (t *TaskRepository) ClientExists(id string) (bool, error) {
+	if id == "" {
+		return false, nil
+	}
+
+	var count int64
+	if err := db.DB.Model(&models.Client{}).
+		Where("id = ?", id).
+		Limit(1).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func (t *TaskRepository) GetTask(id string) (*models.Task, error) {
 	var task models.Task
 	if err := db.DB.Where("id = ?", id).First(&task).Error; err != nil {
@@ -91,7 +107,7 @@ func (t *TaskRepository) DeleteTask(id string) error {
 }
 
 func (t *TaskRepository) CreateTaskRecord(record *models.TaskRecord) error {
-	return db.DB.Create(&record).Error
+	return db.DB.Create(record).Error
 }
 
 func (t *TaskRepository) UpdateTaskRecord(oldRecord, newRecord *models.TaskRecord) error {
@@ -100,10 +116,8 @@ func (t *TaskRepository) UpdateTaskRecord(oldRecord, newRecord *models.TaskRecor
 
 func (t *TaskRepository) CheckTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
-	if err := db.DB.Where("user_id = ? AND ended_at IS NULL", userId).First(&taskRecord).Error; err != nil {
-		fmt.Print(err)
-
-		return nil, nil
+	if err := db.DB.Where("user_id = ? AND task_id = ? AND ended_at IS NULL", userId, taskId).First(&taskRecord).Error; err != nil {
+		return nil, err
 	}
 
 	return &taskRecord, nil
@@ -121,25 +135,30 @@ func (t *TaskRepository) GetTaskRecord(id uint) (*models.TaskRecord, error) {
 }
 
 func (t *TaskRepository) StopAllActiveRecords(attendance *models.Attendance) error {
+	if attendance == nil {
+		return fmt.Errorf("stop active records: attendance is nil")
+	}
+
 	now := time.Now()
 	var taskRecords []models.TaskRecord
-
-	fmt.Println("pass here stoppping all active records")
 
 	if err := db.DB.Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", attendance.UserID, attendance.ID).
 		Find(&taskRecords).Error; err != nil {
 		return err
 	}
 
-	for _, taskRecord := range taskRecords {
-		taskRecord.SyncStatus = "pending"
-		taskRecord.EndedAt = &now
-		taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, taskRecord := range taskRecords {
+			taskRecord.SyncStatus = "pending"
+			taskRecord.EndedAt = &now
+			taskRecord.Duration = int32(now.Sub(taskRecord.StartedAt).Seconds())
 
-		db.DB.Save(&taskRecord)
-	}
-
-	return nil
+			if err := tx.Save(&taskRecord).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.TaskRecord, error) {
@@ -182,8 +201,9 @@ func (t *TaskRepository) UpdateRecord(tr *models.TaskRecord) error {
 
 	// This part updates the database
 	return db.DB.Model(tr).Updates(models.TaskRecord{
-		EndedAt:  tr.EndedAt,
-		Duration: tr.Duration,
+		EndedAt:    tr.EndedAt,
+		Duration:   tr.Duration,
+		SyncStatus: "pending",
 	}).Error
 }
 

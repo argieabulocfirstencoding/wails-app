@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import "./App.scss";
 import "./styles/style.scss";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -10,18 +10,12 @@ import Notifications from "./pages/Main/Notifications";
 import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
 
-import { CheckForUpdates, DownloadAndInstall, StopTracking } from "../wailsjs/go/app/App";
-import { EventsOn } from "../wailsjs/runtime";
+import { CheckForUpdates, DownloadAndInstall } from "../wailsjs/go/app/App";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
-import { useAuthStore } from "./store/AuthContext";
 import OfflineLogin from "./pages/Auth/OfflineLogin";
 import Landing from "./pages/Landing";
-
-interface ScreenshotProps {
-  date: number;
-  pictures: string[];
-}
+import { releaseFlags } from "./config/release";
 
 interface UpdateInfo {
   exists: boolean;
@@ -33,9 +27,13 @@ function App() {
   useFirebaseAuth();
   useOnlineStatus();
 
-  const { taskID } = useAuthStore();
+  const enableReleaseUpdates = import.meta.env.VITE_ENABLE_RELEASE_UPDATES === "true";
 
   useEffect(() => {
+    if (!enableReleaseUpdates) {
+      return;
+    }
+
     const handleUpdateCheck = async () => {
       try {
         const info: UpdateInfo = await CheckForUpdates();
@@ -56,26 +54,14 @@ function App() {
       }
     };
 
-    handleUpdateCheck();
-  }, []); // Empty dependency array ensures this runs once on startup
-
-  useEffect(() => {
-    if (!EventsOn) return;
-
-    console.log("SHUTDOWN EVENT HANDLER LOADED");
-    // TODO this is just temporary measures to ensure logging out of account means task end
-    const off = EventsOn("app_shutdown", async () => {
-      console.log("SHUTTING DOWN EVENT RECEIVED!");
-      if (taskID) {
-        await StopTracking(taskID);
-        console.log("SHUTDOWN LOGGED OFF TRACKER");
-      }
-    });
+    const timerId = window.setTimeout(() => {
+      handleUpdateCheck();
+    }, releaseFlags.updateCheckDelayMs);
 
     return () => {
-      off();
+      window.clearTimeout(timerId);
     };
-  }, [taskID]);
+  }, [enableReleaseUpdates]);
 
   return (
     <BrowserRouter>

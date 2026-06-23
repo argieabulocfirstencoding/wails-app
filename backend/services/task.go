@@ -4,6 +4,7 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm/clause"
 )
@@ -11,9 +12,14 @@ import (
 // TODO on firebase task integration, use firebase task id
 func CreateTask(userId, title, ClientID string, taskID *string) (*db.Task, error) {
 	// NOTE deprecated, desktop users cannot create new tasks, backend function only
+	var clientID *string
+	if trimmed := strings.TrimSpace(ClientID); trimmed != "" {
+		clientID = models.StringPtr(trimmed)
+	}
+
 	task := db.Task{
 		Title:    title,
-		ClientID: ClientID,
+		ClientID: clientID,
 		// UserID:   userId,
 	}
 

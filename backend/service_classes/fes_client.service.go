@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	config "fesapp/backend"
+	"errors"
 	db "fesapp/backend/db/models"
 	"fesapp/backend/repository"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"os/exec"
 	"time"
@@ -31,11 +33,19 @@ type FesClientService struct {
 	client         *http.Client
 	logger         *utils.LoggerService
 	TaskRepository *repository.TaskRepository
+	Connectivity   *ConnectivityStateService
 	ctx            context.Context
 	apiToken       string
 }
 
-func NewFesClientService() *FesClientService {
+func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientService {
+	var connectivityState *ConnectivityStateService
+	if len(connectivity) > 0 {
+		connectivityState = connectivity[0]
+	}
+	if connectivityState == nil {
+		connectivityState = NewConnectivityStateService()
+	}
 
 	baseUrl := "https://firstencoding.app/api/1.1/"
 	_, exists := os.LookupEnv("DEVELOPMENT")
@@ -46,9 +56,10 @@ func NewFesClientService() *FesClientService {
 	return &FesClientService{
 		// baseUrl: "https://firstencoding.app/version-test/api/1.1/",
 		baseUrl:        baseUrl,
-		client:         &http.Client{},
+		client:         &http.Client{Timeout: 30 * time.Second},
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
+		Connectivity:   connectivityState,
 	}
 
 }
@@ -95,15 +106,34 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	req.Header.Set("Authorization", "Bearer "+apiToken)
 	req.Header.Set("Content-Type", "application/json") // important for JSON
 
-	client := &http.Client{}
-	res, err := client.Do(req)
+	res, err := f.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
 
+	rawBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		errMsg := http.StatusText(res.StatusCode)
+
+		var parsed map[string]any
+		if len(rawBody) > 0 && json.Unmarshal(rawBody, &parsed) == nil {
+			if msg, ok := parsed["message"].(string); ok && msg != "" {
+				errMsg = msg
+			}
+		} else if trimmed := strings.TrimSpace(string(rawBody)); trimmed != "" {
+			errMsg = trimmed
+		}
+
+		return nil, fmt.Errorf("fes api request failed (%d): %s", res.StatusCode, errMsg)
+	}
+
 	var result map[string]any
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(rawBody, &result); err != nil {
 		f.logger.Printlnf("Error decoding response: %v", err)
 		return nil, err
 	}
@@ -124,7 +154,7 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 // ========================== UTILITY ===============================
 
 func (f *FesClientService) OpenFesWebApp() error {
-	if !config.OnlineMode {
+	if !f.Connectivity.IsOnline() {
 		return f.logger.Error("you are offline")
 	}
 
@@ -151,15 +181,17 @@ func (f *FesClientService) OpenFesWebApp() error {
 
 // ========================== CLIENTS & PROJECTS ===============================
 func (f *FesClientService) SyncClientsAndProjects() error {
+	var syncErrs []error
+
 	if err := f.fetchClients(); err != nil {
-		return err
+		syncErrs = append(syncErrs, fmt.Errorf("clients sync failed: %w", err))
 	}
 
 	if err := f.fetchProjects(); err != nil {
-		return err
+		syncErrs = append(syncErrs, fmt.Errorf("projects sync failed: %w", err))
 	}
 
-	return nil
+	return errors.Join(syncErrs...)
 }
 
 // FetchClients retrieves clients in bubble and store them directly in the database
@@ -220,6 +252,11 @@ func (f *FesClientService) fetchClients() error {
 			id, _ := record["_id"].(string)
 			fullName, _ := record["Full name"].(string)
 			companyName, _ := record["Company Name"].(string)
+
+			if strings.TrimSpace(id) == "" {
+				f.logger.Printf("skipping client row with empty id")
+				continue
+			}
 
 			clients = append(clients, db.Client{
 				ID:          id,
@@ -308,10 +345,29 @@ func (f *FesClientService) fetchProjects() error {
 			account, _ := record["Account"].(string)
 			projectName, _ := record["Project name"].(string)
 
+			if strings.TrimSpace(id) == "" {
+				f.logger.Printf("skipping task row with empty id")
+				continue
+			}
+
+			var clientID *string
+			trimmedClientID := strings.TrimSpace(clientId)
+			if trimmedClientID != "" {
+				exists, err := f.TaskRepository.ClientExists(trimmedClientID)
+				if err != nil {
+					return fmt.Errorf("validate client %s for task %s: %w", trimmedClientID, id, err)
+				}
+				if exists {
+					clientID = db.StringPtr(trimmedClientID)
+				} else {
+					f.logger.Printf("missing local client %s for task %s; storing task without client link", trimmedClientID, id)
+				}
+			}
+
 			tasks = append(tasks, db.Task{
 				TaskID:      id,
 				Title:       account,
-				ClientID:    clientId,
+				ClientID:    clientID,
 				ProjectName: projectName,
 			})
 		}
@@ -335,7 +391,7 @@ func (f *FesClientService) fetchProjects() error {
 }
 
 func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) {
-	if !config.OnlineMode {
+	if !f.Connectivity.IsOnline() {
 		return
 	}
 

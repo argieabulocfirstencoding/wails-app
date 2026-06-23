@@ -12,10 +12,10 @@ import {
   Briefcase,
   Moon,
   Sun,
-  CameraIcon,
   Folder,
 } from "lucide-react";
 import { GetFolderSize, ClearScreenshots } from "@/../wailsjs/go/app/App";
+import { releaseFlags } from "@/config/release";
 
 type AccountUser = {
   fullName: string;
@@ -29,7 +29,6 @@ type AccountUser = {
 };
 
 const AccountSettings = () => {
-  const storeUser = useAuthStore((s) => s.user);
   const { user } = useAuthStore();
 
   const [size, setSize] = useState<number>(0);
@@ -243,29 +242,6 @@ const AccountSettings = () => {
             </span>
           </div>
 
-          {/* Theme row with Switch */}
-          {/* <div className="px-6 py-4 flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3 flex-1">
-              <div className="mt-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 p-1.5">
-                <CameraIcon className="w-4 h-4 text-neutral-700 dark:text-neutral-200" />
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                  Screenshot
-                </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                  Switch between turning screenshot feature.
-                </p>
-              </div>
-            </div>
-
-            <Switch
-              // checked={dark}
-              // onCheckedChange={handleThemeChange}
-              className="flex-shrink-0 cursor-pointer"
-            />
-          </div> */}
-
           <div className="px-6 py-4 flex items-center justify-between gap-4">
             <div className="flex items-start gap-3 flex-1">
               <div className="mt-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 p-1.5">
@@ -276,7 +252,9 @@ const AccountSettings = () => {
                   Screenshots Storage
                 </p>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                  {byteConverter(size || 0)}
+                  {releaseFlags.screenshotsEnabled
+                    ? byteConverter(size || 0)
+                    : `Disabled for this release. Stored data: ${byteConverter(size || 0)}`}
                 </p>
               </div>
             </div>
@@ -284,6 +262,7 @@ const AccountSettings = () => {
             <Button
               className="text-white font-bold bg-red-500 cursor-pointer hover:bg-red-400 active:bg-red-700"
               onClick={clearScreenshotStorage}
+              disabled={size === 0}
             >
               Clear
             </Button>

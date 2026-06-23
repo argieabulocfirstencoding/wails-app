@@ -25,11 +25,19 @@ type BackblazeSync struct {
 	mu    sync.Mutex
 }
 
+const backblazeEnabled = false
+
 func NewBackblazeSync() *BackblazeSync {
 	return &BackblazeSync{}
 }
 
 func (b *BackblazeSync) Connect(ctx context.Context) error {
+	if !backblazeEnabled {
+		b.ctx = ctx
+		b.isConnected = false
+		return nil
+	}
+
 	b.ctx = ctx
 
 	if b.connecting {
@@ -87,6 +95,11 @@ func (b *BackblazeSync) Connect(ctx context.Context) error {
 }
 
 func (b *BackblazeSync) AttemptUpload(paths []string) ([]string, error) {
+	if !backblazeEnabled {
+		log.Println("Backblaze upload disabled for this release")
+		return nil, nil
+	}
+
 	b.mu.Lock()
 	if !b.isConnected {
 		log.Println("⚠️ Not connected — queuing upload")
@@ -116,6 +129,10 @@ func (b *BackblazeSync) AttemptUpload(paths []string) ([]string, error) {
 }
 
 func (b *BackblazeSync) upload(paths []string) ([]string, error) {
+	if !backblazeEnabled {
+		return nil, nil
+	}
+
 	remotePaths := []string{}
 
 	for _, fullpath := range paths {

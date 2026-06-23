@@ -10,10 +10,6 @@ export function BackendFirebaseSync(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['app']['App']['BackendFirebaseSync'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function BeforeClose(arg1) {
-  return window['go']['app']['App']['BeforeClose'](arg1);
-}
-
 export function CheckForUpdates() {
   return window['go']['app']['App']['CheckForUpdates']();
 }
@@ -28,6 +24,10 @@ export function CreateTask(arg1, arg2) {
 
 export function DownloadAndInstall(arg1) {
   return window['go']['app']['App']['DownloadAndInstall'](arg1);
+}
+
+export function ExportDiagnosticBundle() {
+  return window['go']['app']['App']['ExportDiagnosticBundle']();
 }
 
 export function FetchActiveTask() {
@@ -120,6 +120,10 @@ export function StopTracking(arg1) {
 
 export function SyncAttendance() {
   return window['go']['app']['App']['SyncAttendance']();
+}
+
+export function SyncAttendanceByID(arg1) {
+  return window['go']['app']['App']['SyncAttendanceByID'](arg1);
 }
 
 export function SyncUnsyncedAttendance() {

@@ -13,18 +13,15 @@ import {
   GetTasks,
   GetCurrentAttendance,
   GetLastTaskRecords,
-  SyncUnsyncedAttendance,
   FetchActiveTask,
   FetchUserDetails,
 } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
-import { Button } from "@/components/ui/button";
 import Loader from "@/components/custom/Loader";
-import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import { models, types } from "@/../wailsjs/go/models";
 import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatDistance } from "date-fns";
-import { fetchTodayClientSummary, secondsToHHMM } from "@/lib/utils";
+import { fetchTodayClientSummary } from "@/lib/utils";
 
 interface TaskProps {
   taskId: string | null;
@@ -37,8 +34,9 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSyncing, setSyncing] = useState(false);
+  const [taskSyncWarning, setTaskSyncWarning] = useState("");
   const [taskRecords, setTaskRecords] = useState<models.ExpTaskRecord[]>();
+  const [nowTick, setNowTick] = useState<number>(Date.now());
   const {
     taskID,
     setFetchedActiveRecord,
@@ -86,20 +84,45 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    async function fetchAllTaskRecords() {
-      const task_records = await GetLastTaskRecords();
+    const intervalId = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 1000);
 
-      console.log("Task Records: ", task_records);
-      setTaskRecords(task_records);
-    }
+    return () => window.clearInterval(intervalId);
+  }, []);
 
-    fetchAllTaskRecords();
+  useEffect(() => {
+    refreshTaskRecords();
+    refreshActiveRecord(true);
+  }, []);
+
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("record-synced", () => {
+      refreshTaskRecords();
+      refreshActiveRecord(true);
+    });
+
+    return () => off();
   }, []);
 
   useEffect(() => {
     const off = EventsOn("attendance-synced", (synced: boolean) => {
       setAttendanceSynced(synced);
-      setSyncing(false);
+      fetchCurrentAttendance();
+      refreshActiveRecord(true);
+    });
+
+    return () => off();
+  }, []);
+
+  useEffect(() => {
+    if (!EventsOn) return;
+
+    const off = EventsOn("tasks-sync-warning", (message: string) => {
+      setTaskSyncWarning(
+        typeof message === "string" ? message : String(message),
+      );
     });
 
     return () => off();
@@ -120,10 +143,13 @@ const Home = () => {
 
   // Initial page load (full page loader)
   async function fetchInitialTasks() {
-    if (!online || initializedTask) return;
+    if (!online) return;
+    setTaskSyncWarning("");
 
     // Initial task boolean helper that is stored in context so that it wont repeat on rerender
-    setInitializedTask(true);
+    if (!initializedTask) {
+      setInitializedTask(true);
+    }
     setLoading(true);
     try {
       if (typeof GetTasks !== "function") {
@@ -135,7 +161,7 @@ const Home = () => {
         const fetchedTasks: any = await GetTasks(false);
         if (fetchedTasks) setTasks(fetchedTasks);
       }
-      await fetchActiveRecord();
+      await refreshActiveRecord(true);
     } catch (error) {
       console.log("Error fetching initial tasks:", error);
     } finally {
@@ -143,12 +169,28 @@ const Home = () => {
     }
   }
 
-  async function fetchActiveRecord() {
-    if (online && !fetchedActiveRecord) {
-      const taskID = await GetActiveTaskRecord();
-      if (taskID) {
-        setTaskID(taskID);
-      }
+  async function refreshTaskRecords() {
+    const task_records = await GetLastTaskRecords();
+
+    console.log("Task Records: ", task_records);
+    setTaskRecords(task_records);
+    await refreshActiveRecord(true);
+  }
+
+  async function refreshActiveRecord(force = false) {
+    const { online: currentOnline, fetchedActiveRecord: currentFetchedActiveRecord } =
+      useAuthStore.getState();
+
+    if (!currentOnline) return;
+
+    if (!force && currentFetchedActiveRecord) {
+      return;
+    }
+
+    const taskID = await GetActiveTaskRecord();
+    setTaskID(taskID || null);
+
+    if (!force) {
       setFetchedActiveRecord(true);
     }
   }
@@ -183,6 +225,7 @@ const Home = () => {
   // Refresh (button)
   async function fetchTasks() {
     if (!online) return;
+    setTaskSyncWarning("");
     setIsRefreshing(true);
     try {
       if (typeof GetTasks !== "function") {
@@ -198,7 +241,7 @@ const Home = () => {
         }
       }
 
-      await fetchActiveRecord();
+      await refreshActiveRecord(true);
     } catch (error) {
       console.error("Error fetching tasks:", error);
     } finally {
@@ -208,16 +251,6 @@ const Home = () => {
         console.log("refresh finished, isRefreshing set false");
       }, 600);
     }
-  }
-
-  async function SyncCurrentAttendance() {
-    setSyncing(true);
-    await SyncUnsyncedAttendance();
-    await fetchCurrentAttendance();
-
-    setTimeout(() => {
-      setSyncing(false);
-    }, 2000);
   }
 
   const sortedTasks = useMemo(() => {
@@ -264,6 +297,16 @@ const Home = () => {
         : 0;
 
       const recordSummary = combinedSummaries[task.taskId] || null;
+      const runningRecord = records.find((r) => !r.ended_at);
+      const runningStartedAt = runningRecord?.started_at
+        ? new Date(runningRecord.started_at).getTime()
+        : NaN;
+      const runningSeconds =
+        runningRecord && Number.isFinite(runningStartedAt)
+          ? Math.max(0, Math.floor((nowTick - runningStartedAt) / 1000))
+          : 0;
+      const displayDurationSeconds =
+        (recordSummary?.TotalDuration ?? 0) + runningSeconds;
 
       return {
         ...task,
@@ -271,6 +314,7 @@ const Home = () => {
         active: task.taskId === activeTaskId,
         latestEndedAt,
         recordSummary,
+        displayDurationSeconds,
       };
     });
 
@@ -299,10 +343,15 @@ const Home = () => {
     });
 
     return mappedTasks;
-  }, [tasks, taskRecords, taskID, searchQuery]);
+  }, [tasks, taskRecords, taskID, searchQuery, summaries, nowTick]);
 
   return (
     <MainLayout>
+      {taskSyncWarning && (
+        <div className="mx-4 mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          Task sync warning: {taskSyncWarning}
+        </div>
+      )}
       {/* Full-screen refresh overlay – now covers the whole app */}
       {isRefreshing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -341,28 +390,20 @@ const Home = () => {
 
             {synced && (
               <div className="flex items-center gap-3 text-xs sm:text-sm">
-                {isSyncing ? (
-                  <div className="flex items-center gap-1 text-foreground">
-                    <span>Syncing</span>
-                    <SpinnerLoader className="scale-75" />
-                  </div>
-                ) : attendanceSynced ? (
-                  <div className="flex items-center gap-1 text-green-600 dark:text-green-400 select-none">
+                {attendanceSynced ? (
+                  <div
+                    className="inline-flex items-center gap-1 text-green-600 dark:text-green-400"
+                    title="Attendance synced"
+                  >
                     <span>Synced</span>
                     <CheckCircle className="w-4 h-4" />
                   </div>
                 ) : (
-                  <div className="flex flex-col items-end gap-1 text-amber-500">
-                    <span className="flex items-center gap-1 text-[11px] sm:text-xs select-none">
+                  <div className="flex items-center gap-1 text-foreground">
+                    <span className="flex items-center gap-1 text-[11px] sm:text-xs select-none text-amber-500">
                       Not synced
                       <TriangleAlert size={12} />
                     </span>
-                    <Button
-                      className="h-8 px-3 bg-green-500 hover:bg-green-600 rounded-full cursor-pointer text-xs sm:text-sm text-white"
-                      onClick={SyncCurrentAttendance}
-                    >
-                      {isSyncing ? "Syncing..." : "Sync now"}
-                    </Button>
                   </div>
                 )}
               </div>
@@ -508,6 +549,20 @@ interface TaskItemProps {
   active: boolean;
 }
 
+const secondsToHHMMSS = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(
+      2,
+      "0",
+    )}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
 const TaskItem = ({ task, active }: TaskItemProps) => {
   const navigate = useNavigate();
 
@@ -564,8 +619,8 @@ const TaskItem = ({ task, active }: TaskItemProps) => {
         {/* Right column placeholder for future hours */}
         <div className="flex items-start justify-end">
           <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 opacity-70">
-            {task.recordSummary
-              ? secondsToHHMM(task.recordSummary.TotalDuration) + " hrs"
+            {task.recordSummary || task.displayDurationSeconds > 0
+              ? secondsToHHMMSS(task.displayDurationSeconds) + " hrs"
               : "--"}
           </span>
         </div>

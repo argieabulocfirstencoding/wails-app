@@ -4,32 +4,50 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/types"
-	"fmt"
+	"fesapp/backend/utils"
 	"time"
 )
 
 // GetTodaySummary retrieves a summarized view of tasks for a specific attendance record. It aggregates task durations by TaskID and Padagan status, while also including the task’s descriptive name in the format "Client Fullname - Task Title".
 func GetTodaySummary(dateStr string) ([]types.TaskSummary, error) {
-	// TODO refactor this with activity_log.go since they share this feature
-	loc, err := time.LoadLocation("Asia/Manila") // GMT+8
-	if err != nil {
-		return nil, err
+	startOfDay, endOfDay, loc, usedFallback, loadErr, parseErr := parseAppDateRange(dateStr)
+	if loadErr != nil {
+		utils.Logger.Printf("summary: warning timezone load failed for Asia/Manila, using fallback zone: %v", loadErr)
 	}
 
-	// Parse the date string in the GMT+8 timezone
-	date, err := time.ParseInLocation("2006-01-02", dateStr, loc)
-	if err != nil {
-		return nil, err
+	if parseErr != nil {
+		utils.Logger.Printf("summary: failed parsing date. date=%q location=%q fallback=%t err=%v", dateStr, loc.String(), usedFallback, parseErr)
+		return nil, parseErr
 	}
+	now := utcNow()
 
-	startOfDay := date
-	fmt.Printf("Start of Day: %v", startOfDay)
-	endOfDay := date.Add(24 * time.Hour)
-	fmt.Printf("End of Day: %v", endOfDay)
+	utils.Logger.Printf(
+		"summary: query start date=%q location=%q fallback=%t local_now=%s utc_now=%s start=%s end=%s start_utc=%s end_utc=%s",
+		dateStr,
+		loc.String(),
+		usedFallback,
+		now.In(loc).Format(time.RFC3339),
+		now.UTC().Format(time.RFC3339),
+		startOfDay.Format(time.RFC3339),
+		endOfDay.Format(time.RFC3339),
+		startOfDay.UTC().Format(time.RFC3339),
+		endOfDay.UTC().Format(time.RFC3339),
+	)
 
 	var foundAttendance []models.Attendance
 	if err := db.DB.Where("time_in >= ? AND time_in < ?", startOfDay, endOfDay).Find(&foundAttendance).Error; err != nil {
+		utils.Logger.Printf("summary: attendance query failed start=%s end=%s err=%v", startOfDay.Format(time.RFC3339), endOfDay.Format(time.RFC3339), err)
 		return nil, err
+	}
+
+	utils.Logger.Printf("summary: attendance query matched count=%d", len(foundAttendance))
+
+	if len(foundAttendance) == 0 {
+		if err := db.DB.Where("date(time_in) = ? OR date(time_in, '+8 hours') = ?", dateStr, dateStr).Find(&foundAttendance).Error; err != nil {
+			utils.Logger.Printf("summary: fallback attendance query failed date=%q err=%v", dateStr, err)
+			return nil, err
+		}
+		utils.Logger.Printf("summary: fallback attendance query matched count=%d date=%q", len(foundAttendance), dateStr)
 	}
 
 	activitySummary := make([]types.TaskSummary, 0, len(foundAttendance))
@@ -56,11 +74,14 @@ func GetTodaySummary(dateStr string) ([]types.TaskSummary, error) {
 			Scan(&results).Error
 
 		if err != nil {
+			utils.Logger.Printf("summary: aggregate query failed attendance_id=%d err=%v", attendance.ID, err)
 			return nil, err
 		}
 
+		utils.Logger.Printf("summary: attendance_id=%d task_summary_count=%d", attendance.ID, len(results))
 		activitySummary = append(activitySummary, results...)
 	}
 
+	utils.Logger.Printf("summary: completed result_count=%d date=%q", len(activitySummary), dateStr)
 	return activitySummary, nil
 }

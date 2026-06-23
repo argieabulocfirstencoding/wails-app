@@ -1,0 +1,25 @@
+package services
+
+import (
+    "fesapp/backend/db"
+    "fesapp/backend/db/models"
+    "testing"
+    sqlite "github.com/Tryanks/gorm-sqlite"
+    "gorm.io/gorm"
+)
+
+func TestTmpLogoutAttendanceMutatesStruct(t *testing.T) {
+    testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+    if err != nil { t.Fatal(err) }
+    if err := testDB.AutoMigrate(&models.User{}, &models.Attendance{}); err != nil { t.Fatal(err) }
+    original := db.DB
+    db.DB = testDB
+    defer func(){ db.DB = original }()
+    user := &models.User{ID:"u1", Email:"u1@example.com"}
+    if err := testDB.Create(user).Error; err != nil { t.Fatal(err) }
+    att := &models.Attendance{UserID:user.ID}
+    if err := testDB.Create(att).Error; err != nil { t.Fatal(err) }
+    if att.TimeOut != nil { t.Fatal("expected nil timeout before") }
+    if err := LogoutAttendance(att); err != nil { t.Fatal(err) }
+    if att.TimeOut == nil { t.Fatal("timeout not updated on struct") }
+}
