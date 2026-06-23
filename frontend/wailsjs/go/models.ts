@@ -107,7 +107,7 @@ export namespace models {
 	    TaskID: string;
 	    Title: string;
 	    ProjectName: string;
-	    ClientID: string;
+	    ClientID?: string;
 	    Client: Client;
 	
 	    static createFrom(source: any = {}) {

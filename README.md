@@ -36,9 +36,9 @@
 
 ## About
 
-**FESApp Tracker** is a desktop application developed by **First Encoding Services** for employee task and attendance tracking. It allows employees to track their work tasks, capture screenshots during work sessions, and sync their attendance data to the cloud.
+**FESApp Tracker** is a desktop application developed by **First Encoding Services** for employee task and attendance tracking. It allows employees to track their work tasks and sync attendance/task data to the cloud. Screenshot capture is currently disabled in this production release.
 
-**Version:** 2.1.0  
+**Version:** 2.4.4  
 **Author:** Paul (johnpaultunacao.firstencoding@gmail.com)
 
 ---
@@ -50,7 +50,7 @@
 | Feature                 | Description                                              |
 | ----------------------- | -------------------------------------------------------- |
 | **Task Tracking**       | Start/stop timer for work tasks with real-time tracking  |
-| **Screenshot Capture**  | Automatic periodic screenshots during task work sessions |
+| **Screenshot Capture**  | Disabled in the current production release |
 | **Attendance Tracking** | Automatic login/logout attendance recording              |
 | **Activity Logs**       | View complete work history with date filtering           |
 | **Client Management**   | Manage multiple clients and their associated tasks       |
@@ -60,8 +60,8 @@
 | Feature           | Description                                      |
 | ----------------- | ------------------------------------------------ |
 | **Offline Mode**  | Work offline with local SQLite database storage  |
-| **Online Mode**   | Sync with Firebase for cloud authentication      |
-| **Cloud Storage** | Upload screenshots to Backblaze B2 cloud storage |
+| **Online Mode**   | Sync with the FES API for attendance and task records |
+| **Cloud Storage** | Reserved for screenshot uploads when capture is enabled |
 | **Auto Sync**     | Automatic synchronization of unsynced records    |
 
 ### Desktop Integration
@@ -77,7 +77,7 @@
 
 | Feature                 | Description                                    |
 | ----------------------- | ---------------------------------------------- |
-| **User Authentication** | Firebase Google authentication                 |
+| **User Authentication** | FES account authentication                     |
 | **Profile Management**  | View and update user profile information       |
 | **Dashboard**           | Overview of tasks, time spent, and sync status |
 | **Search**              | Search and filter tasks                        |
@@ -111,8 +111,8 @@
 
 | Technology       | Purpose                   |
 | ---------------- | ------------------------- |
-| **Firebase**     | Cloud authentication      |
-| **Backblaze B2** | Cloud screenshot storage  |
+| **FES API**      | Task and attendance sync  |
+| **Backblaze B2** | Screenshot storage when enabled |
 | **Upwork**       | External task integration |
 
 ---
@@ -279,7 +279,7 @@ The main configuration file is `wails.json`:
   "frontend:build": "npm run build",
   "info": {
     "productName": "FESApp Tracker",
-    "productVersion": "2.1.0",
+    "productVersion": "2.4.4",
     "companyName": "First Encoding Services",
     "copyright": "Copyright 2025 First Encoding Services"
   }

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/item";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { releaseFlags } from "@/config/release";
 
 interface ScreenshotProps {
   date: number;
@@ -185,7 +186,11 @@ const Task = () => {
       setStart(isActive);
       setTaskID(isActive ? (id ?? null) : null);
 
-      if (response.screenshots && response.takenAt) {
+      if (
+        releaseFlags.screenshotsEnabled &&
+        response.screenshots &&
+        response.takenAt
+      ) {
         setScreenshots({
           date: response.takenAt,
           pictures: response.screenshots,
@@ -259,6 +264,11 @@ const Task = () => {
   }, [tasks, id]);
 
   useEffect(() => {
+    if (!releaseFlags.screenshotsEnabled) {
+      setScreenshotDate("Screenshot capture is disabled in this release.");
+      return;
+    }
+
     getLastScreenshotTime();
   }, [screenshots]);
 
@@ -307,7 +317,7 @@ const Task = () => {
   }, [memo, tag]);
 
   useEffect(() => {
-    if (!EventsOn) return;
+    if (!releaseFlags.screenshotsEnabled || !EventsOn) return;
     const off = EventsOn("screenshot", (pictures: string[]) => {
       setSyncing(true);
       const now = Date.now();
@@ -619,7 +629,7 @@ const Task = () => {
         </div>
 
         {/* Latest screenshot block + images stay the same */}
-        {!titleLower.includes("break") ? (
+        {releaseFlags.screenshotsEnabled && !titleLower.includes("break") ? (
           <>
             <div className="flex flex-col mt-4 mb-1">
               <div className="flex justify-between items-baseline">

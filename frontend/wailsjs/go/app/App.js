@@ -10,10 +10,6 @@ export function BackendFirebaseSync(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['app']['App']['BackendFirebaseSync'](arg1, arg2, arg3, arg4, arg5);
 }
 
-export function BeforeClose(arg1) {
-  return window['go']['app']['App']['BeforeClose'](arg1);
-}
-
 export function CheckForUpdates() {
   return window['go']['app']['App']['CheckForUpdates']();
 }
