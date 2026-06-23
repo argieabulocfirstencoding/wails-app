@@ -275,13 +275,18 @@ func (s *FirebaseSyncService) SyncTasks() {
 			client := utils.GetStringValue(doc.Fields["client"])
 			title := utils.GetStringValue(doc.Fields["title"])
 
+			var clientID *string
+			if trimmed := strings.TrimSpace(client); trimmed != "" {
+				clientID = models.StringPtr(trimmed)
+			}
+
 			var task models.Task
 			if err := db.DB.Where(
 				"task_id = ?",
 				uid, s.AuthUser.LocalID,
 			).Attrs(models.Task{
 				TaskID:   uid,
-				ClientID: client,
+				ClientID: clientID,
 				Title:    title,
 			}).FirstOrCreate(&task).Error; err != nil {
 				log.Printf("error syncing task: %v", err)

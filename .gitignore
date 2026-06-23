@@ -1,12 +1,34 @@
-build/*
-build
-node_modules
-frontend/dist
-backend/screenshots
-.gitattributes
+# Environment
 .env
+.env.*
+!.env.example
+
+# Logs
+*.log
 log.txt
-.gocache
-.gomodcache
-.tmp
-*.go.*
+
+# Go build and local tooling caches
+.gocache/
+.gomodcache/
+.gotelemetry/
+.tmp/
+.bin/
+__debug_bin.*
+*.test
+*.out
+*.go.[0-9]*
+
+# Wails and platform build artifacts
+fesapp-res.syso
+build/bin/
+backend/screenshots/
+
+# Frontend dependencies and generated bundles
+frontend/node_modules/
+frontend/dist/
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

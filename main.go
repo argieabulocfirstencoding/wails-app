@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"os"
+	_ "time/tzdata"
 
 	"fesapp/backend/app"
 
