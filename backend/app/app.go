@@ -51,7 +51,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.4.4"
+var CurrentVersion = "2.4.5"
 
 const attendanceResyncWindow = 48 * time.Hour
 
@@ -1003,10 +1003,10 @@ func (a *App) initializeBackblaze() error {
 	if !a.Connectivity.IsOnline() {
 		return nil
 	}
-	if err := a.AuthService.FesClientService.GetBucketKeys(); err != nil {
+	if err := a.AuthService.TaskService.SyncService.FesClientService.GetBucketKeys(); err != nil {
 		return err
 	}
-	return a.SyncService.Backblaze.Connect(a.ctx)
+	return a.AuthService.TaskService.SyncService.Backblaze.Connect(a.ctx)
 }
 
 func safeRuntimeLogPrint(ctx context.Context, message string) {
