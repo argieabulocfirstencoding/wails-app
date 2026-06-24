@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -30,11 +31,8 @@ func getFolderSize(path string) (int64, error) {
 	return size, err
 }
 
-func getScreenshotPath(ctx context.Context) (string, error) {
-	env := runtime.Environment(ctx)
-
-	if env.BuildType == "dev" {
-		// Development: assume working directory is project root
+func ResolveScreenshotStoragePath(ctx context.Context) (string, error) {
+	if isDevelopmentBuild(ctx) {
 		wd, err := os.Getwd()
 		if err != nil {
 			return "", err
@@ -42,7 +40,11 @@ func getScreenshotPath(ctx context.Context) (string, error) {
 		return filepath.Join(wd, "backend", "screenshots"), nil
 	}
 
-	// Production: use executable folder
+	cacheDir, err := os.UserCacheDir()
+	if err == nil && strings.TrimSpace(cacheDir) != "" {
+		return filepath.Join(cacheDir, "FESApp", "screenshots"), nil
+	}
+
 	exePath, err := os.Executable()
 	if err != nil {
 		return "", err
@@ -51,8 +53,44 @@ func getScreenshotPath(ctx context.Context) (string, error) {
 	return filepath.Join(base, "backend", "screenshots"), nil
 }
 
+func EnsureScreenshotStoragePath(ctx context.Context) (string, error) {
+	path, err := ResolveScreenshotStoragePath(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		return "", err
+	}
+
+	return path, nil
+}
+
+func isDevelopmentBuild(ctx context.Context) bool {
+	if _, exists := os.LookupEnv("DEVELOPMENT"); exists {
+		return true
+	}
+	if ctx == nil {
+		return false
+	}
+
+	var buildType string
+	ok := false
+	func() {
+		defer func() {
+			if recover() != nil {
+				ok = false
+			}
+		}()
+		buildType = runtime.Environment(ctx).BuildType
+		ok = true
+	}()
+
+	return ok && strings.EqualFold(strings.TrimSpace(buildType), "dev")
+}
+
 func GetScreenshotStorageSize(ctx context.Context) (int64, error) {
-	path, err := getScreenshotPath(ctx)
+	path, err := ResolveScreenshotStoragePath(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -66,13 +104,16 @@ func GetScreenshotStorageSize(ctx context.Context) (int64, error) {
 }
 
 func ClearScreenshots(ctx context.Context) error {
-	path, err := getScreenshotPath(ctx)
+	path, err := ResolveScreenshotStoragePath(ctx)
 	if err != nil {
 		return err
 	}
 
 	entries, err := os.ReadDir(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return err
 	}
 

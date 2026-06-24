@@ -9,10 +9,12 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
+	"fesapp/backend/services"
 	"fesapp/backend/utils"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,7 +43,7 @@ type ScreenshotService struct {
 	syncRetry   int
 }
 
-const screenshotsEnabled = false
+const screenshotsEnabled = true
 
 func NewScreenshotService(connectivity ...*ConnectivityStateService) *ScreenshotService {
 	var connectivityState *ConnectivityStateService
@@ -80,10 +82,20 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		return nil, fmt.Errorf("screenshot capture aborted: task ID is nil")
 	}
 
-	outputDir := filepath.Join("backend", "screenshots", folderName)
-	if folderName == "" {
-		outputDir = filepath.Join("backend", "screenshots", fmt.Sprintf("%d", time.Now().UnixMilli()))
+	storageRoot, err := services.EnsureScreenshotStoragePath(ctx)
+	if err != nil {
+		return nil, err
 	}
+
+	folderName = sanitizeScreenshotFolderName(folderName)
+	if folderName == "" {
+		folderName = fmt.Sprintf("%d", time.Now().UnixMilli())
+	}
+	s.mu.Lock()
+	s.FolderName = folderName
+	s.mu.Unlock()
+
+	outputDir := filepath.Join(storageRoot, folderName)
 	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {
 		return nil, err
 	}
@@ -140,11 +152,10 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		return nil, err
 	}
 
-	if ctx != nil {
-		runtime.EventsEmit(ctx, "screenshot", pictures)
-	}
-
-	s.trySync(taskScreenshot, paths)
+	emitRuntimeEvent(ctx, "screenshot", pictures)
+	utils.GoSafe("screenshot.try_sync", func() {
+		s.trySync(taskScreenshot, paths)
+	})
 	return pictures, nil
 }
 
@@ -179,15 +190,9 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 	s.Running = true
 	s.mu.Unlock()
 
-	interval := 5 * time.Minute
-	if s.ctx != nil {
-		env := runtime.Environment(s.ctx)
-		if env.BuildType == "dev" {
-			interval = time.Minute
-		}
-	}
+	interval := screenshotInterval(s.ctx)
 
-	go func() {
+	utils.GoSafe("screenshot.worker", func() {
 		defer func() {
 			s.mu.Lock()
 			s.Running = false
@@ -199,7 +204,9 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 			s.mu.Unlock()
 		}()
 
-		_, _ = s.Screenshot()
+		if _, err := s.Screenshot(); err != nil {
+			utils.Logger.Printf("screenshot capture failed: %v", err)
+		}
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
@@ -208,10 +215,12 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 			case <-workerCtx.Done():
 				return
 			case <-ticker.C:
-				_, _ = s.Screenshot()
+				if _, err := s.Screenshot(); err != nil {
+					utils.Logger.Printf("screenshot capture failed: %v", err)
+				}
 			}
 		}
-	}()
+	})
 }
 
 func (s *ScreenshotService) Stop() {
@@ -254,30 +263,33 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 	trws.Record = &expTaskRecord
 
 	var screenshot models.Screenshot
-	if err := db.DB.Where("task_id = ?", expTaskRecord.TaskID).Last(&screenshot).Error; err != nil {
+	if err := db.DB.Where("task_record_id = ?", expTaskRecord.ID).Order("taken_at DESC").First(&screenshot).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// ✅ No screenshot found, not an error for your flow
-			fmt.Println("No screenshot found for task:", expTaskRecord.TaskID)
-		} else {
-			// ❌ Real DB error
-			fmt.Println("DB error:", err)
-			return trws, err
+			trws.Screenshots = []string{}
+			return trws, nil
 		}
+		// ❌ Real DB error
+		fmt.Println("DB error:", err)
+		return trws, err
 	}
 
 	// ✅ Screenshot found, now you can unmarshal
 	// example: if FilePath is JSON array of paths
 	var pictures []string
-	var paths []string
-	if err := json.Unmarshal([]byte(screenshot.FilePath), &paths); err == nil {
-		for _, path := range paths {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return trws, err
-			}
-			base64Img := "data:image/png;base64," + base64.StdEncoding.EncodeToString(data)
-			pictures = append(pictures, base64Img)
+	for _, path := range decodeScreenshotPaths(screenshot.FilePath) {
+		if strings.TrimSpace(path) == "" {
+			continue
 		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return trws, err
+		}
+		base64Img := "data:image/webp;base64," + base64.StdEncoding.EncodeToString(data)
+		pictures = append(pictures, base64Img)
 	}
 
 	trws.Screenshots = pictures
@@ -339,4 +351,83 @@ func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []s
 		time.Sleep(backoff)
 		backoff *= 2
 	}
+}
+
+func decodeScreenshotPaths(raw string) []string {
+	var paths []string
+	if err := json.Unmarshal([]byte(raw), &paths); err == nil {
+		return paths
+	}
+
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+
+	return []string{raw}
+}
+
+func sanitizeScreenshotFolderName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			builder.WriteRune(r)
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == '-' || r == '_':
+			builder.WriteRune(r)
+		}
+	}
+
+	return builder.String()
+}
+
+func screenshotInterval(ctx context.Context) time.Duration {
+	if isDevelopmentRuntime(ctx) {
+		return time.Minute
+	}
+
+	return 5 * time.Minute
+}
+
+func isDevelopmentRuntime(ctx context.Context) bool {
+	if _, exists := os.LookupEnv("DEVELOPMENT"); exists {
+		return true
+	}
+	if ctx == nil {
+		return false
+	}
+
+	var buildType string
+	ok := false
+	func() {
+		defer func() {
+			if recover() != nil {
+				ok = false
+			}
+		}()
+		buildType = runtime.Environment(ctx).BuildType
+		ok = true
+	}()
+
+	return ok && strings.EqualFold(strings.TrimSpace(buildType), "dev")
+}
+
+func emitRuntimeEvent(ctx context.Context, eventName string, payload any) {
+	if ctx == nil {
+		return
+	}
+
+	defer func() {
+		_ = recover()
+	}()
+	runtime.EventsEmit(ctx, eventName, payload)
 }

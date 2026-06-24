@@ -230,7 +230,7 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.AttendanceID = &attendance.ID
 	a.Attendance = attendance
 	a.AuthUser = authUser
-	a.SyncService.AuthUser = authUser
+	a.SyncService.SetAuthUser(authUser)
 	a.SyncService.Attendance = &a.Attendance
 	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
 	a.AuthService.TaskService.Attendance = &a.Attendance
@@ -248,15 +248,21 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 		a.Logger.Warnf("op=login_online_failed correlation_id=%s err=%v", correlationID, err)
 		return nil, err
 	}
+
 	a.AttendanceID = &attendance.ID
 	a.Attendance = attendance
 	a.AuthUser = authUser
 
 	a.Connectivity.SetOnline(true)
 	a.AuthService.TaskService.Attendance = &a.Attendance
-	a.SyncService.AuthUser = authUser
+	a.SyncService.SetAuthUser(authUser)
 	a.SyncService.Attendance = &a.Attendance
 	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
+	utils.GoSafe("app.login_online.backblaze_init", func() {
+		if err := a.initializeBackblaze(); err != nil {
+			a.Logger.Warnf("op=login_online_backblaze_init_failed user_id=%s err=%v", authUser.LocalID, err)
+		}
+	})
 	a.SyncService.KickoffAutoSyncOnLogin(attendance)
 	a.Logger.Infof("op=login_online_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
@@ -986,8 +992,21 @@ func (a *App) clearSessionState() {
 	a.AuthUser = nil
 
 	if a.SyncService != nil {
-		a.SyncService.AuthUser = nil
+		a.SyncService.SetAuthUser(nil)
 	}
+}
+
+func (a *App) initializeBackblaze() error {
+	if a == nil || a.SyncService == nil || a.SyncService.Backblaze == nil {
+		return nil
+	}
+	if !a.Connectivity.IsOnline() {
+		return nil
+	}
+	if err := a.AuthService.FesClientService.GetBucketKeys(); err != nil {
+		return err
+	}
+	return a.SyncService.Backblaze.Connect(a.ctx)
 }
 
 func safeRuntimeLogPrint(ctx context.Context, message string) {

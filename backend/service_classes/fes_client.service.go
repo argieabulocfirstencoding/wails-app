@@ -151,6 +151,42 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	return response, nil
 }
 
+// ========================== ENVIRONMENTS ==========================
+
+func (f *FesClientService) GetBucketKeys() error {
+	if !f.Connectivity.IsOnline() {
+		return f.logger.Error("you are offline")
+	}
+
+	resp, err := f.Request(types.Request{
+		Url:    "wf/backblaze-upload-access",
+		Method: "GET",
+		Body:   map[string]any{},
+	})
+	if err != nil {
+		return err
+	}
+
+	keyID, ok := resp["key_id"].(string)
+	if !ok || strings.TrimSpace(keyID) == "" {
+		return f.logger.Errorf("backblaze credential response missing key_id")
+	}
+
+	applicationKey, ok := resp["application_key"].(string)
+	if !ok || strings.TrimSpace(applicationKey) == "" {
+		return f.logger.Errorf("backblaze credential response missing application_key")
+	}
+
+	if err := keyring.Set("credentials", "APP_ID", keyID); err != nil {
+		return fmt.Errorf("store backblaze app id: %w", err)
+	}
+	if err := keyring.Set("credentials", "APP_KEY", applicationKey); err != nil {
+		return fmt.Errorf("store backblaze app key: %w", err)
+	}
+
+	return nil
+}
+
 // ========================== UTILITY ===============================
 
 func (f *FesClientService) OpenFesWebApp() error {

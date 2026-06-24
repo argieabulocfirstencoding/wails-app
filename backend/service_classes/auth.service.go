@@ -68,7 +68,7 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	} else {
 		a.TaskService.Attendance = &attendance
 	}
-	a.TaskService.SyncService.AuthUser = authUser
+	a.TaskService.SyncService.SetAuthUser(authUser)
 
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
 	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord

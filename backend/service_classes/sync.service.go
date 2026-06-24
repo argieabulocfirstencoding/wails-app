@@ -94,8 +94,18 @@ func (s *SyncService) Connect(ctx context.Context) error {
 	}
 
 	s.ctx = ctx
+	if s.Backblaze != nil {
+		s.Backblaze.SetContext(ctx)
+	}
 	s.startQueueWorker()
 	return nil
+}
+
+func (s *SyncService) SetAuthUser(authUser *models.AuthUser) {
+	s.AuthUser = authUser
+	if s.Backblaze != nil {
+		s.Backblaze.SetAuthUser(authUser)
+	}
 }
 
 func (s *SyncService) Shutdown() {

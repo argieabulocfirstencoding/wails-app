@@ -1,4 +1,4 @@
 export const releaseFlags = {
-  screenshotsEnabled: false,
+  screenshotsEnabled: true,
   updateCheckDelayMs: 15000,
 } as const;
