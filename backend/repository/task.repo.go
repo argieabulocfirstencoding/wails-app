@@ -71,7 +71,7 @@ func (t *TaskRepository) ClientExists(id string) (bool, error) {
 
 func (t *TaskRepository) GetTask(id string) (*models.Task, error) {
 	var task models.Task
-	if err := db.DB.Where("id = ?", id).First(&task).Error; err != nil {
+	if err := db.DB.Where("task_id = ?", id).First(&task).Error; err != nil {
 		return nil, err
 	}
 

@@ -68,7 +68,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	s.mu.Lock()
 	ctx := s.ctx
-	folderName := s.FolderName
+	folderName := fmt.Sprintf("%s", *s.TaskRecordID)
 	taskRecordID := s.TaskRecordID
 	taskID := s.TaskID
 	memo := s.Memo
@@ -95,7 +95,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	s.FolderName = folderName
 	s.mu.Unlock()
 
-	outputDir := filepath.Join(storageRoot, folderName)
+	outputDir := filepath.Join(storageRoot, folderName, fmt.Sprintf("%s", *taskID))
 	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {
 		return nil, err
 	}
@@ -107,7 +107,8 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	pictures := make([]string, 0, displayCount)
 	paths := make([]string, 0, displayCount)
-	pictureName := time.Now().Format("20060102_150405")
+	// pictureName := time.Now().Format("20060102_150405")
+	pictureName := time.Now().UnixMilli()
 
 	for i := 0; i < displayCount; i++ {
 		bounds := screenshot.GetDisplayBounds(i)
@@ -124,7 +125,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		var buf bytes.Buffer
 		buf.Write(encodedData)
 
-		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%s_display%d.webp", pictureName, i))
+		fileName := filepath.Join(outputDir, fmt.Sprintf("screenshot_%d_display%d.webp", pictureName, i))
 		if err := os.WriteFile(fileName, buf.Bytes(), 0644); err != nil {
 			return nil, err
 		}
