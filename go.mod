@@ -16,7 +16,7 @@ require (
 	github.com/kurin/blazer v0.5.3
 	github.com/micmonay/keybd_event v1.1.2
 	github.com/stretchr/testify v1.11.1
-	github.com/wailsapp/wails/v2 v2.10.2
+	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/sys v0.43.0
 	gorm.io/gorm v1.31.1
@@ -24,6 +24,7 @@ require (
 
 require (
 	al.essio.dev/pkg/shellescape v1.5.1 // indirect
+	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
