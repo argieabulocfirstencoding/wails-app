@@ -34,6 +34,10 @@ func NewBackblazeSync() *BackblazeSync {
 	return &BackblazeSync{}
 }
 
+func (b *BackblazeSync) Enabled() bool {
+	return backblazeEnabled
+}
+
 func (b *BackblazeSync) SetContext(ctx context.Context) {
 	if ctx == nil {
 		return
@@ -127,6 +131,14 @@ func (b *BackblazeSync) Connect(ctx context.Context) error {
 }
 
 func (b *BackblazeSync) AttemptUpload(paths []string) ([]string, error) {
+	return b.attemptUpload(paths, "", 0)
+}
+
+func (b *BackblazeSync) AttemptUploadToFolder(paths []string, folderName string, screenshotID uint) ([]string, error) {
+	return b.attemptUpload(paths, folderName, screenshotID)
+}
+
+func (b *BackblazeSync) attemptUpload(paths []string, folderName string, screenshotID uint) ([]string, error) {
 	if !backblazeEnabled {
 		log.Println("Backblaze upload disabled for this release")
 		return nil, nil
@@ -144,10 +156,10 @@ func (b *BackblazeSync) AttemptUpload(paths []string) ([]string, error) {
 		return nil, err
 	}
 
-	return b.upload(paths, authUser.LocalID)
+	return b.upload(paths, authUser.LocalID, folderName, screenshotID)
 }
 
-func (b *BackblazeSync) upload(paths []string, userID string) ([]string, error) {
+func (b *BackblazeSync) upload(paths []string, userID, folderName string, screenshotID uint) ([]string, error) {
 	if !backblazeEnabled {
 		return nil, nil
 	}
@@ -171,7 +183,7 @@ func (b *BackblazeSync) upload(paths []string, userID string) ([]string, error) 
 			return nil, fmt.Errorf("failed to open file %s: %w", fullpath, err)
 		}
 
-		remotePath := buildRemoteObjectPath(userID, fullpath)
+		remotePath := buildRemoteObjectPath(userID, folderName, screenshotID, fullpath)
 		obj := bucket.Object(remotePath)
 		writer := obj.NewWriter(uploadCtx)
 
@@ -227,8 +239,21 @@ func (b *BackblazeSync) connectionContext() context.Context {
 	return context.Background()
 }
 
-func buildRemoteObjectPath(userID, localPath string) string {
+func buildRemoteObjectPath(userID, folderName string, screenshotID uint, localPath string) string {
 	filename := strings.TrimSpace(filepath.Base(localPath))
+	if filename == "" || filename == "." || filename == string(filepath.Separator) {
+		filename = "screenshot.webp"
+	}
+
+	if screenshotID > 0 {
+		filename = fmt.Sprintf("%d-%s", screenshotID, filename)
+	}
+
+	folderName = sanitizeBackblazeSegment(folderName)
+	if folderName != "" {
+		return path.Join("screenshots", userID, folderName, filename)
+	}
+
 	parent := strings.TrimSpace(filepath.Base(filepath.Dir(localPath)))
 
 	if parent == "" || parent == "." || parent == string(filepath.Separator) {
@@ -236,6 +261,29 @@ func buildRemoteObjectPath(userID, localPath string) string {
 	}
 
 	return path.Join("screenshots", userID, parent, filename)
+}
+
+func sanitizeBackblazeSegment(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			builder.WriteRune(r)
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == '-' || r == '_':
+			builder.WriteRune(r)
+		}
+	}
+
+	return builder.String()
 }
 
 func (b *BackblazeSync) attemptUploadQueued(paths []string) ([]string, error) {

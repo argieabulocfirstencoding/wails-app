@@ -166,6 +166,7 @@ export namespace models {
 	    // Go type: time
 	    LastAttemptAt?: any;
 	    Gap: number;
+	    PendingScreenshotCount: number;
 	    Screenshots: Screenshot[];
 	
 	    static createFrom(source: any = {}) {
@@ -193,6 +194,7 @@ export namespace models {
 	        this.LastError = source["LastError"];
 	        this.LastAttemptAt = this.convertValues(source["LastAttemptAt"], null);
 	        this.Gap = source["Gap"];
+	        this.PendingScreenshotCount = source["PendingScreenshotCount"];
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
 	    }
 	

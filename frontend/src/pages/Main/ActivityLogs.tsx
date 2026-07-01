@@ -119,6 +119,13 @@ const statusLabel = (syncStatus?: string, syncedAt?: unknown): string => {
   return "Unsynced";
 };
 
+const getPendingScreenshotCount = (
+  record?: models.TaskRecord | null,
+): number => {
+  const count = record?.PendingScreenshotCount ?? 0;
+  return count > 0 ? count : 0;
+};
+
 const canResyncAttendanceByTime = (value: unknown): boolean => {
   const parsed = parseDateTime(value);
   if (!parsed) return false;
@@ -492,6 +499,8 @@ const ActivityLogs = () => {
                     {activity.records.map((record) => {
                       const task = findTaskByID(record.TaskID);
                       const key = `record-${record.ID}`;
+                      const pendingScreenshotCount =
+                        getPendingScreenshotCount(record);
                       const taskName = task?.title
                         ? `${task.title.slice(0, 50)}${
                             task.title.length > 50 ? "..." : ""
@@ -508,6 +517,15 @@ const ActivityLogs = () => {
                           syncedAt={record.SyncedAt}
                           syncing={!!syncingKeys[key]}
                           syncError={syncErrorByKey[key]}
+                          pendingScreenshotCount={pendingScreenshotCount}
+                          statusLabelOverride={
+                            pendingScreenshotCount > 0
+                              ? "Screenshots Pending"
+                              : undefined
+                          }
+                          statusTone={
+                            pendingScreenshotCount > 0 ? "warning" : undefined
+                          }
                           resyncAllowed={true}
                           onSync={() =>
                             requestSync("task", record.ID, key, "Task Recorded")
@@ -613,6 +631,9 @@ type ActivityBannerProps = {
   syncedAt?: unknown;
   syncing: boolean;
   syncError?: string;
+  pendingScreenshotCount?: number;
+  statusLabelOverride?: string;
+  statusTone?: "success" | "warning" | "danger";
   resyncAllowed?: boolean;
   resyncBlockedReason?: string;
   onSync: () => void;
@@ -626,6 +647,9 @@ function ActivityBanner({
   syncedAt,
   syncing,
   syncError,
+  pendingScreenshotCount = 0,
+  statusLabelOverride,
+  statusTone,
   resyncAllowed = true,
   resyncBlockedReason = "Resync is no longer available for this entry.",
   onSync,
@@ -633,7 +657,19 @@ function ActivityBanner({
   const eventTime = formatTimestamp(isoTime);
   const syncedTime = formatTimestamp(syncedAt);
   const synced = isSynced(syncStatus, syncedAt);
-  const currentStatus = statusLabel(syncStatus, syncedAt);
+  const currentStatus = statusLabelOverride ?? statusLabel(syncStatus, syncedAt);
+  const currentTone =
+    statusTone ?? (synced ? "success" : "danger");
+  const pendingNote =
+    pendingScreenshotCount > 0
+      ? syncing
+        ? `Syncing task record and ${pendingScreenshotCount} pending screenshot${
+            pendingScreenshotCount === 1 ? "" : "s"
+          }...`
+        : `${pendingScreenshotCount} screenshot${
+            pendingScreenshotCount === 1 ? "" : "s"
+          } pending upload`
+      : "";
 
   return (
     <div className="px-4 py-4 flex items-start justify-between gap-4">
@@ -646,6 +682,11 @@ function ActivityBanner({
           <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
             {description}
           </p>
+          {pendingNote && (
+            <p className="text-[10px] text-amber-600 dark:text-amber-400">
+              {pendingNote}
+            </p>
+          )}
           {syncError && (
             <p className="text-[10px] text-rose-500 dark:text-rose-400">
               {syncError}
@@ -671,13 +712,17 @@ function ActivityBanner({
 
         <div
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-            synced
+            currentTone === "success"
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              : currentTone === "warning"
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
               : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
           }`}
         >
-          {synced ? (
+          {currentTone === "success" ? (
             <CheckCircle2 className="w-3 h-3" />
+          ) : currentTone === "warning" ? (
+            <AlertTriangle className="w-3 h-3" />
           ) : (
             <XCircle className="w-3 h-3" />
           )}
@@ -702,7 +747,9 @@ function ActivityBanner({
           className="inline-flex items-center gap-1 rounded-full border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60 cursor-pointer"
           title={
             resyncAllowed
-              ? synced
+              ? pendingScreenshotCount > 0
+                ? "Retry task record and pending screenshot uploads"
+                : synced
                 ? "Resync this entry"
                 : "Retry sync"
               : resyncBlockedReason

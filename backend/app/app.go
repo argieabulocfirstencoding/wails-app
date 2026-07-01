@@ -401,19 +401,23 @@ func (a *App) FetchActiveTask() error {
 }
 
 func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, error) {
-	userID := "<nil>"
+	logUserID := "<nil>"
+	queryUserID := ""
 	if a.AuthUser != nil {
-		userID = a.AuthUser.LocalID
+		queryUserID = strings.TrimSpace(a.AuthUser.LocalID)
+		if queryUserID != "" {
+			logUserID = queryUserID
+		}
 	}
 
-	utils.Logger.Printf("app.GetActivityLogRecord: start date=%q user_id=%q", dateStr, userID)
-	records, err := services.GetAttendanceAndRecords(dateStr)
+	utils.Logger.Printf("app.GetActivityLogRecord: start date=%q user_id=%q", dateStr, logUserID)
+	records, err := services.GetAttendanceAndRecords(dateStr, queryUserID)
 	if err != nil {
-		utils.Logger.Printf("app.GetActivityLogRecord: failed date=%q user_id=%q err=%v", dateStr, userID, err)
+		utils.Logger.Printf("app.GetActivityLogRecord: failed date=%q user_id=%q err=%v", dateStr, logUserID, err)
 		return nil, err
 	}
 
-	utils.Logger.Printf("app.GetActivityLogRecord: success date=%q user_id=%q count=%d", dateStr, userID, len(records))
+	utils.Logger.Printf("app.GetActivityLogRecord: success date=%q user_id=%q count=%d", dateStr, logUserID, len(records))
 	return records, nil
 }
 

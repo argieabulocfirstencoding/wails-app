@@ -36,11 +36,9 @@ type ScreenshotService struct {
 	SyncService  *SyncService
 	Connectivity *ConnectivityStateService
 
-	mu          sync.Mutex
-	cancel      context.CancelFunc
-	workerDone  chan struct{}
-	uploadRetry int
-	syncRetry   int
+	mu         sync.Mutex
+	cancel     context.CancelFunc
+	workerDone chan struct{}
 }
 
 const screenshotsEnabled = true
@@ -56,8 +54,6 @@ func NewScreenshotService(connectivity ...*ConnectivityStateService) *Screenshot
 	return &ScreenshotService{
 		TaskRepo:     repository.NewTaskRepository(),
 		Connectivity: connectivityState,
-		uploadRetry:  3,
-		syncRetry:    3,
 	}
 }
 
@@ -309,49 +305,17 @@ func (s *ScreenshotService) trySync(taskScreenshot *models.Screenshot, paths []s
 	correlationID := utils.NewCorrelationID("screenshot_batch")
 	s.SyncService.Logger.Infof("op=screenshot_batch_sync_start correlation_id=%s task_record_id=%d item_count=%d", correlationID, taskScreenshot.TaskRecordID, len(paths))
 
-	if s.Connectivity.IsOnline() && s.SyncService.Backblaze != nil && len(paths) > 0 {
-		backoff := 800 * time.Millisecond
-		for attempt := 1; attempt <= s.uploadRetry; attempt++ {
-			remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)
-			if err == nil {
-				if len(remotePaths) > 0 {
-					if jsonRemotePaths, marshalErr := json.Marshal(remotePaths); marshalErr == nil {
-						remoteString := string(jsonRemotePaths)
-						if err := db.DB.Model(taskScreenshot).Update("cloud_url", remoteString).Error; err != nil {
-							fmt.Printf("screenshot sync update cloud_url failed task_record_id=%d err=%v\n", taskScreenshot.TaskRecordID, err)
-						}
-					} else {
-						fmt.Printf("screenshot sync marshal remote paths failed task_record_id=%d err=%v\n", taskScreenshot.TaskRecordID, marshalErr)
-					}
-				}
-				break
-			}
-			s.SyncService.Logger.Warnf("op=screenshot_batch_upload_retry correlation_id=%s task_record_id=%d attempt=%d err=%v", correlationID, taskScreenshot.TaskRecordID, attempt, err)
-
-			if attempt == s.uploadRetry {
-				break
-			}
-			time.Sleep(backoff)
-			backoff *= 2
-		}
+	if s.Connectivity == nil || !s.Connectivity.IsOnline() {
+		s.SyncService.Logger.Infof("op=screenshot_batch_sync_skipped correlation_id=%s task_record_id=%d reason=offline", correlationID, taskScreenshot.TaskRecordID)
+		return
 	}
 
-	backoff := 800 * time.Millisecond
-	for attempt := 1; attempt <= s.syncRetry; attempt++ {
-		err := s.SyncService.SyncTaskRecord(taskScreenshot.TaskRecordID)
-		if err == nil {
-			s.SyncService.Logger.Infof("op=screenshot_batch_sync_success correlation_id=%s task_record_id=%d", correlationID, taskScreenshot.TaskRecordID)
-			return
-		}
-		s.SyncService.Logger.Warnf("op=screenshot_batch_sync_retry correlation_id=%s task_record_id=%d attempt=%d err=%v", correlationID, taskScreenshot.TaskRecordID, attempt, err)
-
-		if attempt == s.syncRetry {
-			s.SyncService.Logger.Warnf("op=screenshot_batch_sync_failed correlation_id=%s task_record_id=%d", correlationID, taskScreenshot.TaskRecordID)
-			return
-		}
-		time.Sleep(backoff)
-		backoff *= 2
+	if err := s.SyncService.SyncTaskRecord(taskScreenshot.TaskRecordID); err != nil {
+		s.SyncService.Logger.Warnf("op=screenshot_batch_sync_failed correlation_id=%s task_record_id=%d err=%v", correlationID, taskScreenshot.TaskRecordID, err)
+		return
 	}
+
+	s.SyncService.Logger.Infof("op=screenshot_batch_sync_success correlation_id=%s task_record_id=%d", correlationID, taskScreenshot.TaskRecordID)
 }
 
 func decodeScreenshotPaths(raw string) []string {

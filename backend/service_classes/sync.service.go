@@ -2,6 +2,7 @@ package service_classes
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -212,6 +214,9 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 	if err != nil {
 		return err
 	}
+	if err := s.ensureTaskRecordOwnership(taskRecord); err != nil {
+		return err
+	}
 
 	if !s.Connectivity.IsOnline() {
 		_ = s.updateTaskRecordSyncState(taskRecord, syncStateInProgress, nil)
@@ -219,10 +224,15 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 	}
 
 	if taskRecord.EndedAt == nil && taskRecordHasRemoteProductivity(taskRecord) {
-		return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
+		if err := s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil); err != nil {
+			return err
+		}
+		s.drainPendingScreenshotsBestEffort(taskRecord)
+		return nil
 	}
 
 	if taskRecord.EndedAt != nil && strings.EqualFold(taskRecord.SyncStatus, syncStateSynced) {
+		s.drainPendingScreenshotsBestEffort(taskRecord)
 		return nil
 	}
 
@@ -248,12 +258,21 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 				_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 				return err
 			}
+			taskRecord, err = s.TaskRepository.GetTaskRecord(taskRecordId)
+			if err != nil {
+				return err
+			}
 		}
 
 		if err := s.syncTaskOut(taskRecord); err != nil {
 			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 			return err
 		}
+		taskRecord, err = s.TaskRepository.GetTaskRecord(taskRecordId)
+		if err != nil {
+			return err
+		}
+		s.drainPendingScreenshotsBestEffort(taskRecord)
 		return nil
 	}
 
@@ -262,6 +281,11 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 		return err
 	}
 
+	taskRecord, err = s.TaskRepository.GetTaskRecord(taskRecordId)
+	if err != nil {
+		return err
+	}
+	s.drainPendingScreenshotsBestEffort(taskRecord)
 	return nil
 }
 
@@ -632,8 +656,30 @@ func (s *SyncService) syncUnsyncedRecordsNow() error {
 	}
 
 	var firstErr error
+	handled := make(map[uint]struct{}, len(unsynced))
 	for i := range unsynced {
+		handled[unsynced[i].ID] = struct{}{}
 		if err := s.syncTaskRecordNow(s.queueCtx, unsynced[i].ID); err != nil {
+			s.emit("record-synced", false)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		s.emit("record-synced", true)
+	}
+
+	pendingScreenshotRecordIDs, err := s.pendingTaskRecordIDsWithPendingScreenshots()
+	if err != nil && firstErr == nil {
+		firstErr = err
+	}
+
+	for _, recordID := range pendingScreenshotRecordIDs {
+		if _, exists := handled[recordID]; exists {
+			continue
+		}
+		handled[recordID] = struct{}{}
+		if err := s.syncTaskRecordNow(s.queueCtx, recordID); err != nil {
 			s.emit("record-synced", false)
 			if firstErr == nil {
 				firstErr = err
@@ -998,4 +1044,145 @@ func taskRecordHasRemoteProductivity(taskRecord *models.TaskRecord) bool {
 		return false
 	}
 	return strings.TrimSpace(*taskRecord.Productivity) != ""
+}
+
+func (s *SyncService) ensureTaskRecordOwnership(taskRecord *models.TaskRecord) error {
+	if taskRecord == nil {
+		return fmt.Errorf("task record is nil")
+	}
+	if s.AuthUser == nil || strings.TrimSpace(s.AuthUser.LocalID) == "" {
+		return nil
+	}
+	if taskRecord.UserID != s.AuthUser.LocalID {
+		return fmt.Errorf("cannot sync task record owned by another user")
+	}
+	return nil
+}
+
+func (s *SyncService) drainPendingScreenshotsBestEffort(taskRecord *models.TaskRecord) {
+	if err := s.drainPendingScreenshotsNow(taskRecord); err != nil {
+		recordID := uint(0)
+		if taskRecord != nil {
+			recordID = taskRecord.ID
+		}
+		s.Logger.Warnf("op=screenshot_backlog_drain_failed task_record_id=%d err=%v", recordID, err)
+	}
+}
+
+func (s *SyncService) drainPendingScreenshotsNow(taskRecord *models.TaskRecord) error {
+	if taskRecord == nil {
+		return nil
+	}
+	if !taskRecordHasRemoteProductivity(taskRecord) {
+		return nil
+	}
+	if s.Backblaze == nil || !s.Backblaze.Enabled() {
+		return nil
+	}
+	if !s.Connectivity.IsOnline() {
+		return nil
+	}
+	if err := s.ensureTaskRecordOwnership(taskRecord); err != nil {
+		return err
+	}
+
+	folderName := sanitizeScreenshotFolderName(strings.TrimSpace(*taskRecord.Productivity))
+	if folderName == "" {
+		return fmt.Errorf("cannot upload screenshots without a valid productivity folder")
+	}
+
+	const maxPasses = 3
+	for pass := 1; pass <= maxPasses; pass++ {
+		var pending []models.Screenshot
+		if err := db.DB.
+			Where("task_record_id = ? AND (cloud_url IS NULL OR TRIM(cloud_url) = '')", taskRecord.ID).
+			Order("taken_at ASC").
+			Find(&pending).Error; err != nil {
+			return err
+		}
+
+		if len(pending) == 0 {
+			return nil
+		}
+
+		uploadedAny := false
+		for i := range pending {
+			paths := existingScreenshotPathsForUpload(pending[i].FilePath)
+			if len(paths) == 0 {
+				s.Logger.Warnf("op=screenshot_backlog_missing_local_files task_record_id=%d screenshot_id=%d", taskRecord.ID, pending[i].ID)
+				continue
+			}
+
+			remotePaths, err := s.Backblaze.AttemptUploadToFolder(paths, folderName, pending[i].ID)
+			if err != nil {
+				s.Logger.Warnf("op=screenshot_backlog_upload_failed task_record_id=%d screenshot_id=%d err=%v", taskRecord.ID, pending[i].ID, err)
+				continue
+			}
+			if len(remotePaths) == 0 {
+				continue
+			}
+
+			jsonRemotePaths, err := json.Marshal(remotePaths)
+			if err != nil {
+				s.Logger.Warnf("op=screenshot_backlog_marshal_failed task_record_id=%d screenshot_id=%d err=%v", taskRecord.ID, pending[i].ID, err)
+				continue
+			}
+
+			remoteString := string(jsonRemotePaths)
+			if err := db.DB.Model(&pending[i]).Update("cloud_url", remoteString).Error; err != nil {
+				s.Logger.Warnf("op=screenshot_backlog_persist_failed task_record_id=%d screenshot_id=%d err=%v", taskRecord.ID, pending[i].ID, err)
+				continue
+			}
+
+			uploadedAny = true
+		}
+
+		if !uploadedAny {
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func existingScreenshotPathsForUpload(raw string) []string {
+	paths := decodeScreenshotPaths(raw)
+	if len(paths) == 0 {
+		return nil
+	}
+
+	existing := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		existing = append(existing, path)
+	}
+
+	return existing
+}
+
+func (s *SyncService) pendingTaskRecordIDsWithPendingScreenshots() ([]uint, error) {
+	if s.Backblaze == nil || !s.Backblaze.Enabled() {
+		return nil, nil
+	}
+	if s.AuthUser == nil || strings.TrimSpace(s.AuthUser.LocalID) == "" {
+		return nil, nil
+	}
+
+	var recordIDs []uint
+	err := db.DB.
+		Model(&models.Screenshot{}).
+		Joins("JOIN task_records ON task_records.id = screenshots.task_record_id").
+		Where("task_records.user_id = ? AND (screenshots.cloud_url IS NULL OR TRIM(screenshots.cloud_url) = '')", s.AuthUser.LocalID).
+		Distinct("screenshots.task_record_id").
+		Pluck("screenshots.task_record_id", &recordIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return recordIDs, nil
 }
