@@ -11,26 +11,14 @@ import (
 	"testing"
 	"time"
 
-	sqlite "github.com/Tryanks/gorm-sqlite"
 	"gorm.io/gorm"
 )
 
 func setupScreenshotServiceTestDB(t *testing.T) (*gorm.DB, *models.User, *models.TaskRecord, *models.TaskRecord) {
 	t.Helper()
 
-	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	testDB, err := db.NewTestDB()
 	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := testDB.AutoMigrate(
-		&models.User{},
-		&models.Client{},
-		&models.Task{},
-		&models.Attendance{},
-		&models.TaskRecord{},
-		&models.Screenshot{},
-	); err != nil {
 		t.Fatal(err)
 	}
 

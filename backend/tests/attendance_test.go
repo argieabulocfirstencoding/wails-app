@@ -9,23 +9,21 @@ import (
 	"testing"
 	"time"
 
-	sqlite "github.com/Tryanks/gorm-sqlite"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
 
 func setupTestDB(t *testing.T) (*gorm.DB, *models.User) {
-	testDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	testDB, err := db.NewTestDB()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = testDB.AutoMigrate(&models.User{}, &models.Attendance{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	originalDB := db.DB
 	db.DB = testDB
+	t.Cleanup(func() {
+		db.DB = originalDB
+	})
 
 	testUser := &models.User{
 		ID:    "user-1",

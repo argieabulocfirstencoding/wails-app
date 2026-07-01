@@ -68,7 +68,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	s.mu.Lock()
 	ctx := s.ctx
-	folderName := fmt.Sprintf("%s", *s.TaskRecordID)
+	folderName := fmt.Sprintf("%d", *s.TaskRecordID)
 	taskRecordID := s.TaskRecordID
 	taskID := s.TaskID
 	memo := s.Memo

@@ -2,14 +2,14 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"fesapp/backend/db/models"
 
-	sqlite "github.com/Tryanks/gorm-sqlite" // modernc.org/sqlite-based GORM driver
+	sqlite "github.com/Tryanks/gorm-sqlite"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
 )
@@ -22,217 +22,127 @@ type Task = models.Task
 type TaskRecord = models.TaskRecord
 type Screenshot = models.Screenshot
 
-// Init initializes the database
+// Init initializes the application database.
 func Init(ctx context.Context) (*gorm.DB, error) {
-	// Use user config directory
-	dir, err := os.UserConfigDir()
+	dbPath, err := resolveDatabasePath(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve user config directory: %w", err)
-	}
-	appDir := filepath.Join(dir, "wails-app")
-	if err := os.MkdirAll(appDir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create app directory: %w", err)
+		return nil, err
 	}
 
-	// Detect environment via Wails
-	env := runtime.Environment(ctx)
-
-	var dbPath string
-	if env.BuildType == "dev" {
-		dbPath = filepath.Join(appDir, "fesapp-dev.db")
-	} else {
-		dbPath = filepath.Join(appDir, "fesapp.db")
-	}
-
-	// Open database
-	DB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	database, err := openSQLiteDatabase(dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect database: %w", err)
+		return nil, err
 	}
+
+	if err := applySQLiteConnectionSettings(database); err != nil {
+		return nil, err
+	}
+
+	if err := runMigrations(database, dbPath); err != nil {
+		return nil, err
+	}
+
+	DB = database
 	DBPath = dbPath
-
-	if err := DB.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
-	}
-
-	needsBackup, err := needsMigrationBackup(DB)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate migration backup requirement: %w", err)
-	}
-
-	backupPath := ""
-	if needsBackup {
-		backupPath, err = createMigrationBackup(dbPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create pre-migration backup: %w", err)
-		}
-	}
-
-	// Bootstrap core tables without relationship-driven rewrites.
-	if err := bootstrapCoreSchema(DB); err != nil {
-		return nil, fmt.Errorf("failed to bootstrap core schema: %w", err)
-	}
-
-	if err := repairTaskRecordsSchema(DB); err != nil {
-		return nil, fmt.Errorf("failed to repair task_records schema: %w", err)
-	}
-
-	if err := bootstrapScreenshotSchema(DB); err != nil {
-		return nil, fmt.Errorf("failed to bootstrap screenshots schema: %w", err)
-	}
-
-	if err := repairTaskAndScreenshotSchemas(DB); err != nil {
-		return nil, fmt.Errorf("failed to repair task and screenshot schemas: %w", err)
-	}
-
-	if err := migrateSchema(DB); err != nil {
-		if backupPath != "" {
-			return nil, fmt.Errorf("failed to apply schema migrations: %w (rollback backup: %s)", err, backupPath)
-		}
-		return nil, fmt.Errorf("failed to apply schema migrations: %w", err)
-	}
 
 	fmt.Println("Database initialized at", dbPath)
 	return DB, nil
 }
 
-type tableInfoRow struct {
-	Name string `gorm:"column:name"`
-	Type string `gorm:"column:type"`
-}
-
-func repairUsersSchema(database *gorm.DB) error {
-	if database == nil {
-		return nil
-	}
-
-	columnMap, err := userSchemaColumnMap(database)
+func resolveDatabasePath(ctx context.Context) (string, error) {
+	dir, err := os.UserConfigDir()
 	if err != nil {
-		return err
-	}
-	if !usersSchemaNeedsRepair(database) {
-		return nil
+		return "", fmt.Errorf("failed to resolve user config directory: %w", err)
 	}
 
-	if err := database.Exec("PRAGMA foreign_keys = OFF").Error; err != nil {
-		return err
-	}
-	defer database.Exec("PRAGMA foreign_keys = ON")
-
-	if err := database.Exec("ALTER TABLE users RENAME TO users_legacy").Error; err != nil {
-		return err
+	appDir := filepath.Join(dir, "wails-app")
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		return "", fmt.Errorf("failed to create app directory: %w", err)
 	}
 
-	createUsersSQL := `
-CREATE TABLE users (
-	id TEXT PRIMARY KEY,
-	email TEXT,
-	name TEXT,
-	first_name TEXT,
-	last_name TEXT,
-	middle_name TEXT,
-	position TEXT,
-	birthdate TEXT,
-	phone TEXT,
-	address TEXT,
-	photo TEXT,
-	fes_id TEXT,
-	supervisor_id TEXT,
-	employee_id TEXT,
-	employment_id TEXT
-)`
-
-	if err := database.Exec(createUsersSQL).Error; err != nil {
-		return err
+	env := runtime.Environment(ctx)
+	if env.BuildType == "dev" {
+		return filepath.Join(appDir, "fesapp-dev.db"), nil
 	}
 
-	selectExpr := func(col string) string {
-		if _, ok := columnMap[col]; ok {
-			return "CAST(" + col + " AS TEXT)"
-		}
-		return "NULL"
-	}
-
-	birthExpr := "NULL"
-	if _, ok := columnMap["birthdate"]; ok {
-		birthExpr = "CAST(birthdate AS TEXT)"
-	} else if _, ok := columnMap["birthday"]; ok {
-		birthExpr = "CAST(birthday AS TEXT)"
-	}
-
-	insertSQL := `
-INSERT INTO users (id, email, name, first_name, last_name, middle_name, position, birthdate, phone, address, photo, fes_id, supervisor_id, employee_id, employment_id)
-SELECT
-	CAST(id AS TEXT),
-	` + selectExpr("email") + `,
-	` + selectExpr("name") + `,
-	` + selectExpr("first_name") + `,
-	` + selectExpr("last_name") + `,
-	` + selectExpr("middle_name") + `,
-	` + selectExpr("position") + `,
-	` + birthExpr + `,
-	` + selectExpr("phone") + `,
-	` + selectExpr("address") + `,
-	` + selectExpr("photo") + `,
-	` + selectExpr("fes_id") + `,
-	` + selectExpr("supervisor_id") + `,
-	` + selectExpr("employee_id") + `,
-	` + selectExpr("employment_id") + `
-FROM users_legacy`
-
-	if err := database.Exec(insertSQL).Error; err != nil {
-		return err
-	}
-
-	if err := database.Exec("DROP TABLE users_legacy").Error; err != nil {
-		return err
-	}
-	return nil
+	return filepath.Join(appDir, "fesapp.db"), nil
 }
 
-func usersSchemaNeedsRepair(database *gorm.DB) bool {
-	if database == nil || !database.Migrator().HasTable("users") {
-		return false
+func openSQLiteDatabase(dbPath string) (*gorm.DB, error) {
+	database, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect database: %w", err)
 	}
 
-	var columns []tableInfoRow
-	if err := database.Raw("PRAGMA table_info(users)").Scan(&columns).Error; err != nil {
-		return false
-	}
-
-	if len(columns) == 0 {
-		return false
-	}
-
-	columnMap := buildUserSchemaColumnMap(columns)
-
-	idType, hasID := columnMap["id"]
-	_, hasBirthdate := columnMap["birthdate"]
-	_, hasBirthday := columnMap["birthday"]
-
-	needsRebuild := !hasID || strings.Contains(idType, "INT") || strings.Contains(idType, "REAL") || strings.Contains(idType, "NUM")
-	needsBirthdateRepair := !hasBirthdate && hasBirthday
-
-	return needsRebuild || needsBirthdateRepair
-}
-
-func userSchemaColumnMap(database *gorm.DB) (map[string]string, error) {
-	if database == nil || !database.Migrator().HasTable("users") {
-		return map[string]string{}, nil
-	}
-
-	var columns []tableInfoRow
-	if err := database.Raw("PRAGMA table_info(users)").Scan(&columns).Error; err != nil {
+	if err := configureSQLitePool(database, dbPath); err != nil {
 		return nil, err
 	}
 
-	return buildUserSchemaColumnMap(columns), nil
+	return database, nil
 }
 
-func buildUserSchemaColumnMap(columns []tableInfoRow) map[string]string {
-	columnMap := make(map[string]string, len(columns))
-	for _, col := range columns {
-		columnMap[strings.ToLower(col.Name)] = strings.ToUpper(strings.TrimSpace(col.Type))
+func configureSQLitePool(database *gorm.DB, dbPath string) error {
+	if database == nil {
+		return fmt.Errorf("nil database")
 	}
-	return columnMap
+
+	sqlDB, err := database.DB()
+	if err != nil {
+		return fmt.Errorf("failed to resolve sqlite connection pool: %w", err)
+	}
+
+	limitSQLiteConnections(sqlDB, dbPath)
+	return nil
+}
+
+func limitSQLiteConnections(sqlDB *sql.DB, dbPath string) {
+	if sqlDB == nil {
+		return
+	}
+
+	if dbPath == ":memory:" {
+		sqlDB.SetMaxOpenConns(1)
+		sqlDB.SetMaxIdleConns(1)
+	}
+}
+
+func applySQLiteConnectionSettings(database *gorm.DB) error {
+	if database == nil {
+		return fmt.Errorf("nil database")
+	}
+
+	statements := []struct {
+		sql string
+		msg string
+	}{
+		{sql: "PRAGMA foreign_keys = ON", msg: "failed to enable foreign keys"},
+		{sql: "PRAGMA journal_mode = WAL", msg: "failed to enable WAL mode"},
+		{sql: "PRAGMA busy_timeout = 5000", msg: "failed to set busy timeout"},
+	}
+
+	for _, statement := range statements {
+		if err := database.Exec(statement.sql).Error; err != nil {
+			return fmt.Errorf("%s: %w", statement.msg, err)
+		}
+	}
+
+	return nil
+}
+
+// NewTestDB creates an in-memory SQLite database with the full migration stack applied.
+func NewTestDB() (*gorm.DB, error) {
+	database, err := openSQLiteDatabase(":memory:")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := applySQLiteConnectionSettings(database); err != nil {
+		return nil, err
+	}
+
+	if err := runMigrations(database, ""); err != nil {
+		return nil, err
+	}
+
+	return database, nil
 }

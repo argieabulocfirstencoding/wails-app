@@ -9,7 +9,7 @@ import (
 type Attendance struct {
 	gorm.Model
 	UserID        string    `gorm:"not null;index:idx_attendances_user_time_in,priority:1"`
-	User          User      `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	User          User      `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	ClientTime    uint32    `gorm:"not null;default:0"`
 	TotalGap      uint32    `gorm:"not null;default:0"`
 	TimeIn        time.Time `gorm:"index:idx_attendances_user_time_in,priority:2"`

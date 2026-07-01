@@ -12,11 +12,11 @@ type TaskRecord struct {
 	Attendance    Attendance `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	TaskID        string     `gorm:"not null;index:idx_task_records_task_started,priority:1"` // foreign key
 	Task          Task       `gorm:"foreignKey:TaskID;references:TaskID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	StartedAt     time.Time  `gorm:"autoCreateTime;index:idx_task_records_task_started,priority:2;index:idx_task_records_attendance_sync_started,priority:3"`
+	StartedAt     time.Time  `gorm:"not null;autoCreateTime;index:idx_task_records_task_started,priority:2;index:idx_task_records_attendance_sync_started,priority:3"`
 	Padagan       bool       `gorm:"not null;default:false"`
 	Notes         string     `gorm:"not null;default:''"`
 	EndedAt       *time.Time `gorm:"index:idx_task_records_user_attendance_ended,priority:3"`
-	Duration      int32
+	Duration      int32      `gorm:"not null;default:0"`
 	SyncedAt      *time.Time
 	Productivity  *string
 	SyncStatus    string `gorm:"not null;default:'pending';index:idx_task_records_attendance_sync_started,priority:2"`

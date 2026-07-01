@@ -1,15 +1,17 @@
 package db
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
+
+	"gorm.io/gorm"
 )
 
-func createMigrationBackup(dbPath string) (string, error) {
-	if dbPath == "" {
+func createMigrationBackup(database *gorm.DB, dbPath string) (string, error) {
+	if database == nil || dbPath == "" {
 		return "", nil
 	}
 
@@ -26,23 +28,16 @@ func createMigrationBackup(dbPath string) (string, error) {
 	}
 
 	backupPath := fmt.Sprintf("%s.pre_migration_%s.bak", dbPath, time.Now().UTC().Format("20060102_150405"))
-	src, err := os.Open(dbPath)
-	if err != nil {
-		return "", err
-	}
-	defer src.Close()
-
 	if err := os.MkdirAll(filepath.Dir(backupPath), 0o755); err != nil {
 		return "", err
 	}
-
-	dst, err := os.Create(backupPath)
-	if err != nil {
+	if err := os.Remove(backupPath); err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
-	defer dst.Close()
 
-	if _, err := io.Copy(dst, src); err != nil {
+	if err := database.WithContext(context.Background()).Connection(func(conn *gorm.DB) error {
+		return conn.Exec("VACUUM INTO " + quoteSQLiteString(backupPath)).Error
+	}); err != nil {
 		return "", err
 	}
 

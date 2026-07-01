@@ -7,6 +7,7 @@ require (
 	github.com/blang/semver v2.2.0+incompatible
 	github.com/chai2010/webp v1.4.0
 	github.com/getlantern/systray v1.2.2
+	github.com/go-gormigrate/gormigrate/v2 v2.1.6
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/go-vgo/robotgo v0.110.8
 	github.com/google/uuid v1.6.0
@@ -15,15 +16,14 @@ require (
 	github.com/kurin/blazer v0.5.3
 	github.com/micmonay/keybd_event v1.1.2
 	github.com/stretchr/testify v1.11.1
-	github.com/wailsapp/wails/v2 v2.12.0
+	github.com/wailsapp/wails/v2 v2.10.2
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/sys v0.43.0
-	gorm.io/gorm v1.31.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
 	al.essio.dev/pkg/shellescape v1.5.1 // indirect
-	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
