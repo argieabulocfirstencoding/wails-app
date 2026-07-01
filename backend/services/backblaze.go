@@ -28,7 +28,7 @@ type BackblazeSync struct {
 	mu    sync.RWMutex
 }
 
-const backblazeEnabled = true
+const backblazeEnabled = false
 
 func NewBackblazeSync() *BackblazeSync {
 	return &BackblazeSync{}

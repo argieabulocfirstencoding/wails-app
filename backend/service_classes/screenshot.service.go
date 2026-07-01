@@ -41,7 +41,7 @@ type ScreenshotService struct {
 	workerDone chan struct{}
 }
 
-const screenshotsEnabled = true
+const screenshotsEnabled = false
 
 func NewScreenshotService(connectivity ...*ConnectivityStateService) *ScreenshotService {
 	var connectivityState *ConnectivityStateService
