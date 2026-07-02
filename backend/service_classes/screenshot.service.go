@@ -41,7 +41,12 @@ type ScreenshotService struct {
 	workerDone chan struct{}
 }
 
-const screenshotsEnabled = false
+// CONSTANTS
+const screenshotsEnabled = true
+
+const SCREENSHOT_INTERVAL = 5 // How often screenshot happens in production
+const SCREENSHOT_INTERVAL_DEVELOPLMENt = 1 // How often screenshot happens in development
+
 
 func NewScreenshotService(connectivity ...*ConnectivityStateService) *ScreenshotService {
 	var connectivityState *ConnectivityStateService
@@ -357,10 +362,10 @@ func sanitizeScreenshotFolderName(name string) string {
 
 func screenshotInterval(ctx context.Context) time.Duration {
 	if isDevelopmentRuntime(ctx) {
-		return time.Minute
+		return SCREENSHOT_INTERVAL_DEVELOPLMENt * time.Minute
 	}
 
-	return 5 * time.Minute
+	return SCREENSHOT_INTERVAL * time.Minute
 }
 
 func isDevelopmentRuntime(ctx context.Context) bool {
