@@ -50,7 +50,7 @@ type App struct {
 	AttendanceID  *uint
 }
 
-// CurrentVersion will be injected from wails.json or ldflags
+// CurrentVersion will be injected from wails.json or ldflags 
 var CurrentVersion = "2.4.5"
 
 const attendanceResyncWindow = 48 * time.Hour
