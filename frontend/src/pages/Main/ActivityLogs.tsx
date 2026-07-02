@@ -377,7 +377,7 @@ const ActivityLogs = () => {
 
   return (
     <SettingsLayout>
-      <div className="max-w-md mx-auto space-y-6">
+      <div className="relative max-w-md mx-auto space-y-6">
         <header className="space-y-1">
           <h2 className="text-xl sm:text-2xl font-semibold text-neutral-900 dark:text-neutral-50">
             Activity Logs
@@ -387,7 +387,7 @@ const ActivityLogs = () => {
           </p>
         </header>
 
-        <div className="absolute top-3 z-999 right-4 flex justify-end items-end">
+        <div className="fixed top-3 z-999 right-4 flex justify-end items-end">
           <Calendar22 setDate={setDate} date={date} />
         </div>
 

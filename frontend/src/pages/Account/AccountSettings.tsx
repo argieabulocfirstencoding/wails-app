@@ -125,7 +125,7 @@ const AccountSettings = () => {
           <div className="px-6 pt-5 pb-4 flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
               <img
-                src={user?.photo || "/assets/images/default-avatar.png"}
+                src={user?.photo || "https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"}
                 alt="Profile avatar"
                 className="w-full h-full object-cover"
               />
