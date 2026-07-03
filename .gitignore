@@ -23,6 +23,8 @@ fesapp-res.syso
 
 # Ignore everything in build/bin
 build/bin/**
+build/windows/**
+build/windows/installer/**
 
 # Keep build assets
 !build/appicon.png
@@ -41,3 +43,6 @@ frontend/dist/
 Thumbs.db
 .idea/
 .vscode/
+
+frontend/wailsjs/go/
+frontend/wailsjs/runtime/
