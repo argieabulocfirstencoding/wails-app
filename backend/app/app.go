@@ -50,7 +50,7 @@ type App struct {
 	AttendanceID  *uint
 }
 
-// CurrentVersion will be injected from wails.json or ldflags 
+// CurrentVersion will be injected from wails.json or ldflags
 var CurrentVersion = "2.4.5"
 
 const attendanceResyncWindow = 48 * time.Hour
@@ -582,11 +582,30 @@ func (a *App) AddMemo(memo, notes string) {
 }
 
 func (a *App) GetFolderSize() (int64, error) {
-	return services.GetScreenshotStorageSize(a.ctx)
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return 0, err
+	}
+
+	size, err := services.GetScreenshotStorageSize(a.ctx, authUser.LocalID)
+	if err != nil {
+		return 0, a.stableClientError("get_screenshot_storage_size", err)
+	}
+
+	return size, nil
 }
 
 func (a *App) ClearScreenshots() error {
-	return services.ClearScreenshots(a.ctx)
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return err
+	}
+
+	if err := services.ClearScreenshots(a.ctx, authUser.LocalID); err != nil {
+		return a.stableClientError("clear_screenshots", err)
+	}
+
+	return nil
 }
 
 // ----------------------------------------------------

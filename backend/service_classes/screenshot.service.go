@@ -41,7 +41,9 @@ type ScreenshotService struct {
 	workerDone chan struct{}
 }
 
-const screenshotsEnabled = false
+const screenshotsEnabled = true
+const PRODUCTION_SCREENSHOT_INTERVAL = 10
+const DEVELOPMENT_SCREENSHOT_INTERVAL = 1
 
 func NewScreenshotService(connectivity ...*ConnectivityStateService) *ScreenshotService {
 	var connectivityState *ConnectivityStateService
@@ -78,7 +80,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		return nil, fmt.Errorf("screenshot capture aborted: task ID is nil")
 	}
 
-	storageRoot, err := services.EnsureScreenshotStoragePath(ctx)
+	storageRoot, err := s.screenshotStorageRoot(ctx, *taskRecordID)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +156,27 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 		s.trySync(taskScreenshot, paths)
 	})
 	return pictures, nil
+}
+
+func (s *ScreenshotService) screenshotStorageRoot(ctx context.Context, taskRecordID uint) (string, error) {
+	if taskRecordID == 0 {
+		return "", fmt.Errorf("screenshot capture aborted: task record ID is invalid")
+	}
+
+	taskRecord, err := s.TaskRepo.GetTaskRecord(taskRecordID)
+	if err != nil {
+		return "", err
+	}
+	if taskRecord == nil {
+		return "", fmt.Errorf("screenshot capture aborted: task record not found")
+	}
+
+	userID := strings.TrimSpace(taskRecord.UserID)
+	if userID == "" {
+		return "", fmt.Errorf("screenshot capture aborted: task record user ID is empty")
+	}
+
+	return services.EnsureUserScreenshotStoragePath(ctx, userID)
 }
 
 func (s *ScreenshotService) Start(ctx context.Context) {
@@ -357,10 +380,10 @@ func sanitizeScreenshotFolderName(name string) string {
 
 func screenshotInterval(ctx context.Context) time.Duration {
 	if isDevelopmentRuntime(ctx) {
-		return time.Minute
+		return DEVELOPMENT_SCREENSHOT_INTERVAL * time.Minute
 	}
 
-	return 5 * time.Minute
+	return PRODUCTION_SCREENSHOT_INTERVAL * time.Minute
 }
 
 func isDevelopmentRuntime(ctx context.Context) bool {

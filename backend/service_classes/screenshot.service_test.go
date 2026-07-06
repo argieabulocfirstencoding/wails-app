@@ -7,6 +7,7 @@ import (
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -84,6 +85,26 @@ func setupScreenshotServiceTestDB(t *testing.T) (*gorm.DB, *models.User, *models
 	}
 
 	return testDB, user, oldRecord, newRecord
+}
+
+func setDevelopmentScreenshotWorkingDir(t *testing.T) string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		_ = os.Chdir(originalWD)
+	})
+	t.Setenv("DEVELOPMENT", "1")
+
+	return tmpDir
 }
 
 func TestGetLatestRecordsWithScreenshotsUsesLatestTaskRecordScreenshot(t *testing.T) {
@@ -173,5 +194,27 @@ func TestGetLatestRecordsWithScreenshotsSkipsMissingFiles(t *testing.T) {
 	}
 	if len(result.Screenshots) != 1 {
 		t.Fatalf("expected only existing screenshots to be returned, got %d", len(result.Screenshots))
+	}
+}
+
+func TestScreenshotStorageRootUsesTaskRecordUserFolder(t *testing.T) {
+	_, user, _, record := setupScreenshotServiceTestDB(t)
+	tmpDir := setDevelopmentScreenshotWorkingDir(t)
+
+	service := NewScreenshotService()
+	root, err := service.screenshotStorageRoot(context.Background(), record.ID)
+	if err != nil {
+		t.Fatalf("screenshotStorageRoot returned error: %v", err)
+	}
+
+	want := filepath.Join(tmpDir, "backend", "screenshots", user.ID)
+	if root != want {
+		t.Fatalf("expected screenshot root %q, got %q", want, root)
+	}
+
+	if info, err := os.Stat(root); err != nil {
+		t.Fatalf("expected screenshot root to exist: %v", err)
+	} else if !info.IsDir() {
+		t.Fatalf("expected screenshot root to be a directory")
 	}
 }
