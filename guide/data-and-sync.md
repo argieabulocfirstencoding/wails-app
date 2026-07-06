@@ -1,51 +1,76 @@
-# Data Model And Sync Flow
+# Data And Sync
 
-This document explains the SQLite schema and the lifecycle of attendance, task, and screenshot records.
+This document explains the local database, the record lifecycle, and the synchronization model.
 
-## 1. Why the local database matters
+If a production bug sounds like:
 
-The app is local-first. SQLite is not just a cache. It is the working system of record during:
+- "my login did not sync"
+- "my task stopped but did not appear remotely"
+- "screenshots are missing"
+- "the app says not synced"
 
-- offline operation
-- interrupted sync
-- app restart after partial failure
-- manual resync
+then this is the document you want first.
 
-If you change sync behavior, always preserve enough local information for a later retry.
+## 1. Why local data matters so much
 
-## 2. Storage locations
+The local SQLite database is not just a cache for convenience.
 
-### Database
+It is the app's durable operational memory during:
 
-Resolved in `backend/db/db.go`.
+- normal work
+- offline work
+- partially failed sync
+- app restart after interruption
+- manual recovery and resync
 
-On Windows, the database is created under the user's config directory in a `wails-app` folder.
+That means local records must be good enough to tell the truth even when the remote system is behind.
 
-- development build: `fesapp-dev.db`
-- production build: `fesapp.db`
+## 2. Where data is stored
 
-### Screenshot files
+### SQLite database
 
-Resolved in `backend/services/storage.go`.
+Resolved in:
 
-- development mode: `<repo>/backend/screenshots`
-- production mode: user cache directory under `FESApp/screenshots`
+- `backend/db/db.go`
 
-### Credentials
+The database lives under the user's config directory in a `wails-app` folder.
 
-Remote tokens and keys are stored in the OS keyring, not in SQLite:
+Build-specific filenames:
 
-- FES API token
-- Backblaze credentials
+- development: `fesapp-dev.db`
+- production: `fesapp.db`
+
+### Screenshot image files
+
+Resolved in:
+
+- `backend/services/storage.go`
+
+Storage behavior:
+
+- development: `<repo>/backend/screenshots`
+- production: user cache directory under `FESApp/screenshots`
+
+### Secrets and tokens
+
+Stored in the OS keyring, not in SQLite.
+
+Examples:
+
+- `fes_api_token`
+- `APP_ID`
+- `APP_KEY`
 
 ## 3. Core tables
+
+The following tables are the ones a takeover developer should understand first.
 
 ### `users`
 
 Purpose:
 
-- local account registry
-- cached employee profile details
+- stores known local accounts
+- caches employee profile details returned from the remote system
 
 Important fields:
 
@@ -65,7 +90,7 @@ Important fields:
 
 Purpose:
 
-- local cache of remote client records
+- local cache of remote client entities
 
 Important fields:
 
@@ -77,8 +102,8 @@ Important fields:
 
 Purpose:
 
-- local cache of remote project/task choices
-- lookup for tracking and summaries
+- local cache of remote task/project choices
+- lookup data used during tracking and summaries
 
 Important fields:
 
@@ -91,7 +116,7 @@ Important fields:
 
 Purpose:
 
-- one login/logout work session
+- represents one work-session envelope, usually login -> logout
 
 Important fields:
 
@@ -105,12 +130,14 @@ Important fields:
 - `last_error`
 - `last_attempt_at`
 - `synced_at`
+- `client_time`
+- `total_gap`
 
 ### `task_records`
 
 Purpose:
 
-- a tracked work segment for a specific task within an attendance session
+- represents one tracked segment of work on a specific task inside an attendance session
 
 Important fields:
 
@@ -135,7 +162,7 @@ Important fields:
 
 Purpose:
 
-- metadata for captured screenshots associated with a task record
+- stores metadata for captured screenshot batches associated with a task record
 
 Important fields:
 
@@ -149,6 +176,8 @@ Important fields:
 - `taken_at`
 
 ## 4. Relationship model
+
+In simple terms, the relationships are:
 
 ```text
 User
@@ -170,204 +199,300 @@ Client
   -> many Tasks
 ```
 
-## 5. Migrations and schema repair
+### Why this matters
 
-The schema is managed through a migration catalog, not by naive auto-migration alone.
+If a task record looks broken, you often need to inspect:
 
-Important characteristics:
+- its attendance
+- its task
+- its screenshots
 
-- canonical schemas are defined explicitly
-- legacy tables can be rebuilt into the canonical form
-- migration planning decides whether a backup is required
-- hot query indexes are created explicitly
+not just the row itself.
 
-This is designed to recover older or partially corrupted local databases instead of assuming a perfect history.
+## 5. Why schema work is handled carefully
 
-## 6. Sync status lifecycle
+The app already has migration and repair infrastructure because local data is valuable and older installations may drift.
 
-The app uses explicit sync states.
+That means schema changes should preserve these principles:
 
-| State | Meaning |
+- be explicit
+- be testable
+- be repair-friendly
+- preserve existing user data
+
+## 6. The sync-state machine
+
+Both attendances and task records use explicit sync-state columns.
+
+### Main states
+
+| State | Meaning in plain language |
 | --- | --- |
-| `pending` | record exists locally and still needs remote sync |
-| `in_progress` | a sync worker is currently attempting to process the record |
-| `synced` | remote sync succeeded |
-| `failed` | a sync attempt was made and failed |
-| `blocked` | sync could not proceed because a required condition was not met |
+| `pending` | the record exists locally and still needs to be synced |
+| `in_progress` | the app is actively attempting sync work right now |
+| `synced` | the remote operation completed successfully |
+| `failed` | a real sync attempt happened and returned an error |
+| `blocked` | sync could not proceed because a required condition was missing |
 
 ### Common reasons for `blocked`
 
 - the app is offline
-- attendance dependency is not ready for task sync
-- remote identity needed for downstream sync is missing
+- the task depends on attendance data that is not ready yet
+- the record is missing a remote identifier required for the next stage
 
-## 7. Attendance lifecycle
+### Why `failed` and `blocked` are different
 
-### Online login
+- `failed` usually means "we tried and got an error"
+- `blocked` usually means "we intentionally did not proceed because prerequisites were missing"
 
-1. user successfully logs in against the FES API
-2. a local attendance is created or reused
-3. `SyncService` attempts remote attendance login sync
-4. remote response may return a `login_logout` identifier
-5. local attendance is marked synced when successful
+That difference is very useful during debugging.
 
-### Logout
+## 7. Sync metadata columns and why they matter
 
-1. local attendance gets `time_out`
-2. sync status becomes `pending`
-3. remote logout sync is attempted
-4. local attendance becomes `synced` only if remote logout succeeds
+Important columns include:
 
-### Resync guard
+- `sync_status`
+- `attempt_count`
+- `last_attempt_at`
+- `last_error`
+- `synced_at`
 
-Manual attendance resync is only allowed within a 48-hour window, enforced in `App.SyncAttendanceByID`.
+These are not optional decoration. They help answer:
 
-## 8. Task record lifecycle
+- did the app even try?
+- how many times did it try?
+- what was the last failure?
+- when did it last try?
+- when did it finally succeed?
+
+Do not casually wipe these values.
+
+## 8. Attendance lifecycle
+
+An attendance record is the container around a session of work.
+
+### Online login path
+
+1. user logs in through the remote FES API
+2. a local attendance is created
+3. sync service tries to perform remote attendance login
+4. remote response may return `login_logout`
+5. local attendance is marked `synced`
+
+### Logout path
+
+1. local attendance gets a `time_out`
+2. sync status becomes relevant again because logout must be synced too
+3. sync service attempts remote logout
+4. on success, the attendance is marked `synced`
+
+### Important field: `login_logout_id`
+
+This is one of the most important values in the entire app. It is the remote attendance/session identity used by downstream task syncing.
+
+## 9. Task record lifecycle
+
+Task records represent actual units of tracked work.
 
 ### Start tracking
 
-1. any lingering active task records are closed defensively
+When a task starts:
+
+1. defensive cleanup may close old active records
 2. a new task record is created locally
-3. `gap` is calculated from the previous ended record in the same attendance
-4. the new record is eligible for sync
-5. if online, `SyncService` tries remote task-in sync
+3. `gap` is computed from the previous record in the same attendance
+4. sync service may attempt remote task-in if possible
+5. screenshot capture may start
 
 ### Stop tracking
 
-1. the open task record is closed locally
-2. `duration` is computed
-3. `sync_status` is reset to `pending`
-4. if online, remote task-out sync is attempted
+When a task stops:
 
-### Why task sync may happen in multiple steps
+1. the local open record is closed
+2. `ended_at` is written
+3. `duration` is calculated
+4. sync state is reset to `pending`
+5. remote task-out is attempted if online
 
-Remote task sync can be split into:
+### Why task sync can be multi-stage
 
-- remote task-in
-- remote task-out
+Remote task syncing is not always a single request.
 
-The local `productivity` identifier returned from task-in is needed for task-out and for some screenshot-related remote correlation.
+There are conceptually two phases:
 
-## 9. Attendance-before-task dependency
+- task-in
+- task-out
+
+The app often needs a remote `productivity` identifier from task-in before it can correctly complete task-out and related screenshot upload behavior.
+
+## 10. Attendance-before-task dependency
+
+This is one of the most important rules in the app.
 
 Task sync depends on attendance readiness.
 
-`ensureAttendanceReadyForTaskSync(...)` does the following:
+In practice, `SyncService.ensureAttendanceReadyForTaskSync(...)` checks whether:
 
-- reload the attendance from the database
-- check for a remote `login_logout` or a synced attendance state
-- attempt attendance sync if needed
-- retry a small number of times
+- the attendance exists
+- it already has a usable `login_logout_id`
+- or it is otherwise already considered synced enough
 
-This prevents task records from syncing against a remote session that does not exist yet.
+If not, the sync service retries attendance sync first.
 
-## 10. Screenshot lifecycle
+### Practical meaning
 
-Current code reality:
+If a task record refuses to sync, do not inspect only the task record. Inspect its attendance.
 
-- screenshot records and plumbing exist
-- actual capture is disabled by a compile-time constant
-- cloud upload is also disabled by a compile-time constant
+## 11. Screenshot lifecycle
 
-If enabled, the intended flow is:
+Screenshots have both local and remote lifecycle stages.
 
-1. `ScreenshotService` captures all active displays
-2. files are stored locally as `.webp`
-3. a `screenshots` row is inserted in SQLite
-4. frontend receives a `screenshot` runtime event
-5. `SyncService` uploads missing screenshots after task record sync
+### Local capture phase
 
-### Pending screenshot handling
+1. screenshot service detects active displays
+2. each display is captured
+3. each image is encoded as WebP
+4. files are written to disk
+5. a `screenshots` row is written to SQLite
+6. a frontend runtime event is emitted
 
-The sync layer can detect screenshots where `cloud_url` is empty and attempt backlog upload later.
+### Upload phase
 
-This is why the activity log page can show screenshot backlog status.
+1. sync service checks whether the task record has a remote `productivity` ID
+2. sync service checks whether Backblaze is enabled and connected
+3. pending screenshot files are uploaded
+4. `cloud_url` is updated
 
-## 11. Summary and activity log queries
+### Important detail: `file_path`
 
-### Activity logs
+The screenshot row stores local path information, often as JSON-encoded paths. That means screenshot debugging sometimes requires inspecting both:
 
-Implemented in `backend/services/activity_log.go`.
+- the database row
+- the real files on disk
 
-It:
+## 12. What "pending screenshot backlog" really means
 
-- resolves the Manila date range
-- queries attendances for the selected date
-- loads task records for each attendance
-- counts pending screenshots when screenshot uploads are relevant
+A screenshot can exist locally and still be waiting for cloud upload.
 
-### Daily summaries
+That usually means:
 
-Implemented in `backend/services/summary.go`.
+- local capture succeeded
+- the `screenshots` row exists
+- `cloud_url` is still empty
 
-It:
+This is why the activity log and sync logic treat screenshot uploading as a later reconciliation step.
 
-- groups task records by task and `padagan`
-- sums durations
-- builds user-facing task names using client and task fields
+## 13. Sync queue behavior
 
-## 12. Timezone model
+The sync service does not fire requests blindly. It manages a queue with retries and deduplication.
 
-The app is Manila-time aware in both frontend and backend.
+### Queue characteristics
 
-Why that matters:
+- jobs have keys
+- duplicate pending jobs may be skipped
+- retryable failures are retried with backoff
+- blocked failures are not retried forever as if they were network flukes
 
-- attendance filters are date-based
-- logs and summaries depend on correct local-day boundaries
-- naive UTC assumptions can move records to the wrong calendar day
+### Why this is good
 
-Relevant files:
+Without queueing and deduplication, a user rapidly clicking around could trigger overlapping or contradictory sync attempts.
 
-- backend date helpers used by activity log and summary services
-- `frontend/src/lib/timezone.ts`
+## 14. What "source of truth" means here
 
-If you change date logic, test around midnight boundaries and timezone fallback paths.
+Different pieces of data have different owners.
 
-## 13. Debugging sync problems
+### Practical ownership model
 
-When a user says "my time did not sync", inspect these in order:
+- React store owns short-lived UI state
+- `App` owns current runtime session wiring
+- SQLite owns durable local operational state
+- FES API owns authoritative remote records after successful sync
+- Backblaze owns remote screenshot objects after upload
 
-1. `attendances.sync_status`
-2. `attendances.login_logout_id`
-3. `attendances.last_error`
-4. `task_records.sync_status`
-5. `task_records.productivity`
-6. `task_records.last_error`
-7. `screenshots.cloud_url` for screenshot-related issues
+During debugging, first decide which layer should be trusted for the problem you are investigating.
 
-### Helpful signals
+## 15. Helpful SQL checks during debugging
 
-- `attempt_count` tells you whether the worker actually retried
-- `last_attempt_at` tells you when it last tried
-- `blocked` usually means preconditions were missing
-- `failed` usually means a real attempt happened and errored
+If you inspect the SQLite database directly, these kinds of queries are useful:
 
-## 14. Diagnostic bundle
+```sql
+SELECT id, user_id, time_in, time_out, login_logout_id, sync_status, attempt_count, last_error
+FROM attendances
+ORDER BY id DESC
+LIMIT 20;
+```
 
-The backend can export a diagnostic bundle containing:
+```sql
+SELECT id, task_id, attendance_id, started_at, ended_at, productivity, sync_status, attempt_count, last_error
+FROM task_records
+ORDER BY id DESC
+LIMIT 20;
+```
 
-- app version and platform metadata
-- recent attendance sync states
-- recent task record sync states
-- current log file if available
+```sql
+SELECT id, task_record_id, task_id, file_path, cloud_url, taken_at
+FROM screenshots
+ORDER BY id DESC
+LIMIT 20;
+```
 
-This is the best support artifact when debugging a production sync issue.
+### What to look for
 
-## 15. Data and sync cautions
+- records stuck in `blocked`
+- records stuck in `failed`
+- empty `login_logout_id` on attendance
+- empty `productivity` on task records that should have remote identity
+- empty `cloud_url` when screenshot upload should have happened
 
-### Do not clear or rewrite sync columns casually
+## 16. Timezone model
 
-Fields like `sync_status`, `synced_at`, `attempt_count`, and `last_error` are part of operational recovery.
+The app cares about Manila-time boundaries for summaries and logs.
 
-### A locally "complete" record may still be remotely incomplete
+Why this matters:
 
-A task record with `ended_at` set can still be unsynced if remote task-out failed.
+- a task near midnight can land on the wrong day if timezone logic is careless
+- attendance summaries depend on date boundaries, not just absolute timestamps
 
-### Backfill logic matters
+If you touch date filtering, test around midnight and timezone conversion behavior.
 
-Migration repair logic is designed to preserve existing user data. Avoid shortcuts that only work on fresh databases.
+## 17. Manual resync guard
 
-## 16. Read next
+Attendance resync is intentionally time-limited.
 
-- `guide/backend.md` for the Go services implementing these rules
-- `guide/developer-workflow.md` for debugging and release checklists
+`App.SyncAttendanceByID(...)` currently enforces a 48-hour resync window.
+
+That means older login/logout records may intentionally reject manual resync even if they look tempting to repair.
+
+## 18. How to debug "not synced" reports
+
+When a user says "my time did not sync", inspect in this order:
+
+1. the attendance row
+2. the attendance `login_logout_id`
+3. the attendance `sync_status`
+4. the attendance `last_error`
+5. the task record `sync_status`
+6. the task record `productivity`
+7. the task record `last_error`
+8. related screenshot `cloud_url` values if screenshots are involved
+
+### Good interpretation habits
+
+- `attempt_count = 0` often means the worker never really got a chance
+- `blocked` often means a prerequisite was missing
+- `failed` usually means a real request errored
+- a closed local record can still be remotely unsynced
+
+## 19. Things you should not change casually
+
+- sync-state semantics
+- `login_logout_id` handling
+- `productivity` handling
+- screenshot file-path format
+- migration repair strategy
+- index strategy for hot query paths
+
+## Read next
+
+- [`guide/backend.md`](./backend.md) for the code that implements these rules
+- [`guide/troubleshooting.md`](./troubleshooting.md) for step-by-step incident debugging

@@ -1,363 +1,476 @@
 # Frontend Deep Dive
 
-This document explains the React side of the Wails app.
+This document explains the React side of the app.
 
-## 1. Frontend stack
+Even though the frontend is written with normal web tooling, remember that it is running inside a desktop WebView and depends heavily on Wails bindings and backend runtime events.
 
-Main technologies:
+## 1. Frontend stack in plain language
 
-- React 18
+The frontend is built with:
+
+- React
 - TypeScript
 - Vite
 - React Router
 - Zustand
 - Tailwind CSS
 - Radix UI primitives
+- some SCSS
+- Firebase SDK
 
-The frontend lives under `frontend/src/`.
+What these mean in simple terms:
 
-## 2. Entry points
+- React: builds screens from components
+- TypeScript: adds types to JavaScript
+- Vite: development server and build tool
+- React Router: page navigation inside the app
+- Zustand: shared in-memory state store
+- Tailwind: utility-first styling
+- Radix UI: accessible UI primitives
+- Firebase SDK: auth listener integration still present in the app
+
+## 2. Frontend entry points
 
 ### `frontend/src/main.tsx`
 
-This file:
+This is the browser-side bootstrap file.
+
+It:
 
 - creates the React root
-- mounts `App`
-- wraps the app in `ErrorBoundary`
-- wraps the app in `ThemeProvider`
+- mounts the app
+- wraps the app with shared providers and safety layers
 
 ### `frontend/src/App.tsx`
 
-This file:
+This is the main application shell.
 
-- installs global hooks:
-  - `useFirebaseAuth()`
-  - `useOnlineStatus()`
-- registers the router
-- performs delayed release update checks when enabled
+It:
+
+- activates `useFirebaseAuth()`
+- activates `useOnlineStatus()`
+- sets up the router
+- optionally checks for updates after a delay
+
+### Why `App.tsx` matters
+
+If the app has a global behavior problem, start here. This file is where the frontend's always-on hooks are installed.
 
 ## 3. Routing structure
 
-Routes currently defined:
+Current routes include:
 
-| Route | Page | Purpose |
+| Route | Main file | Purpose |
 | --- | --- | --- |
-| `/` | `Landing.tsx` | splash/loading redirect |
-| `/login` | `Auth/Login.tsx` | online login |
-| `/offline-login` | `Auth/OfflineLogin.tsx` | local-only login |
-| `/home` | `Main/Home.tsx` | task list and current session status |
-| `/task/:id` | `Main/Task.tsx` | per-task tracking screen |
-| `/account` | `Account/AccountSettings.tsx` | account and local settings |
-| `/notifications` | `Main/Notifications.tsx` | notification preferences UI |
-| `/activity-logs` | `Main/ActivityLogs.tsx` | activity history and resync tools |
-| `/logout` | `Auth/Logout.tsx` | logout confirmation flow |
+| `/` | `pages/Landing.tsx` | splash/redirect behavior |
+| `/login` | `pages/Auth/Login.tsx` | normal online login |
+| `/offline-login` | `pages/Auth/OfflineLogin.tsx` | local offline login |
+| `/home` | `pages/Main/Home.tsx` | main task list and current-day dashboard |
+| `/task/:id` | `pages/Main/Task.tsx` | single-task tracking screen |
+| `/account` | `pages/Account/AccountSettings.tsx` | account/settings screen |
+| `/notifications` | `pages/Main/Notifications.tsx` | notifications UI |
+| `/activity-logs` | `pages/Main/ActivityLogs.tsx` | history, sync state, and resync screen |
+| `/logout` | `pages/Auth/Logout.tsx` | logout flow |
 
-Fallback route:
+Unknown routes currently fall back to the login screen.
 
-- `*` redirects to the login screen component
+## 4. Layouts
 
-## 4. State management
+Main layout files:
 
-Primary shared state lives in:
+- `frontend/src/layouts/MainLayout.tsx`
+- `frontend/src/layouts/SettingsLayout.tsx`
+
+These give the app a shared shell for certain page groups.
+
+### `MainLayout`
+
+Used for the core tracking experience, such as Home and Task pages.
+
+### `SettingsLayout`
+
+Used for settings-style screens with simpler content flow.
+
+## 5. Shared state: the Zustand store
+
+Main file:
 
 - `frontend/src/store/AuthContext.ts`
 
-This is actually a Zustand store, not a React Context object, despite the filename.
+Important naming warning:
 
-### Important store fields
+- despite the filename, this is not a React Context implementation
+- it is a Zustand store
+
+### Important state fields
 
 - `user`
-- `attendance`
+- `attendanceSynced`
+- `loading`
 - `online`
 - `taskID`
+- `fetchedActiveRecord`
+- `synced`
 - `tasks`
 - `summaries`
-- `synced`
-- `attendanceSynced`
-- `fetchedActiveRecord`
+- `attendance`
 - `initializedTask`
 
 ### Why this store matters
 
-Most screens infer session state, connectivity state, and current activity status from this store. If the store gets out of sync with backend reality, the UI can look correct while the backend is doing something else.
+Most screens rely on it to decide:
 
-## 5. Generated Wails bindings
+- whether the user appears logged in
+- whether the app appears online
+- which task is running
+- which tasks to show
+- what sync state badge to display
 
-Files:
+If the store is stale, the UI can look correct while the backend is in a different state.
 
-- `frontend/wailsjs/go/app/App.d.ts`
+## 6. Generated Wails bindings
+
+The frontend imports backend-callable functions from generated files under `frontend/wailsjs/`.
+
+Examples:
+
 - `frontend/wailsjs/go/app/App.js`
+- `frontend/wailsjs/go/app/App.d.ts`
 - `frontend/wailsjs/go/models.ts`
 
-These files expose Go methods to TypeScript as async functions.
-
-Example:
+These files let frontend code do this:
 
 ```ts
-import { StartTracking } from "../wailsjs/go/app/App";
+import { StartTracking, GetTasks } from "../wailsjs/go/app/App";
 ```
 
-Important rule:
+### Important rule
 
-- do not edit these files by hand
+Do not edit generated binding files by hand.
 
-If the Go-side exported method or model changes, regenerate through the Wails workflow.
+If an `App` method changes or a Go model shape changes:
 
-## 6. Global hooks
+- regenerate the bindings through the Wails workflow
+
+## 7. Global hooks
 
 ### `useOnlineStatus`
 
-This hook listens to browser `online` / `offline` events and updates Zustand.
+File:
 
-Important limitation:
+- `frontend/src/hooks/useOnlineStatus.ts`
 
-- browser online state only means the WebView thinks network connectivity changed
+This hook listens to browser `online` and `offline` events and updates the Zustand store.
+
+Important caveat:
+
+- browser online status only tells you the WebView thinks the network changed
 - it does not prove the FES API is reachable
 
 ### `useFirebaseAuth`
 
-This hook subscribes to Firebase auth state.
+File:
 
-Important reality:
+- `frontend/src/hooks/useFirebaseAuth.ts`
 
-- the app does initialize Firebase
-- but the main working login path is not a Firebase sign-in flow
-- the real session is mostly driven by Wails login calls and local store state
+This hook subscribes to Firebase auth state and writes the result into the same `user` field in the Zustand store.
 
-This hook is therefore contextual, but it is not the core source of truth for a working tracker session.
+Important caveat:
 
-## 7. Layouts
+- the main working login flow of the app is driven by Wails + FES API calls
+- Firebase auth state still mutates the same frontend store field
 
-### `MainLayout.tsx`
+That means the codebase has some auth-source ambiguity. Be careful when changing user hydration or session state logic.
 
-Used for the main task-tracking screens:
+## 8. Release flags
 
-- full-height shell
-- scrollable content
-- bottom `ProfileBar`
+Main file:
 
-### `SettingsLayout.tsx`
+- `frontend/src/config/release.ts`
 
-Used for settings-like screens:
+Current flags include:
 
-- sticky header with back button
-- central content column
+- `screenshotsEnabled: true`
+- `updateCheckDelayMs: 15000`
 
-## 8. Page responsibilities
+### Why this matters
+
+The frontend sometimes conditionally renders screenshot UI based on this file. If you change screenshot behavior, align this with backend constants and actual product intent.
+
+## 9. Important pages
 
 ### `Landing.tsx`
 
-- temporary splash screen
-- redirects to `/login`
+This is the temporary initial page. Think of it as a splash or entry redirect.
 
-### `Login.tsx`
+### `Auth/Login.tsx`
 
-Main online login screen.
+This is the normal online login screen.
 
-Responsibilities:
+It is responsible for:
 
-- collect email and password
-- call `LoginUserOnline`
-- create frontend user session state
-- store user in `localStorage`
-- route to `/home`
+- collecting credentials
+- calling `LoginUserOnline`
+- initializing frontend session state
+- storing user information locally
+- navigating to `/home`
 
-Notable behavior:
+### `Auth/OfflineLogin.tsx`
 
-- it sets user state from the returned attendance object first
-- detailed user profile data is fetched later on the home screen
+This screen supports local-only login using previously known accounts.
 
-### `OfflineLogin.tsx`
+It is responsible for:
 
-Offline local login screen.
+- fetching locally known accounts
+- allowing account selection
+- calling offline login
+- continuing without remote validation
 
-Responsibilities:
+### `Main/Home.tsx`
 
-- fetch locally known accounts from Go
-- let the user select an email
-- call `LoginUser(email)`
-- store local-only user state
+This is one of the most important screens.
 
-### `Home.tsx`
+It is responsible for:
 
-This is the main operational dashboard.
+- fetching tasks
+- fetching the active task record
+- fetching current attendance
+- listening for sync events
+- showing recent task usage
+- showing summary totals
+- refreshing task ordering
 
-Responsibilities:
-
-- fetch tasks
-- fetch current active task record
-- refresh recent task records
-- fetch and display today summaries
-- listen for backend sync events
-- show sync health and task list ordering
-
-Important event subscriptions:
+Important runtime event subscriptions here:
 
 - `employee_details_fetched`
 - `record-synced`
 - `attendance-synced`
 - `tasks-sync-warning`
 
-### `Task.tsx`
+### `Main/Task.tsx`
 
-This is the most important user-flow page.
+This is the best page to study if you want to understand the full app.
 
-Responsibilities:
+It is responsible for:
 
-- start and stop time tracking
-- display current or latest session duration
-- edit memo and activity tag
-- show sync status
-- display latest screenshot if enabled
-- launch Upwork helper behavior for certain tasks
+- start and stop tracking
+- showing timer state
+- editing memo and activity tag
+- showing sync state
+- showing latest screenshot
+- triggering Upwork helper behavior for qualifying tasks
 
-This page is the easiest place to trace a full end-to-end feature because it touches:
+Important runtime event subscriptions here:
 
-- Wails bindings
-- Zustand
-- runtime events
-- sync state
-- optional screenshot behavior
+- `screenshot`
+- `record-synced`
+- `upwork-button`
 
-### `ActivityLogs.tsx`
+### `Main/ActivityLogs.tsx`
 
-This is the support and recovery screen for operational history.
+This is the support and recovery screen.
 
-Responsibilities:
+It is where a maintainer or support user is most likely to inspect:
 
-- query activity logs for a selected date
-- query per-client summary totals
-- show attendance and task sync state
-- permit manual resync actions
-- enforce a 48-hour resync window for attendance login/logout entries
+- attendance sync state
+- task-record sync state
+- manual resync actions
+- recent work history
 
-This page is especially important when debugging real-world sync failures.
+### `Account/AccountSettings.tsx`
 
-### `AccountSettings.tsx`
+This page includes user-facing maintenance actions like checking screenshot storage usage and clearing screenshots.
 
-Responsibilities:
+### `Auth/Logout.tsx`
 
-- show user profile data
-- manage light/dark theme
-- show screenshot storage usage
-- clear screenshot storage
+This page drives logout and cleanup behavior. Because logout touches attendance sync, it is more than a simple client-side state reset.
 
-### `Notifications.tsx`
+## 10. Home page behavior in more detail
 
-Currently a UI-only settings screen. It does not appear to persist settings to a backend subsystem yet.
+`frontend/src/pages/Main/Home.tsx` is a good example of the frontend's hybrid model.
 
-### `Logout.tsx`
+It does all of these things:
 
-Implements a guarded logout flow with best-effort backend logout and client cleanup.
+- fetches user details
+- fetches task summaries
+- fetches recent task records
+- fetches current active record
+- listens for sync events
+- re-sorts tasks based on activity
+- displays sync warnings from the backend
 
-## 9. Runtime event architecture
+### Interesting detail
 
-The frontend uses `EventsOn(...)` to subscribe to backend-emitted Wails events.
+The page does not just "load once". It is refreshed by backend-emitted events. That means a frontend-only reading of the file is not enough; you also have to know what backend events exist.
 
-This is how the UI learns about:
+## 11. Task page behavior in more detail
 
-- sync completion
-- employee-detail refresh
-- screenshot capture completion
-- warning conditions
+`frontend/src/pages/Main/Task.tsx` is where the user experiences the tracking lifecycle most directly.
 
-This means some state changes happen outside the immediate promise that started the action. When debugging stale UI, always inspect both:
+### When starting a task
 
-- the original method call
-- the matching runtime event handling
+The page:
 
-## 10. Local browser storage
+- calls `StartTracking`
+- stores the start time locally for display
+- updates UI state to show the task as running
+- may set the `padagan` mode
 
-Current frontend local storage usage includes:
+### When stopping a task
+
+The page:
+
+- calls `StopTracking`
+- clears active task state
+- shows sync state changes as the backend finishes background work
+
+### Memo and tag behavior
+
+The page stores memo and tag values locally and sends them to the backend through:
+
+- `AddMemo(...)`
+- `SetTaskRecordNotes(...)`
+
+### Screenshot behavior
+
+If screenshots are enabled and runtime events arrive, the page updates the latest screenshot preview without waiting for a full page reload.
+
+## 12. Event-driven UI architecture
+
+The frontend uses Wails runtime event listeners with `EventsOn(...)`.
+
+This matters because not all state changes arrive in the original command response.
+
+Typical pattern:
+
+1. frontend calls a backend method
+2. backend starts work or queue work
+3. backend later emits an event
+4. frontend listener updates UI
+
+### Consequence for debugging
+
+When a page looks stale, check:
+
+- whether the initial method call worked
+- whether the expected event was emitted
+- whether the page subscribed correctly
+- whether the event handler refreshed the right local state
+
+## 13. Local browser storage
+
+The frontend uses `localStorage` for small pieces of persistent client-side state.
+
+Examples include:
 
 - `user`
 - `theme`
 - `memo`
 - `tag`
-- `authToken` cleanup in logout paths
 
-Practical notes:
+### Important note
 
-- `theme` is preserved across logout
-- some fields are read opportunistically rather than through a single storage abstraction
+This storage is useful for UX, but it is not the durable operational source of truth for time tracking. The SQLite database on the backend still matters more.
 
-## 11. Styling system
+## 14. Styling system
 
-The UI uses:
+The UI uses a mix of:
 
 - Tailwind utility classes
-- component primitives in `frontend/src/components/ui`
-- custom components in `frontend/src/components/custom`
-- some SCSS imports in `App.tsx`
+- reusable UI primitives in `components/ui`
+- custom components in `components/custom`
+- SCSS imports from `App.scss` and `styles/style.scss`
 
-The styling model is incremental rather than strongly design-system-driven. Keep visual changes consistent with existing page patterns unless you are intentionally redesigning a screen.
+This means the styling system is practical and mixed, not a rigid design system. Preserve consistency with current patterns unless you are doing an intentional redesign.
 
-## 12. Timezone handling
+## 15. Time and timezone behavior
 
-Time and date rendering are especially important because the app tracks work sessions.
+Time handling is important because the app is a work tracker.
 
-Relevant files:
+Relevant frontend files include:
 
 - `frontend/src/lib/timezone.ts`
 - `frontend/src/lib/utils.ts`
 
-The frontend tries to normalize date-only behavior to the Manila timezone (`Asia/Manila`) and has a fallback strategy if that timezone is not supported by the environment.
+The app tries to keep date behavior aligned to Manila time. If you change date rendering, filters, logs, or summaries, treat timezone changes carefully.
 
-If you touch logs, summaries, or date filters, read both frontend and backend timezone helpers together.
+## 16. Frontend caveats a new developer should know
 
-## 13. Frontend caveats and implementation mismatches
+### Auth state is slightly ambiguous
 
-### Screenshot flag mismatch
+The same store field can be touched by:
 
-Frontend release flags say screenshots are enabled, but the backend capture and Backblaze upload constants are disabled.
+- Firebase auth listener behavior
+- Go-backed login flow
 
-### Store naming mismatch
+That deserves care during refactors.
 
-`AuthContext.ts` is a Zustand store, not a React context. Keep that in mind when searching or refactoring.
+### `AuthContext.ts` is not React Context
 
-### Auth-source ambiguity
+This sounds small, but it can confuse search and mental models.
 
-Firebase auth state exists, but the active product flow uses Wails backend login methods and local state. Avoid assuming the Firebase hook alone describes session truth.
+### Generated bindings are not source code you maintain manually
 
-### Login hydration is multi-step
+If something looks wrong there, fix the Go side or rerun Wails generation.
 
-The login page establishes a minimal user state first. Full employee details are fetched later by the home screen. This can affect assumptions about `user.name`, `user.position`, and other profile fields immediately after login.
+### Browser online status is not full connectivity truth
 
-### Generated types are part of the contract
+The WebView may think it is online even if the FES API is unavailable.
 
-If a backend model changes shape, the frontend type assumptions will change after regeneration. Do not edit the generated TypeScript to "fix" a mismatch.
+### Screenshot UI depends on backend behavior
 
-## 14. Frontend testing situation
+You can render screenshot placeholders in the frontend, but the actual capture and upload flow is backend-owned.
 
-There are no visible frontend test files in the current repository structure. Most verification is currently manual plus backend tests.
+## 17. Good frontend reading order
 
-That means frontend changes should be manually checked through:
+If you are learning the frontend, this order works well:
 
-- login flow
-- task start/stop
-- activity log loading
-- sync/resync UI
-- theme switching
-- offline behavior
+1. `frontend/src/App.tsx`
+2. `frontend/src/store/AuthContext.ts`
+3. `frontend/src/pages/Main/Home.tsx`
+4. `frontend/src/pages/Main/Task.tsx`
+5. `frontend/src/pages/Main/ActivityLogs.tsx`
+6. `frontend/src/pages/Auth/Login.tsx`
+7. `frontend/src/hooks/useOnlineStatus.ts`
+8. `frontend/src/hooks/useFirebaseAuth.ts`
 
-## 15. Good first tracing exercises
+## 18. Good change patterns
 
-If you are learning the frontend, trace one of these:
+### If you need to add a new button that triggers backend work
 
-### Start tracking flow
+1. add the button in the page or component
+2. import the generated Wails binding
+3. call the binding
+4. update local UI state for immediate feedback
+5. if backend work is asynchronous, subscribe to or reuse a runtime event as needed
 
-`Task.tsx` -> `StartTracking` -> backend -> `record-synced` event -> UI refresh
+### If you need to show new backend data
 
-### Home dashboard refresh
+1. confirm the data exists on the Go side
+2. confirm it is exposed through a Wails method or model
+3. regenerate bindings if shape changed
+4. update the consuming page or store
 
-`Home.tsx` -> `GetTasks` / `GetLastTaskRecords` / `GetActiveTaskRecord` -> sorted task rendering
+### If you need to adjust task or sync UX
 
-### Activity resync flow
+Read the matching backend flow first. Much of the truth lives there.
 
-`ActivityLogs.tsx` -> confirmation dialog -> `SyncUnsyncedTaskRecord` or `SyncAttendanceByID` -> reload page state
+## 19. Manual testing guidance for frontend work
 
-## 16. Read next
+There are no visible frontend test files in the repo right now, so manual testing matters.
 
-- `guide/backend.md` for the Go implementation behind these calls
-- `guide/data-and-sync.md` for the storage and lifecycle model
+After frontend changes, manually check at least:
+
+1. login flow
+2. offline login flow if your change might affect session state
+3. home page task loading
+4. task start and stop
+5. task memo/tag editing
+6. activity logs and resync UI
+7. account settings if screenshots or storage are involved
+8. logout flow
+
+## Read next
+
+- [`guide/backend.md`](./backend.md) to understand the Go methods this UI calls
+- [`guide/data-and-sync.md`](./data-and-sync.md) for the record lifecycle behind the screens

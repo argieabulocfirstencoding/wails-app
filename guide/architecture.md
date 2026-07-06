@@ -1,190 +1,292 @@
 # Architecture
 
-This document explains how the application is assembled at runtime and how data moves through the system.
+This document explains how the application is assembled, how the layers talk to each other, and where the important boundaries are.
 
-## 1. System context
+If you are new to desktop apps, read this slowly. Most maintenance mistakes in this project happen because a developer changes one layer while assuming another layer works like a normal web app.
 
-FES App Tracker is a desktop application built with Wails. Wails embeds a web frontend inside a native desktop shell and lets the frontend call Go methods directly.
+## 1. The big-picture shape
 
-The major runtime parts are:
+The app is a desktop shell that embeds a web frontend and a Go backend in the same installed application.
+
+That sentence carries a lot of meaning:
+
+- "desktop shell" means it can integrate with the system tray, local files, and the OS
+- "web frontend" means the UI is built with React and TypeScript
+- "Go backend" means business logic is not limited to the browser side
+- "same application" means the frontend and backend communicate through Wails, not by calling a separately deployed HTTP server running on your machine
+
+At runtime, the system looks like this:
 
 ```text
-Desktop shell
-  Wails window
-    React frontend
-      generated Wails bindings
-        Go App facade
-          application services
-            local SQLite database
-            external FES API
-            optional Backblaze screenshot storage
+Windows desktop app
+  -> Wails runtime
+    -> WebView window
+      -> React frontend
+        -> generated Wails bindings
+          -> backend/app.App
+            -> service classes
+              -> repositories
+                -> SQLite database
+            -> selected helper/integration services
+              -> FES API
+              -> file system
+              -> OS keyring
+              -> Backblaze B2
 ```
 
-## 2. Runtime boundaries
+## 2. The main boundaries
 
-### Desktop boundary
+Thinking in boundaries helps prevent accidental architectural damage.
 
-Files:
+### Boundary A: process startup and desktop runtime
+
+Main files:
 
 - `main.go`
-- `backend/app/app.go`
 - `wails.json`
+- `backend/app/app.go`
 
-Responsibilities:
+This boundary is responsible for:
 
-- start Wails
-- embed frontend assets for production
-- configure the window
-- enforce single-instance behavior
-- bind the Go `App` struct so frontend code can call its methods
-- manage startup and shutdown hooks
+- starting the Wails application
+- embedding the built frontend for production
+- creating the application window
+- binding the Go `App` struct so the frontend can call it
+- enforcing the single-instance lock
+- handling startup and shutdown hooks
 
-### Frontend boundary
+### Boundary B: frontend UI and local page behavior
 
-Files:
+Main files:
 
 - `frontend/src/main.tsx`
 - `frontend/src/App.tsx`
 - `frontend/src/pages/**`
 - `frontend/src/store/AuthContext.ts`
 
-Responsibilities:
+This boundary is responsible for:
 
-- render the UI
-- route between screens
-- hold short-lived client state with Zustand
-- call Go bindings
-- subscribe to backend-emitted runtime events
+- rendering the user interface
+- routing between screens
+- holding short-lived UI state
+- responding to runtime events from the Go backend
+- deciding when to call Wails-exposed methods
 
-### Backend facade boundary
+### Boundary C: Wails-facing backend facade
 
-File:
+Main file:
 
 - `backend/app/app.go`
 
-Responsibilities:
+This boundary is responsible for:
 
-- expose methods to the frontend
-- hold session-scoped runtime state in memory
-- coordinate service objects
-- normalize errors before they cross into the UI
-- trigger OS-level features like updates, tray behavior, and system integration
+- exposing methods to the frontend
+- keeping session-scoped in-memory state
+- calling deeper services
+- normalizing backend failures into safer frontend-facing errors
+- handling desktop-specific capabilities such as updates and tray behavior
 
-### Persistence boundary
+### Boundary D: application orchestration
 
-Files:
+Main folder:
 
-- `backend/db/**`
-- `backend/repository/**`
+- `backend/service_classes/`
 
-Responsibilities:
+This boundary is where most real use-case logic lives:
 
-- open SQLite
-- run migrations and schema repair
-- persist users, attendances, tasks, task records, screenshots
-- provide data access primitives used by services
+- authentication
+- attendance creation
+- task tracking
+- synchronization
+- screenshot capture orchestration
+- connectivity state
 
-### External integration boundary
+### Boundary E: persistence
 
-Files:
+Main folders:
+
+- `backend/repository/`
+- `backend/db/`
+- `backend/db/models/`
+
+This boundary is responsible for:
+
+- opening SQLite
+- applying migrations
+- keeping schema and indexes healthy
+- reading and writing local records
+
+### Boundary F: external integrations
+
+Main files:
 
 - `backend/service_classes/fes_client.service.go`
 - `backend/services/backblaze.go`
+- `backend/services/storage.go`
 
-Responsibilities:
+This boundary is responsible for:
 
-- talk to the FES API
-- retrieve remote credentials
-- sync attendance and productivity records
-- optionally upload screenshots
+- remote FES API requests
+- OS keyring access
+- screenshot upload
+- file-system storage paths
 
-## 3. Boot sequence
+## 3. Startup flow
 
-The normal startup flow is:
+Understanding startup matters because some bugs only exist before the user clicks anything.
 
-1. `main.go` loads `.env` through `godotenv.Load()`.
-2. `main.go` decides whether the process is development mode by checking `DEVELOPMENT`.
-3. `main.go` creates `app.NewApp()`.
-4. Wails starts and calls `App.Startup(ctx)`.
-5. `App.Startup`:
+### Step-by-step startup
+
+1. `main.go` loads environment variables with `godotenv.Load()`.
+2. `main.go` checks whether `DEVELOPMENT` exists in the environment.
+3. Based on that flag, it changes the app title and the single-instance unique ID.
+4. `main.go` creates a new `app.App` by calling `app.NewApp()`.
+5. Wails starts with that `App` instance bound into the runtime.
+6. Wails calls `App.Startup(ctx)`.
+7. `App.Startup`:
    - stores the Wails `context.Context`
-   - connects `TaskService` to that context
+   - connects the task service to that context
    - configures file logging
-   - initializes the SQLite database
-   - starts the tray icon and tray menu loop
-6. The frontend renders and begins calling Go methods through `frontend/wailsjs`.
+   - initializes SQLite
+   - launches the system tray loop
 
-## 4. Shutdown sequence
+### Why the Wails context matters
 
-`App.Shutdown(ctx)` performs application cleanup:
+Several services need the Wails runtime context because they use it to:
 
-1. stop screenshot capture worker if running
-2. force connectivity state to offline
-3. if a task is active, stop local tracking so the record becomes retryable
-4. stop the sync queue worker
-5. quit the tray process
+- emit runtime events back to the frontend
+- inspect whether the build is `dev` or `production`
+- call Wails window APIs
+- write logs through Wails runtime helpers
 
-This design is important because the app assumes the local database should survive abnormal or imperfect network conditions.
+If a function needs to emit `runtime.EventsEmit(...)`, it usually needs access to that context somewhere in the call chain.
 
-## 5. Layer model
+## 4. Shutdown flow
 
-The intended backend layering looks like this:
+Shutdown is not just cleanup. It is also part of data safety.
 
-```text
-App facade
-  -> service_classes
-    -> repository
-      -> db/models + GORM + SQLite
-```
+`App.Shutdown(ctx)` currently does all of this:
 
-The actual codebase also includes a parallel `backend/services` package that plays several roles:
+1. stops the screenshot worker
+2. marks connectivity as offline
+3. if a task is active, stops tracking so the local record closes cleanly
+4. shuts down the sync queue
+5. quits the tray process
 
-- domain helpers
-- date/time formatting helpers
-- storage helpers
-- external integration support
-- older compatibility login/attendance/task functions
+This is important because the app tries to leave local work in a retryable state instead of silently abandoning it.
 
-That means the real architecture is closer to:
+## 5. The most important architectural rule: local-first state
 
-```text
-App facade
-  -> service_classes
-       -> repository
-       -> selected helpers in backend/services
-  -> selected direct calls into backend/services
-```
+The safest way to understand the application is:
 
-This is not necessarily wrong, but it is important. A new developer should not assume the package name alone tells you whether code is current, legacy, or utility-only.
+- the remote FES API is important
+- the local database is still the day-to-day operational source of truth
 
-## 6. Frontend to backend call flow
+Why?
 
-Most interactive behavior uses this path:
+Because the user may:
 
-1. A React page or component imports a generated function from `frontend/wailsjs/go/app/App`.
-2. The component calls that function like a normal async TypeScript function.
-3. Wails forwards the call to the exported Go method on `backend/app.App`.
-4. `App` delegates to one or more backend services.
-5. Services use repositories or integration clients.
-6. Data or errors return back to the frontend promise.
+- lose connectivity
+- close the app mid-session
+- restart after a partial failure
+- have pending sync work left over from an earlier session
+
+So the app must remember more than "what just happened in the UI".
+
+## 6. State lives in three places
+
+This is one of the most important concepts for a new maintainer.
+
+### Frontend memory state
+
+Held mainly in the Zustand store at `frontend/src/store/AuthContext.ts`.
+
+Examples:
+
+- current user object
+- online/offline flag
+- selected task ID
+- cached task list
+- summary totals
+
+This state is convenient, but it is not durable.
+
+### Backend memory state
+
+Held mainly on `backend/app.App`.
+
+Examples:
+
+- `AuthUser`
+- `Attendance`
+- `AttendanceID`
+- `WorkingTaskID`
+- pointers to the active service objects
+
+This state lasts only as long as the current app process.
+
+### Durable local state
+
+Stored in SQLite.
+
+Examples:
+
+- users
+- attendances
+- tasks
+- task records
+- screenshots
+- sync status metadata
+
+This is the state that survives restart and makes offline-first behavior possible.
+
+## 7. How the frontend talks to the backend
+
+This is not a REST API architecture. The browser is not sending fetch requests to local endpoints for core actions.
+
+The actual pattern is:
+
+1. A React file imports a generated function from `frontend/wailsjs/go/app/App`.
+2. The function is called like an async TypeScript function.
+3. Wails forwards that call into the matching Go method on `backend/app.App`.
+4. That Go method returns data or an error back through the bridge.
 
 Example:
 
 ```text
-Task.tsx
-  -> StartTracking(taskId, folderName, isPadagan)
+frontend/src/pages/Main/Task.tsx
+  -> StartTracking(...)
     -> App.StartTracking(...)
       -> TaskService.StartTracking(...)
-        -> TaskRepository writes task_record
-        -> ScreenshotService starts worker
-        -> SyncService attempts remote sync
+        -> TaskRepository + ScreenshotService + SyncService
 ```
 
-## 7. Event-driven updates
+### Why this matters
 
-Not everything is request/response. Several backend operations emit Wails runtime events that the frontend listens for.
+If the frontend appears to "call the backend", you usually need to inspect:
 
-Common examples:
+- the generated binding import
+- the `App` method
+- the service method behind it
+
+## 8. Commands versus events
+
+The app uses two communication styles.
+
+### Style A: direct command/query calls
+
+Examples:
+
+- `StartTracking`
+- `StopTracking`
+- `GetTasks`
+- `GetCurrentAttendance`
+
+The frontend calls something and waits for the result.
+
+### Style B: runtime events
+
+Examples emitted by the backend:
 
 - `employee_details_fetched`
 - `record-synced`
@@ -193,153 +295,268 @@ Common examples:
 - `screenshot`
 - `upwork-button`
 
-This creates a hybrid architecture:
+The frontend subscribes with `EventsOn(...)` and reacts later.
 
-- direct method calls for commands and queries
-- event subscriptions for background updates and asynchronous completion signals
+### Why this distinction matters
 
-## 8. Session state model
+Many background jobs finish after the original button click has already completed. If the UI looks stale, you need to inspect both:
 
-There are three state layers to understand:
+- the original command
+- the later event that tells the frontend to refresh
 
-### In-memory frontend state
+## 9. The actual backend layering
 
-Held in Zustand:
+The ideal architecture is roughly:
 
-- current user info
-- online/offline status
-- current task id
-- loaded task list
-- summaries
-- current attendance summary state
+```text
+App facade
+  -> service classes
+    -> repositories
+      -> models + GORM + SQLite
+```
 
-### In-memory backend state
+The real architecture is slightly messier:
 
-Held in `backend/app.App`:
+```text
+App facade
+  -> service classes
+       -> repositories
+       -> selected helpers in backend/services
+  -> selected direct calls into backend/services
+```
 
-- `AuthUser`
-- `Attendance`
-- `AttendanceID`
-- `WorkingTaskID`
-- `WorkingTask`
-- `ScreenshotService`
-- `SyncService`
+This is normal for a living application, but it means you should verify usage before refactoring package boundaries.
 
-### Durable local state
+## 10. The `App` facade is a wiring hub
 
-Stored in SQLite:
+`backend/app/app.go` is more than a random file. It is the main backend object the frontend can reach.
 
-- users
-- attendances
-- tasks
-- task_records
-- screenshots
+It does several things:
 
-The durable local state is the real operational record. Both frontend and backend memory state can be reconstructed from it after restart.
+- stores the Wails context
+- owns runtime-scoped state like the current attendance and current task
+- wires service objects together in `NewApp()`
+- exposes Wails-callable methods
+- performs desktop tasks like updates and tray behavior
 
-## 9. Online and offline architecture
+### Why the pointer wiring matters
 
-The app is designed as a local-first desktop tracker.
+`NewApp()` passes pointers around so multiple services can share the same live state.
 
-### Offline mode
+Examples:
 
-- user can log in only if an account already exists locally
-- attendance is created locally
-- task records are created locally
-- sync attempts are blocked
-- records stay in pending, failed, or blocked states
+- the task service gets a pointer to `App.Attendance`
+- the sync service gets a pointer to the active task record
+- the screenshot service is connected back to the sync service
 
-### Online mode
+This keeps layers coordinated, but it also creates subtle coupling. Refactoring these pointers without understanding their role can cause bugs that are hard to spot.
 
-- login is validated against the FES API
-- remote employee details are fetched
-- tasks and clients can be refreshed from the remote source
-- attendance and task records are pushed upstream
-- pending local records can be retried
+## 11. Detailed example: start tracking a task
 
-## 10. Synchronization architecture
+This is the best single flow to understand because it touches almost every layer.
 
-Sync is implemented as a queued background system, not a single direct HTTP call.
+### User-visible action
 
-`SyncService` is responsible for:
+The user opens a task page and presses Start.
 
-- queueing sync jobs
-- deduplicating jobs by key
-- retrying transient failures
-- preventing sync while offline
-- marking local records with state transitions
-- enforcing attendance-before-task ordering
-- draining screenshot backlogs when possible
+### Frontend side
 
-This matters because a UI action such as "stop tracking" is only the beginning of the lifecycle. The local record can still be unsynced, blocked, or partially synchronized afterward.
+`frontend/src/pages/Main/Task.tsx` calls:
 
-## 11. Data ownership and source of truth
+- `StartTracking(id, JSON.stringify(timeStart), isPadagan)`
 
-A practical way to think about data ownership:
+It then updates the local page state to show the timer as running.
 
-- React owns presentation-only state.
-- `App` owns runtime wiring and session state.
-- SQLite owns durable operational data.
-- The FES API owns authoritative remote attendance/productivity records once sync succeeds.
+### Wails bridge side
 
-When debugging, first decide which layer is currently authoritative for the problem you are looking at.
+The generated binding forwards the call to:
 
-## 12. Generated contract layer
+- `App.StartTracking(taskId, localStorageValue, padagan)`
 
-Files:
+### Backend facade side
 
-- `frontend/wailsjs/go/app/App.d.ts`
-- `frontend/wailsjs/go/app/App.js`
-- `frontend/wailsjs/go/models.ts`
+`App.StartTracking` calls:
 
-These are generated by Wails and represent the contract between the frontend and backend.
+- `AuthService.TaskService.StartTracking(...)`
+
+### Service side
+
+`TaskService.StartTracking` then:
+
+1. verifies there is an active attendance
+2. defensively stops lingering active records
+3. may try to sync the previous record if one exists
+4. creates a new local task record
+5. stores task and record pointers in memory
+6. looks up the task to see whether it is a break task
+7. starts the screenshot worker for non-break tasks
+8. asks the sync service to sync the task record
+
+### Data side
+
+The new task record is inserted into SQLite before remote sync is guaranteed.
+
+### Remote side
+
+If online and prerequisites are satisfied, the sync service attempts the remote task-in request.
+
+## 12. Detailed example: stop tracking a task
+
+This flow is equally important because it turns an active record into a completed unit of work.
+
+`TaskService.StopTracking` does all of this:
+
+1. stops screenshot capture
+2. closes the active local task record
+3. resets sync state so the record is pending
+4. if online, asks `SyncService` to sync task-out
+5. clears active in-memory task pointers
+
+Notice the distinction:
+
+- the local task is stopped immediately
+- the remote task-out may succeed later
+
+That is classic local-first behavior.
+
+## 13. Synchronization is a background queue, not a single call
+
+One of the most important architectural facts is that sync lives in `backend/service_classes/sync.service.go` as a queued, retrying subsystem.
+
+The sync service currently does all of this:
+
+- queues jobs
+- deduplicates jobs by key
+- retries retryable failures with backoff
+- blocks sync while offline
+- updates local sync-state fields
+- enforces attendance-before-task ordering
+- drains pending screenshot uploads after task sync
+- emits frontend events about success or failure
+
+So when the user says "I clicked stop", that is only the beginning of the sync lifecycle.
+
+## 14. Attendance is an upstream dependency
+
+Task syncing depends on attendance syncing first.
+
+In plain language:
+
+- the remote system needs to know which attendance session the task belongs to
+- that remote attendance identity is stored in `attendance.LoginLogoutID`
+- if the task record tries to sync before that exists, the app delays or blocks task sync
+
+This rule is enforced inside `SyncService.ensureAttendanceReadyForTaskSync(...)`.
+
+If you break this invariant, you will create hard-to-debug partial sync failures.
+
+## 15. Screenshots are not just UI decoration
+
+The screenshot subsystem crosses architectural boundaries:
+
+- task page UI displays latest screenshot
+- screenshot service captures active displays
+- files are stored on disk
+- metadata is stored in SQLite
+- sync service may upload pending screenshot files after task sync
+- Backblaze stores remote copies
+
+The app therefore treats screenshots as a real persistence and synchronization feature, not just a temporary preview.
+
+## 16. Storage and secret boundaries
+
+Not all state belongs in SQLite.
+
+### SQLite stores
+
+- user profile cache
+- attendance records
+- tasks and clients
+- task records
+- screenshot metadata
+- sync attempt metadata
+
+### File system stores
+
+- actual screenshot image files
+- log files
+- diagnostics artifacts
+
+### OS keyring stores
+
+- FES API token
+- Backblaze credentials
+
+This separation matters when debugging. If a cloud upload is failing, the problem might be:
+
+- a screenshot database row
+- a missing local file
+- a missing keyring credential
+- a remote API issue
+
+## 17. Build-mode differences
+
+The application changes behavior depending on development versus production runtime.
+
+Examples:
+
+- unique app ID changes
+- window title changes
+- database filename changes
+- screenshot storage location changes
+- some behavior uses runtime build type checks
+
+The environment switch is based mainly on the `DEVELOPMENT` environment variable and Wails runtime environment checks.
+
+## 18. Generated contract layer
+
+Wails creates generated bridge files under `frontend/wailsjs/`.
+
+These files are important because they are the formal contract between the Go side and the TypeScript side.
 
 Rules:
 
 - do not edit them by hand
-- when you add or change exported Go methods or model shapes, regenerate by running the Wails workflow
-- treat them like compiled interface artifacts
+- if you add or change an exported `App` method, regenerate them through the Wails workflow
+- if a Go model changes shape and is exposed to the frontend, the generated TypeScript must be refreshed too
 
-## 13. Desktop-specific subsystems
+## 19. Architecture risks and debt to respect
 
-Several parts of the app are desktop concerns rather than normal web-app concerns:
-
-- system tray support via `systray`
-- single-instance lock
-- window hide-on-close behavior
-- local file system storage
-- native keyring access
-- launching installers
-- opening external URLs and custom protocols
-
-This means some behavior is only meaningful inside the Wails runtime and cannot be fully understood by reading the frontend alone.
-
-## 14. Current architectural debt and caution areas
-
-These are not necessarily bugs, but they are the places where maintainers should slow down:
+These are the places where an experienced maintainer slows down before making a "simple" cleanup.
 
 ### Mixed service boundaries
 
-Business logic is split between `service_classes` and `services`. Do not refactor package boundaries casually.
+Not every file in `backend/services/` is legacy, and not every file in `service_classes/` is the only modern path.
 
-### Feature-flag inconsistency
+### Shared state by pointer
 
-Frontend and backend screenshot flags disagree. Release behavior should be aligned before expanding screenshot work.
+Several services coordinate through shared pointers to current attendance, task record, and working task ID.
 
-### Version-source inconsistency
+### Auth ambiguity
 
-There are multiple version declarations. Release changes should update all of them together.
+Firebase exists in the frontend, but the main operational login path is FES API based.
 
-### Authentication ambiguity
+### Version-source mismatch
 
-Firebase presence suggests one auth model, but the main functional login path uses the FES API. Document your assumptions before altering auth-related code.
+Version values currently live in multiple places and are not fully aligned.
 
-### Context-sensitive runtime behavior
+### Screenshot complexity
 
-Some logic changes behavior based on Wails build type or the `DEVELOPMENT` environment variable. Storage paths, instance identifiers, and timing behavior can differ between dev and production.
+The screenshot feature spans UI, storage, sync, and cloud upload. It is easy to break one part while changing another.
 
-## 15. Read next
+## 20. What should stay true after any refactor
 
-- `guide/backend.md` for the Go implementation
-- `guide/frontend.md` for the React implementation
-- `guide/data-and-sync.md` for the record lifecycle and schema details
+If you are changing architecture or moving code, preserve these outcomes:
+
+1. The app can still work offline.
+2. Local data is still enough to recover and retry sync.
+3. Attendance must still be ready before dependent task sync completes.
+4. The frontend must still receive the events it relies on.
+5. Screenshot files and screenshot metadata must remain consistent.
+6. Desktop-only features must still run inside the Wails runtime.
+
+## Read next
+
+- [`guide/backend.md`](./backend.md) for the Go implementation details
+- [`guide/frontend.md`](./frontend.md) for the React implementation details
+- [`guide/data-and-sync.md`](./data-and-sync.md) for the data lifecycle and sync state machine

@@ -1,32 +1,39 @@
 # Developer Workflow
 
-This document is the practical operating guide for working on the project.
+This document is the practical "how do I safely work in this repo?" guide.
 
-## 1. Recommended first-day checklist
+It is written for someone who may be inheriting the project with incomplete context, so it includes both setup and safety habits.
 
-If you are new to the codebase:
+## 1. First practical goal
 
-1. Read `guide/README.md`
-2. Read `guide/architecture.md`
-3. Run the app locally with `wails dev`
-4. Log in and click through:
-   - login
-   - home
-   - one task page
-   - activity logs
-   - account settings
-5. Read the backend or frontend deep dive that matches the code you need to change
+Your first goal is not "understand every file".
+
+Your first goal is:
+
+- get the app running
+- click through the main flows
+- learn how one action travels through the stack
+
+That gives you a stable mental model before you attempt any refactor.
 
 ## 2. Toolchain
 
 The repository currently expects:
 
-- Go as declared in `go.mod` (`go 1.25.0`)
-- Node.js for the frontend toolchain
+- Go, as declared in `go.mod`
+- Node.js
 - npm
 - Wails CLI
 
-Install Wails CLI if needed:
+### Current Go declaration
+
+`go.mod` currently declares:
+
+```text
+go 1.25.0
+```
+
+### Install Wails CLI if needed
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -34,7 +41,7 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
 ## 3. Common commands
 
-From the repository root:
+Run these from the repository root unless noted otherwise.
 
 ### Start local development
 
@@ -42,13 +49,13 @@ From the repository root:
 wails dev
 ```
 
-This gives you:
+This is the most important command because it:
 
-- the Go desktop process
-- the frontend dev server/watch flow
-- generated Wails bindings in the frontend
+- runs the Go desktop process
+- serves and watches the frontend
+- regenerates Wails contract files as needed
 
-### Build the app
+### Build production artifacts
 
 ```bash
 wails build
@@ -60,202 +67,261 @@ wails build
 go test ./backend/...
 ```
 
-### Install frontend dependencies manually if needed
+### Install frontend dependencies manually
 
 ```bash
 cd frontend
 npm install
 ```
 
+### Build the frontend directly
+
+```bash
+cd frontend
+npm run build
+```
+
 ## 4. Environment behavior
 
-The current repo contains a `.env` file and the runtime checks `DEVELOPMENT`.
+The app uses `.env` plus runtime environment detection.
 
-Important notes:
+Important flag:
 
-- the app uses `DEVELOPMENT`, not a more conventional `GO_ENV`, to switch certain behaviors
-- dev/prod differences affect:
-  - database filename
-  - screenshot storage path
-  - single-instance app id suffix
-  - some timing behavior
+- `DEVELOPMENT`
 
-Security note:
+This flag influences:
 
-- `.env` currently contains sensitive-looking integration values
-- treat it as secret material
-- do not copy real values into documentation, issues, or public commits
+- app title
+- single-instance ID
+- database filename
+- screenshot storage path
+- FES API base URL choice
+- some development-vs-production timing behavior
 
-## 5. How to trace a change safely
+### Security note
 
-### If you are changing frontend UI only
+Treat `.env` as sensitive.
 
-Start with:
+Do not:
 
-- the page component
-- any related custom components
-- the Zustand store fields it reads or writes
-- the Wails binding it calls
+- paste real secrets into docs
+- paste them into tickets
+- commit replacements carelessly
+- assume every existing secret should be shared widely
 
-Then confirm whether backend changes are actually required.
+## 5. What to do on day 1
+
+1. run `npm install` in `frontend` if needed
+2. run `wails dev`
+3. confirm the window opens
+4. try login or offline login depending on what test credentials exist
+5. visit:
+   - Home
+   - one Task page
+   - Activity Logs
+   - Account Settings
+6. read:
+   - `main.go`
+   - `backend/app/app.go`
+   - `frontend/src/App.tsx`
+   - `frontend/src/store/AuthContext.ts`
+7. trace one full flow end-to-end
+
+## 6. How to trace a change safely
+
+### If you are changing frontend-only presentation
+
+Read in this order:
+
+1. the page or component
+2. any shared UI primitives it uses
+3. store fields it reads
+4. event subscriptions it depends on
+
+Still verify whether backend assumptions are baked into the UI.
 
 ### If you are changing backend business logic
 
-Start with:
+Read in this order:
 
-- the exported `App` method
-- the service class it delegates to
-- the repository methods it uses
-- any runtime events emitted back to the frontend
+1. the `App` method exposed to the frontend
+2. the service method it delegates to
+3. the repository methods below it
+4. related runtime events
+5. the data model it touches
 
 ### If you are changing sync behavior
 
-Read first:
+Read before editing:
 
-- `backend/service_classes/sync.service.go`
-- `guide/data-and-sync.md`
+1. `backend/service_classes/sync.service.go`
+2. `guide/data-and-sync.md`
+3. the related task or attendance lifecycle methods
+4. the frontend screens that display sync state
 
-Then inspect:
+### If you are changing schema
 
-- related UI in `ActivityLogs.tsx`
-- any task or attendance lifecycle methods that create local records
+Read before editing:
 
-### If you are changing schema or local data behavior
+1. `backend/db/models/*.go`
+2. `backend/db/migrations.go`
+3. `backend/db/schema_tables.go`
+4. `backend/db/indexes.go`
+5. migration tests
 
-Read first:
+## 7. Recommended change recipes
 
-- `backend/db/migrations.go`
-- `backend/db/schema_tables.go`
-- related model files under `backend/db/models`
+### Add a new backend method for the frontend
 
-Avoid adding schema changes without understanding the canonical repair approach already used in this repo.
+1. add or update a method on `backend/app.App`
+2. keep the facade method small
+3. add deeper logic in a service
+4. use repositories for DB access
+5. run the Wails dev/build workflow so bindings regenerate
+6. update the frontend import and usage
+7. test the full flow
 
-## 6. How to add a new backend method for the frontend
+### Add or change database fields
 
-Use this pattern:
+1. update the model
+2. update migration and repair logic
+3. update repositories
+4. update services
+5. update exported shapes if the frontend needs the field
+6. add or update tests
+7. verify older local DBs still have a safe path forward
 
-1. add the method on `backend/app.App`
-2. keep the method small and facade-oriented
-3. move real business logic into a service if needed
-4. use existing repository/service patterns where possible
-5. run `wails dev` or the relevant Wails workflow so bindings regenerate
-6. update the frontend to call the generated binding
+### Change task-tracking behavior
 
-Checklist:
+1. read `Task.tsx`
+2. read `App.StartTracking` and `App.StopTracking`
+3. read `TaskService`
+4. read `SyncService`
+5. test both online and offline thinking, even if you only change one path
 
-- does it need auth guards?
-- does it need stable user-facing errors?
-- does it need runtime event emission?
-- does it change any Wails-exported model shape?
+## 8. Good debugging workflow
 
-## 7. How to add or change database fields
+When something breaks:
 
-Use this pattern:
+1. reproduce it in `wails dev`
+2. note the exact screen and action
+3. check whether the frontend called the expected Wails method
+4. check the backend logs
+5. inspect the relevant local DB rows
+6. check whether runtime events were emitted
+7. confirm whether the issue is local-state, backend-state, or remote-sync related
 
-1. update the model in `backend/db/models`
-2. update canonical migration/repair logic
-3. update any related indexes if query patterns need them
-4. update repositories and services
-5. update generated frontend assumptions if exported shape changes
-6. add or update migration tests
+### Best-first questions
 
-Do not rely on `AutoMigrate` alone. This codebase intentionally uses a more controlled migration strategy.
+- Did the local record get created?
+- Did the sync status change?
+- Was the app online according to the backend?
+- Did attendance have the remote ID the task needed?
+- Did the frontend miss the event that would refresh the UI?
 
-## 8. How to debug sync issues
+## 9. Current mismatches and caution areas
 
-Practical workflow:
+### Version values are split
 
-1. reproduce the issue with `wails dev`
-2. inspect logs
-3. inspect SQLite record state
-4. check whether the frontend received the expected runtime event
-5. check whether the record is `failed` or `blocked`
-6. confirm whether attendance dependency is satisfied before task sync
+At the moment:
 
-When investigating manually, the most useful fields are:
+- `backend/app/app.go` reports `2.4.5`
+- `wails.json` reports `2.4.4`
+- `frontend/src/components/custom/AppFooterInfo.tsx` has a fallback of `2.1.0`
 
-- `sync_status`
-- `last_error`
-- `attempt_count`
-- `last_attempt_at`
-- `login_logout_id`
-- `productivity`
+Before a release, update all version sources in one pass.
 
-## 9. Current feature flags and mismatches to watch
+### Auth has more than one visible source
 
-### Screenshots
+The frontend still has Firebase auth listener code, but the practical session flow depends heavily on Go-side FES API login and local state hydration.
 
-Current files disagree:
+### Screenshot behavior spans many layers
 
-- frontend release flag says enabled
-- backend screenshot constant says disabled
-- backend Backblaze constant says disabled
+Do not change screenshot UX without checking:
 
-Before working on screenshot UX or upload behavior, decide which product mode is actually intended.
+- frontend release flags
+- screenshot capture service
+- sync behavior
+- storage path helpers
+- Backblaze upload logic
 
-### Version numbers
+## 10. What files you usually should not hand-edit
 
-Current version values are not aligned across:
+### Generated files
 
-- `backend/app/app.go`
-- `wails.json`
-- old README content
-- footer fallback value
+- `frontend/wailsjs/**`
 
-Before a release, update all version declarations in one pass.
+These should be regenerated, not manually modified.
 
-### Authentication assumptions
+### Build outputs
 
-Do not assume Firebase is the single source of auth truth. The operational login path is driven by the FES API through Wails.
+- artifacts under build output folders
 
-## 10. Release checklist
+Rebuild them instead of editing them.
 
-Before cutting a release, verify:
+### Runtime-generated data
+
+- local databases
+- screenshot files
+- log files
+
+Inspect them for debugging, but do not treat them like source files.
+
+## 11. Release checklist
+
+Before a release, verify all of these:
 
 1. version values are aligned
 2. `wails.json` metadata is correct
-3. screenshot flags match the intended release behavior
-4. update-check behavior points at the correct GitHub release stream
-5. no sensitive secrets are being newly exposed
-6. `go test ./backend/...` passes
+3. screenshot-related flags and constants match intended release behavior
+4. update-check behavior points to the right GitHub release source
+5. no secrets are being newly exposed
+6. backend tests pass
 7. manual smoke test covers:
    - login
-   - task start/stop
+   - task start
+   - task stop
    - logout
    - activity logs
    - manual resync
 
-## 11. Files you normally should not edit directly
+## 12. Suggested smoke-test workflow
 
-- `frontend/wailsjs/**`
-  These are generated bindings.
+Use this after risky changes:
 
-- build outputs under `build/`
-  Rebuild them instead of editing.
+1. start the app
+2. log in online
+3. confirm tasks load
+4. start a non-Break task
+5. wait long enough for at least one screenshot in dev mode if screenshot work changed
+6. stop the task
+7. confirm sync state updates
+8. open activity logs
+9. confirm the task record and attendance appear
+10. log out
 
-- local databases and runtime-generated screenshot files
-  Use them for debugging, not source edits.
+## 13. Safer versus riskier refactors
 
-## 12. Good first refactors, and dangerous refactors
+### Usually safer
 
-### Safer cleanup targets
+- documentation
+- UI text and layout cleanup
+- local helper extraction
+- improving backend tests
+- small repository query refactors with good test coverage
 
-- README and documentation
-- purely presentational frontend cleanup
-- local helper extraction inside a page or service
-- additional backend tests
+### Usually riskier
 
-### Higher-risk areas
+- sync queue logic
+- migrations
+- attendance/task ordering rules
+- pointer wiring in `App`
+- screenshot path and upload behavior
+- auth/session hydration
 
-- sync queue and retry logic
-- migration repair logic
-- attendance/task ordering assumptions
-- cross-service pointer wiring on `App`
-- feature-flag behavior for screenshots and uploads
+## 14. Useful reading order by problem type
 
-## 13. Recommended code-reading order by task type
-
-### For auth problems
+### Login problems
 
 1. `frontend/src/pages/Auth/Login.tsx`
 2. `backend/app/app.go`
@@ -263,44 +329,42 @@ Before cutting a release, verify:
 4. `backend/service_classes/fes_client.service.go`
 5. `backend/service_classes/user.service.go`
 
-### For tracking problems
+### Tracking problems
 
 1. `frontend/src/pages/Main/Task.tsx`
 2. `backend/app/app.go`
 3. `backend/service_classes/task.service.go`
-4. `backend/repository/task.repo.go`
-5. `backend/service_classes/sync.service.go`
+4. `backend/service_classes/sync.service.go`
+5. `backend/repository/task.repo.go`
 
-### For activity log problems
+### Activity log or summary problems
 
 1. `frontend/src/pages/Main/ActivityLogs.tsx`
 2. `backend/services/activity_log.go`
 3. `backend/services/summary.go`
 4. `guide/data-and-sync.md`
 
-### For startup or packaging problems
+### Startup problems
 
 1. `main.go`
-2. `wails.json`
-3. `backend/app/app.go`
-4. `backend/db/db.go`
+2. `backend/app/app.go`
+3. `backend/db/db.go`
+4. `wails.json`
 
-## 14. Testing guidance
+## 15. When to slow down and ask bigger questions
 
-The backend already has tests concentrated around risky areas. Extend those patterns instead of creating isolated one-off tests in unrelated folders.
+Pause and re-evaluate before coding if your change affects:
 
-Especially important test areas:
+- database shape
+- remote API contracts
+- sync ordering
+- auth ownership
+- screenshot retention or privacy expectations
+- release/update behavior
 
-- migrations
-- sync guards and state transitions
-- task lifecycle edge cases
-- screenshot record hydration behavior
-- app guard behavior
+Those areas have consequences beyond one file.
 
-The frontend currently relies heavily on manual testing, so describe manual verification clearly in pull requests or change notes.
+## Read next
 
-## 15. Read next
-
-- `guide/backend.md`
-- `guide/frontend.md`
-- `guide/data-and-sync.md`
+- [`guide/takeover-playbook.md`](./takeover-playbook.md) for a practical first-week plan
+- [`guide/troubleshooting.md`](./troubleshooting.md) for incident debugging

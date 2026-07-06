@@ -1,8 +1,10 @@
 # Backend Deep Dive
 
-This document explains the Go side of the application.
+This document explains the Go side of the application in a way that assumes you may be new to Go or new to Wails-backed desktop applications.
 
-## 1. Backend folder layout
+If you only read one backend file first, make it `backend/app/app.go`. That file is the center of gravity for how the desktop app exposes behavior to the frontend.
+
+## 1. Backend folder map
 
 ```text
 backend/
@@ -17,14 +19,33 @@ backend/
 `-- utils/              logging, panic recovery, correlation ids
 ```
 
-## 2. Process entry point
+## 2. What "backend" means in this project
+
+In a web app, "backend" often means a separate server process running elsewhere.
+
+In this project, the backend is the Go code running inside the desktop application process itself.
+
+That means backend code can:
+
+- talk to the local SQLite database
+- read and write local files
+- use screenshot and system-tray libraries
+- call remote APIs
+- store tokens in the OS keyring
+- emit runtime events to the frontend
+
+It is both business layer and desktop-integration layer.
+
+## 3. Entry point: `main.go`
 
 Files:
 
 - `main.go`
 - `backend/app/app.go`
 
-`main.go` performs the Wails bootstrap:
+`main.go` is small, but it matters because it sets up the runtime contract.
+
+It currently does these important things:
 
 - loads `.env`
 - checks `DEVELOPMENT`
@@ -32,13 +53,24 @@ Files:
 - binds that `App` instance into Wails
 - configures window size, single-instance lock, asset server, and shutdown hooks
 
-`backend/app.App` is therefore the primary boundary object between frontend and backend.
+The app window is configured here too, including:
 
-## 3. The `App` facade
+- width and height
+- background color
+- hide-on-close behavior
+- disabled resize
 
-`backend/app/app.go` is the most important backend file to understand first.
+## 4. The `App` struct is the backend facade
 
-It has three jobs:
+File:
+
+- `backend/app/app.go`
+
+`App` is the object Wails exposes to the frontend. When the frontend imports generated functions like `StartTracking` or `GetTasks`, those map back to methods on this struct.
+
+### Major responsibilities of `App`
+
+It has several jobs:
 
 1. hold runtime state for the current desktop session
 2. expose methods to the frontend through Wails
@@ -119,7 +151,70 @@ It has three jobs:
 - error normalization
 - event orchestration
 
-## 4. Database bootstrap
+## 5. How service wiring works in `NewApp()`
+
+`NewApp()` is a very important function because it builds the object graph.
+
+It creates:
+
+- connectivity state service
+- Firebase sync service
+- logger
+- screenshot service
+- sync service
+- auth service
+
+Then it cross-connects them.
+
+Examples:
+
+- `authService.SyncService = syncService`
+- `authService.AttendanceService.SyncService = syncService`
+- `authService.TaskService.ScreenshotService = screenshotService`
+- `screenshotService.SyncService = syncService`
+- `syncService.Attendance = &app.Attendance`
+- `syncService.TaskRecord = &authService.TaskService.TaskRecord`
+
+### Why this can feel confusing
+
+This project uses pointer sharing so multiple services can operate on the same current session state. That is useful, but it can feel magical if you are expecting strict constructor-injected immutability. Read these assignments carefully before refactoring.
+
+## 6. Startup behavior in the backend
+
+`App.Startup(ctx)` does the real backend initialization work.
+
+Important steps:
+
+1. store the runtime context
+2. connect the task service to that context
+3. configure file logging
+4. initialize the database
+5. start the tray icon and tray menu event loop
+
+### Why the database init is early
+
+The app is local-first. Without a working SQLite database, the app cannot safely continue because attendance, tasks, sync retries, and screenshots all depend on durable local storage.
+
+If database initialization fails, the app shows an error dialog and quits.
+
+## 7. Shutdown behavior in the backend
+
+`App.Shutdown(ctx)` is designed to leave local data in a sane state.
+
+It:
+
+- stops screenshot capture
+- marks connectivity offline
+- stops active tracking if needed
+- shuts down the sync queue
+- stops the tray process
+
+The important design intention is:
+
+- do not leave a "running task" hanging in memory only
+- close the local record so it can be retried later if needed
+
+## 8. Database bootstrap
 
 Files:
 
@@ -149,7 +244,7 @@ Files:
 - dev build -> `fesapp-dev.db`
 - production build -> `fesapp.db`
 
-### Migration strategy
+### Migration philosophy
 
 This codebase no longer relies on a simple `AutoMigrate` path.
 
@@ -163,9 +258,15 @@ It uses:
 
 That is a serious piece of infrastructure. Any schema change should preserve this philosophy.
 
-## 5. Data model
+## 9. Models and exported shapes
 
-The most important GORM models are:
+There are two kinds of structs you will see here.
+
+### Persistence models
+
+These map to real database tables.
+
+The most important ones are:
 
 - `User`
 - `Attendance`
@@ -176,7 +277,11 @@ The most important GORM models are:
 
 These models live under `backend/db/models/`.
 
-There are also exported frontend-facing shapes such as:
+### Exported or frontend-facing shapes
+
+These are smaller or transformed shapes that are easier to expose to the frontend.
+
+Examples:
 
 - `ExpTask`
 - `ExpTaskRecord`
@@ -186,7 +291,11 @@ There are also exported frontend-facing shapes such as:
 
 These shapes matter because Wails exposes them to TypeScript via generated bindings.
 
-## 6. Repository layer
+### Why this distinction matters
+
+Not every Go struct should be treated like a raw database row. Some structs exist mainly to shape data for the Wails boundary.
+
+## 10. Repository layer
 
 Files:
 
@@ -208,9 +317,9 @@ Practical rule:
 - if a function is mostly query/update logic against SQLite, it belongs in a repository
 - if it coordinates multiple records, services, or remote APIs, it probably belongs above the repository layer
 
-## 7. Current service architecture
+## 11. Why there are both `service_classes` and `services`
 
-### `service_classes`
+### `backend/service_classes/`
 
 This is the current orchestration layer. It contains the main application services:
 
@@ -225,7 +334,7 @@ This is the current orchestration layer. It contains the main application servic
 
 These services are the closest thing to the application's use-case layer.
 
-### `services`
+### `backend/services/`
 
 This package is mixed and should be read carefully before modification. It contains:
 
@@ -237,7 +346,11 @@ This package is mixed and should be read carefully before modification. It conta
 
 Some files are still important and current. Others overlap with the newer layered structure.
 
-## 8. Authentication flow
+### The safe interpretation
+
+Do not treat one folder as "real" and the other as "dead". Use search and call-site tracing before moving or deleting anything.
+
+## 12. Authentication flow
 
 ### Online login
 
@@ -262,7 +375,55 @@ Main path:
 3. if the email exists locally, a local attendance is created or reused
 4. the app marks connectivity offline and continues locally
 
-## 9. Task tracking flow
+## 13. `FesClientService` is the remote API bridge
+
+File:
+
+- `backend/service_classes/fes_client.service.go`
+
+This service handles communication with the remote FES API.
+
+Key responsibilities:
+
+- store and retrieve the API token
+- make authenticated JSON requests
+- fetch Backblaze credentials
+- open the FES web app via a magic link
+- sync remote clients and projects
+- help with Upwork-related desktop automation
+
+### Base URL behavior
+
+It chooses between:
+
+- production base URL
+- development base URL
+
+based on the `DEVELOPMENT` environment variable.
+
+### Key operational detail
+
+The API token is cached in memory and also stored in the OS keyring under `fes_api_token`.
+
+## 14. Task service
+
+File:
+
+- `backend/service_classes/task.service.go`
+
+This is the service most developers eventually need to read.
+
+### Responsibilities
+
+- fetch task list
+- get latest task records
+- create task records
+- stop active task records
+- manage active tracking lifecycle
+- coordinate screenshot capture
+- request sync work
+
+## 15. Task tracking flow
 
 Main path for starting work:
 
@@ -286,7 +447,67 @@ Stopping work:
 5. if online, it attempts remote sync
 6. it clears in-memory active-task cache
 
-## 10. Sync engine
+### Why the `pending` reset matters
+
+Stopping a task locally does not guarantee remote task-out succeeded. Resetting sync state keeps the record retryable.
+
+## 16. Screenshot service
+
+File:
+
+- `backend/service_classes/screenshot.service.go`
+
+This service coordinates local screenshot capture.
+
+### What it currently does
+
+- detects active displays
+- captures each display
+- encodes the image as WebP
+- writes the image to disk
+- inserts a `screenshots` row into SQLite
+- emits a `screenshot` runtime event
+- asks the sync layer to reconcile and upload later when possible
+
+### Important constants
+
+Current code has:
+
+- `const screenshotsEnabled = true`
+- production interval = 10 minutes
+- development interval = 1 minute
+
+### Storage layout
+
+The service resolves a user-specific screenshot storage root, then creates nested folders based on record/task information. That means screenshot state depends on both database metadata and file-system paths.
+
+## 17. Backblaze upload service
+
+File:
+
+- `backend/services/backblaze.go`
+
+This is the cloud upload service for screenshots.
+
+### What it currently does
+
+- reads Backblaze credentials from the OS keyring
+- creates a Backblaze B2 client
+- connects to the `fesapp-screenshots` bucket
+- uploads screenshot files into remote object paths under `screenshots/<user>/<folder>/...`
+
+### Important operational detail
+
+Current code has `const backblazeEnabled = true`, so upload behavior is intended to be active if credentials are available and the app is online.
+
+### Where credentials come from
+
+The app first asks the FES API for upload credentials, then stores them in the keyring under:
+
+- `APP_ID`
+- `APP_KEY`
+
+## 18. Sync service
 
 `backend/service_classes/sync.service.go` is one of the most important files in the codebase.
 
@@ -319,65 +540,73 @@ Task sync depends on a remote `login_logout` identity. `ensureAttendanceReadyFor
 
 This is one of the most important invariants in the system.
 
-## 11. Screenshot subsystem
+## 19. Connectivity service
 
-Files:
+File:
 
-- `backend/service_classes/screenshot.service.go`
-- `backend/services/storage.go`
-- `backend/services/backblaze.go`
+- `backend/service_classes/connectivity_state.service.go`
 
-### Current behavior
+This service is conceptually simple, but it matters because many other services consult it to decide whether they can sync or upload.
 
-- screenshot capture is compiled behind `const screenshotsEnabled = false`
-- cloud upload is compiled behind `const backblazeEnabled = false`
-- local storage helpers still exist
-- screenshot records and DB schema still exist
+It is the backend's notion of online/offline state, which is more important for operational decisions than the browser's own online flag alone.
 
-### What the code is prepared to do
+## 20. Error design
 
-If enabled, the screenshot service would:
+Main file:
 
-- capture all active displays
-- save local `.webp` files
-- store screenshot metadata in SQLite
-- emit a frontend runtime event
-- ask `SyncService` to reconcile or upload screenshots after task sync
+- `backend/types/error.type.go`
 
-## 12. External integrations
+Two patterns matter most.
 
-### FES API
+### Stable errors
 
-Handled mainly by `FesClientService`.
+These are user-safe errors intended to cross the Wails boundary without leaking too much internal detail.
 
-Key responsibilities:
+### Operation-wrapped errors
 
-- login
-- employee detail fetch
-- task/client/project sync
-- login attendance sync
-- logout attendance sync
-- task in / task out sync
-- Backblaze credential retrieval
-- magic-link open for the FES web app
+Some failures are wrapped with operation and record context so logs are more useful during debugging.
 
-### Backblaze B2
+### Practical takeaway
 
-Handled by `BackblazeSync`.
+If you return raw internal errors directly to the frontend, you may expose too much detail or create inconsistent UX. Prefer the stable-error path when crossing the Wails boundary.
 
-Current reality:
+## 21. Logging and diagnostics
 
-- upload code exists
-- keyring-based credential flow exists
-- feature is disabled by constant
+Relevant areas:
 
-### Upwork helper flow
+- `backend/utils/logger.utils.go`
+- `backend/utils/correlation.utils.go`
+- `backend/app/diagnostics.go`
 
-The app includes an automation path that retrieves credentials and helps open the relevant environment for Upwork-related tasks. This is desktop-specific and mixes remote data, OS-level behavior, and clipboard/keyboard automation.
+The backend includes:
 
-## 13. Updates and installer flow
+- file logging
+- correlation IDs for related operations
+- diagnostics bundle export
 
-`App.CheckForUpdates` and `App.DownloadAndInstall` implement a GitHub-release-driven update process.
+The diagnostics bundle is especially useful for support because it can collect:
+
+- version and platform metadata
+- recent attendance sync states
+- recent task record sync states
+- the current log file when available
+
+## 22. Update flow
+
+Relevant methods in `backend/app/app.go`:
+
+- `CheckForUpdates`
+- `DownloadAndInstall`
+
+The app:
+
+- fetches the latest GitHub release metadata
+- validates trusted hosts
+- picks an installer asset
+- downloads it
+- optionally checks a checksum if available
+- launches the installer
+- quits the app
 
 Important characteristics:
 
@@ -392,46 +621,11 @@ If you touch release or update behavior, inspect both:
 - `backend/app/app.go`
 - `wails.json`
 
-## 14. Diagnostics and observability
+### Current version mismatch to know about
 
-The backend includes:
+Current version values are split across files, so a successful update feature still depends on release metadata being maintained carefully.
 
-- structured-ish logging through `utils.LoggerService`
-- correlation ids
-- panic recovery helpers
-- a diagnostic bundle export path
-
-The diagnostic bundle currently packages:
-
-- manifest metadata
-- recent attendance sync state
-- recent task record sync state
-- current log file, when available
-
-This is useful for support and post-failure analysis.
-
-## 15. Error design
-
-The backend uses two notable error patterns:
-
-### `StableError`
-
-Defined in `backend/types/error.type.go`.
-
-Purpose:
-
-- return safe, user-facing error messages across the Wails boundary
-- avoid leaking internal details to the frontend
-
-### `OperationError`
-
-Purpose:
-
-- wrap internal errors with operation name, record id, and user id for diagnostics
-
-`App.stableClientError(...)` is the main adapter that converts internal errors into frontend-safe ones.
-
-## 16. Backend tests
+## 23. Backend tests
 
 The backend test surface is concentrated around risky subsystems:
 
@@ -448,27 +642,62 @@ Useful command:
 go test ./backend/...
 ```
 
-When changing sync, migrations, or task tracking, add or update tests in the nearest package rather than relying on manual verification only.
+### Good testing habit in this repo
 
-## 17. Backend caveats and maintenance advice
+If you change:
 
-### Do not assume every "service" is equal
+- sync rules
+- database schema
+- task lifecycle
+- screenshot behavior
+- startup/shutdown guards
 
-Read the call graph before moving code between `services` and `service_classes`.
+then add or update nearby backend tests instead of relying on manual behavior only.
 
-### Protect local data first
+## 24. Good backend reading order
 
-If remote sync fails, the local DB should still tell the truth about what happened.
+If you are trying to understand the backend efficiently, read in this order:
 
-### Be careful with shared in-memory pointers
+1. `main.go`
+2. `backend/app/app.go`
+3. `backend/service_classes/task.service.go`
+4. `backend/service_classes/sync.service.go`
+5. `backend/service_classes/auth.service.go`
+6. `backend/service_classes/fes_client.service.go`
+7. `backend/db/db.go`
+8. `backend/db/models/*.go`
+9. the relevant repository file
 
-The app wires pointers like `Attendance`, `TaskRecord`, and `WorkingTaskID` across services. Changes here can create subtle state bugs.
+## 25. Safe extension patterns
 
-### Review shutdown behavior when altering task lifecycles
+### If you need a new frontend-callable backend method
 
-Shutdown intentionally tries to leave active work in a retryable local state.
+1. add a method to `backend/app.App`
+2. keep the method thin
+3. place real business logic in a service
+4. use repositories for data access
+5. regenerate Wails bindings
+6. update the frontend to call the new binding
 
-## 18. Read next
+### If you need new local data
 
-- `guide/data-and-sync.md` for schema and lifecycle details
-- `guide/frontend.md` to understand how UI actions hit these backend methods
+1. update or add the model
+2. update migration logic
+3. update repositories
+4. update services
+5. update exported shapes if the frontend needs the data
+6. add tests
+
+## 26. High-risk backend pitfalls
+
+- changing sync state transitions without understanding retry semantics
+- deleting "duplicate-looking" code in `backend/services` that is still in use
+- forgetting to emit runtime events after background work
+- breaking shared pointer assumptions in `App` wiring
+- assuming the database is only a cache
+- changing screenshot paths without considering local file cleanup and upload correlation
+
+## Read next
+
+- [`guide/data-and-sync.md`](./data-and-sync.md) for schema and lifecycle details
+- [`guide/frontend.md`](./frontend.md) to understand how UI actions hit these backend methods
