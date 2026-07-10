@@ -577,8 +577,8 @@ func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 	return records, nil
 }
 
-func (a *App) AddMemo(memo, notes string) {
-	a.ScreenshotService.AddMemo(memo, notes)
+func (a *App) AddMemo(notes string) {
+	a.ScreenshotService.AddMemo(notes)
 }
 
 func (a *App) GetFolderSize() (int64, error) {

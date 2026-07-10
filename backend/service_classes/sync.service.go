@@ -344,7 +344,7 @@ func (s *SyncService) syncTaskOut(taskRecord *models.TaskRecord) error {
 		Url:    "wf/task_out",
 		Method: "POST",
 		Body: map[string]any{
-			"activity_description": strings.ReplaceAll(taskRecord.Notes, "||", "-"),
+			"activity_description":taskRecord.Notes,
 			"productivity":         taskRecord.Productivity,
 			"total_task_time":      taskRecord.Duration,
 			"task_out":             taskRecord.EndedAt.UnixMilli(),

@@ -69,7 +69,6 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	folderName := fmt.Sprintf("%d", *s.TaskRecordID)
 	taskRecordID := s.TaskRecordID
 	taskID := s.TaskID
-	memo := s.Memo
 	notes := s.Notes
 	s.mu.Unlock()
 
@@ -141,7 +140,6 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	taskScreenshot := &models.Screenshot{
 		TaskRecordID: *taskRecordID,
 		TaskID:       *taskID,
-		Memo:         memo,
 		Notes:        notes,
 		FilePath:     string(jsonPaths),
 		TakenAt:      time.Now().Local(),
@@ -261,9 +259,8 @@ func (s *ScreenshotService) Stop() {
 	}
 }
 
-func (s *ScreenshotService) AddMemo(memo, notes string) {
+func (s *ScreenshotService) AddMemo(notes string) {
 	s.mu.Lock()
-	s.Memo = memo
 	s.Notes = notes
 	s.mu.Unlock()
 }
