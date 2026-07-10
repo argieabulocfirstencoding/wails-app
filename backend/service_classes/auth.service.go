@@ -6,6 +6,7 @@ import (
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
+	"fmt"
 	"strings"
 )
 
@@ -19,16 +20,23 @@ type AuthService struct {
 	ctx               context.Context
 }
 
-func NewAuthService() *AuthService {
-	SyncService := NewSyncService()
+func NewAuthService(connectivity ...*ConnectivityStateService) *AuthService {
+	var connectivityState *ConnectivityStateService
+	if len(connectivity) > 0 {
+		connectivityState = connectivity[0]
+	}
+	if connectivityState == nil {
+		connectivityState = NewConnectivityStateService()
+	}
+	SyncService := NewSyncService(connectivityState)
 
 	return &AuthService{
-		FesClientService: NewFesClientService(),
-		Logger:           utils.NewLoggerService(),
-		UserService:      NewUserService(),
+		FesClientService:  NewFesClientService(connectivityState),
+		Logger:            utils.NewLoggerService(),
+		UserService:       NewUserService(),
 		SyncService:       SyncService,
 		AttendanceService: NewAttendanceService(SyncService),
-		TaskService:       NewTaskService(SyncService),
+		TaskService:       NewTaskService(SyncService, connectivityState),
 	}
 }
 
@@ -45,6 +53,9 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	if err != nil {
 		return nil, nil, err
 	}
+	if attendance == nil {
+		return nil, nil, fmt.Errorf("login attendance is nil")
+	}
 
 	authUser := &models.AuthUser{
 		LocalID: *userId,
@@ -52,15 +63,15 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	}
 
 	// NOTE INITIALIZATIONS
-	a.TaskService.Attendance = &attendance
-	a.TaskService.SyncService.AuthUser = authUser
+	if a.TaskService.Attendance != nil {
+		*a.TaskService.Attendance = attendance
+	} else {
+		a.TaskService.Attendance = &attendance
+	}
+	a.TaskService.SyncService.SetAuthUser(authUser)
 
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
 	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
-
-	if err := a.TaskService.SyncService.SyncAttendance(attendance); err != nil {
-		a.Logger.Printf("error syncing attendance on login")
-	}
 
 	attendance.User.ID = *userId
 	attendance.User.Email = email
@@ -83,18 +94,19 @@ func (a *AuthService) Logout() error {
 	attendance := a.TaskService.Attendance
 	workingTaskID := a.TaskService.WorkingTaskID
 
-	if *workingTaskID != nil {
+	if workingTaskID != nil && *workingTaskID != nil {
 		a.TaskService.StopTracking(**workingTaskID)
 		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
 	}
 
-	if attendance != nil {
+	if attendance != nil && *attendance != nil {
 		if err := services.LogoutAttendance(*attendance); err != nil {
 			return err
 		}
 
 		if err := a.TaskService.SyncService.SyncAttendance(*attendance); err != nil {
-			a.Logger.Printf("error syncing attendance on logout")
+			a.Logger.Printf("error syncing attendance on logout: %v", err)
+			return fmt.Errorf("logout sync failed: %w", err)
 		}
 	} else {
 		a.Logger.Println("No active AttendanceID")
@@ -126,8 +138,23 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 		return nil, err
 	}
 
-	userId := resp["user_id"].(string)
-	token := resp["token"].(string)
+	userIDRaw, ok := resp["user_id"]
+	if !ok {
+		return nil, a.Logger.Error("login response missing user_id")
+	}
+	userId, ok := userIDRaw.(string)
+	if !ok || strings.TrimSpace(userId) == "" {
+		return nil, a.Logger.Error("login response user_id has invalid format")
+	}
+
+	tokenRaw, ok := resp["token"]
+	if !ok {
+		return nil, a.Logger.Error("login response missing token")
+	}
+	token, ok := tokenRaw.(string)
+	if !ok || strings.TrimSpace(token) == "" {
+		return nil, a.Logger.Error("login response token has invalid format")
+	}
 
 	a.TaskService.SyncService.FesClientService.SetApiToken(token)
 

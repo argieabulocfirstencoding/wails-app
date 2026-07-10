@@ -1,349 +1,166 @@
-# FESApp Tracker
+﻿# FES App Tracker
 
-<p align="center">
-  <img src="frontend/src/assets/images/first-encoding_logo.webp" alt="FESApp Tracker Logo" width="200" />
-</p>
+Desktop employee task and attendance tracker built with Wails, Go, React, and SQLite.
 
-<p align="center">
-  <strong>Employee Task & Attendance Tracking Application</strong>
-</p>
+This README is the short entry point. The full maintainer and takeover documentation now lives in [`guide/`](guide/README.md).
 
-<p align="center">
-  <a href="https://github.com/FES-Paul/FES-APP-TRACKER/releases">
-    <img src="https://img.shields.io/github/v/release/FES-Paul/FES-APP-TRACKER?include_prereleases&label=version" alt="Version" />
-  </a>
-  <img src="https://img.shields.io/github/license/FES-Paul/FES-APP-TRACKER" alt="License" />
-  <img src="https://img.shields.io/github/last-commit/FES-Paul/FES-APP-TRACKER" alt="Last Commit" />
-</p>
+## Start Here
 
----
+If you are a new developer, read these first:
 
-## 📋 Table of Contents
+1. [`guide/README.md`](guide/README.md)
+2. [`guide/takeover-playbook.md`](guide/takeover-playbook.md)
+3. [`guide/architecture.md`](guide/architecture.md)
+4. [`guide/developer-workflow.md`](guide/developer-workflow.md)
 
-- [About](#about)
-- [Features](#features)
-- [Technology Stack](#technology-stack)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Development](#development)
-  - [Building](#building)
-- [Database](#database)
-- [Configuration](#configuration)
-- [License](#license)
+Area-specific guides:
 
----
+- [`guide/backend.md`](guide/backend.md)
+- [`guide/frontend.md`](guide/frontend.md)
+- [`guide/data-and-sync.md`](guide/data-and-sync.md)
+- [`guide/troubleshooting.md`](guide/troubleshooting.md)
+- [`guide/glossary.md`](guide/glossary.md)
 
-## About
+## What The App Does
 
-**FESApp Tracker** is a desktop application developed by **First Encoding Services** for employee task and attendance tracking. It allows employees to track their work tasks, capture screenshots during work sessions, and sync their attendance data to the cloud.
+FES App Tracker is a desktop time-tracking application for First Encoding Services. It allows users to:
 
-**Version:** 2.1.0  
-**Author:** Paul (johnpaultunacao.firstencoding@gmail.com)
+- log in online against the FES API or offline from previously stored local accounts
+- start and stop task tracking sessions
+- capture screenshots while work is running
+- persist attendance and task records locally in SQLite
+- retry synchronization when the app returns online
+- upload screenshot artifacts through the screenshot sync pipeline when the required remote state is available
+- review daily activity logs and manual resync options
 
----
+The app is designed around local-first operation. The local database is not just a cache. It is the durable runtime record used for offline work and sync recovery.
 
-## ✨ Features
-
-### Core Features
-
-| Feature                 | Description                                              |
-| ----------------------- | -------------------------------------------------------- |
-| **Task Tracking**       | Start/stop timer for work tasks with real-time tracking  |
-| **Screenshot Capture**  | Automatic periodic screenshots during task work sessions |
-| **Attendance Tracking** | Automatic login/logout attendance recording              |
-| **Activity Logs**       | View complete work history with date filtering           |
-| **Client Management**   | Manage multiple clients and their associated tasks       |
-
-### Connectivity
-
-| Feature           | Description                                      |
-| ----------------- | ------------------------------------------------ |
-| **Offline Mode**  | Work offline with local SQLite database storage  |
-| **Online Mode**   | Sync with Firebase for cloud authentication      |
-| **Cloud Storage** | Upload screenshots to Backblaze B2 cloud storage |
-| **Auto Sync**     | Automatic synchronization of unsynced records    |
-
-### Desktop Integration
-
-| Feature             | Description                                    |
-| ------------------- | ---------------------------------------------- |
-| **System Tray**     | Runs in background with system tray icon       |
-| **Auto Update**     | Automatic update checking from GitHub releases |
-| **Multi-Monitor**   | Screenshot capture from multiple monitors      |
-| **Single Instance** | Prevents multiple instances of the app         |
-
-### User Features
-
-| Feature                 | Description                                    |
-| ----------------------- | ---------------------------------------------- |
-| **User Authentication** | Firebase Google authentication                 |
-| **Profile Management**  | View and update user profile information       |
-| **Dashboard**           | Overview of tasks, time spent, and sync status |
-| **Search**              | Search and filter tasks                        |
-
----
-
-## 🛠 Technology Stack
+## Tech Stack
 
 ### Backend
 
-| Technology | Purpose                            |
-| ---------- | ---------------------------------- |
-| **Go**     | Core application runtime           |
-| **Wails**  | Desktop app framework              |
-| **GORM**   | SQLite ORM for database operations |
-| **SQLite** | Local database storage             |
+- Go
+- Wails
+- GORM
+- SQLite
 
 ### Frontend
 
-| Technology       | Purpose                     |
-| ---------------- | --------------------------- |
-| **React**        | UI framework                |
-| **TypeScript**   | Type-safe JavaScript        |
-| **Vite**         | Build tool and dev server   |
-| **Tailwind CSS** | Utility-first CSS framework |
-| **React Router** | Client-side routing         |
-| **Lucide React** | Icon library                |
-| **Radix UI**     | UI component primitives     |
+- React
+- TypeScript
+- Vite
+- Zustand
+- Tailwind CSS
+- Radix UI
 
 ### Integrations
 
-| Technology       | Purpose                   |
-| ---------------- | ------------------------- |
-| **Firebase**     | Cloud authentication      |
-| **Backblaze B2** | Cloud screenshot storage  |
-| **Upwork**       | External task integration |
+- FES API
+- GitHub Releases for app updates
+- OS keyring for secret storage
+- Backblaze B2 for screenshot upload
 
----
+## Documentation Map
 
-## 🚀 Getting Started
+The detailed handover docs live under [`guide/`](guide/README.md).
+
+| File | Purpose |
+| --- | --- |
+| [`guide/README.md`](guide/README.md) | Main orientation, mental model, and reading order |
+| [`guide/takeover-playbook.md`](guide/takeover-playbook.md) | First-day and first-week takeover plan |
+| [`guide/architecture.md`](guide/architecture.md) | System boundaries, startup, shutdown, and runtime flow |
+| [`guide/backend.md`](guide/backend.md) | Go backend structure, services, repositories, sync engine, and integrations |
+| [`guide/frontend.md`](guide/frontend.md) | React app structure, state, pages, and Wails event usage |
+| [`guide/data-and-sync.md`](guide/data-and-sync.md) | SQLite schema, sync states, record lifecycle, and screenshot pipeline |
+| [`guide/developer-workflow.md`](guide/developer-workflow.md) | Setup, commands, testing, release workflow, and safe change patterns |
+| [`guide/troubleshooting.md`](guide/troubleshooting.md) | Incident debugging checklists and common failure modes |
+| [`guide/glossary.md`](guide/glossary.md) | Plain-language definitions of technical and project terms |
+
+## Repository Layout
+
+```text
+wails-app/
+|-- backend/      Go runtime, app facade, services, repositories, database
+|-- frontend/     React application and generated Wails bindings
+|-- guide/        detailed developer documentation
+|-- build/        packaging assets and outputs
+|-- plan/         planning artifacts
+|-- main.go       Wails entry point
+|-- wails.json    Wails app configuration
+`-- README.md     this file
+```
+
+## Development
 
 ### Prerequisites
 
-- **Go** 1.20 or higher
-- **Node.js** 18 or higher
-- **npm** 9 or higher
-- **Wails** CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
+- Go toolchain matching `go.mod`
+- Node.js
+- npm
+- Wails CLI
 
-### Installation
-
-1. Clone the repository:
+Install Wails if needed:
 
 ```bash
-git clone https://github.com/FES-Paul/FES-APP-TRACKER.git
-cd FES-APP-TRACKER
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
 ```
 
-2. Install Go dependencies:
-
-```bash
-go mod download
-```
-
-3. Install frontend dependencies:
-
-```bash
-cd frontend
-npm install
-cd ..
-```
-
-### Development
-
-To run in live development mode:
+### Run locally
 
 ```bash
 wails dev
 ```
 
-This will start:
-
-- A Vite development server with hot reload for the frontend
-- A dev server at http://localhost:34115 for accessing Go methods from the browser
-
-### Building
-
-To build a redistributable production package:
+### Build
 
 ```bash
 wails build
 ```
 
-This creates:
+### Run backend tests
 
-- Windows installer: `build/windows/FESApp Tracker Setup.exe`
-- Standalone executable: `build/FESApp Tracker.exe`
-
-The built application will be in the `build/` directory.
-
----
-
-## 🗄️ Database
-
-### Storage Location
-
-The SQLite database is stored in the user's config directory:
-
-- **Windows:** `%APPDATA%/wails-app/`
-- **Dev Mode:** `fesapp-dev.db`
-- **Production:** `fesapp.db`
-
-### Database Schema
-
-#### Users Table
-
-| Field      | Type   | Description                |
-| ---------- | ------ | -------------------------- |
-| ID         | string | Primary key (Firebase UID) |
-| Name       | string | Full name                  |
-| FirstName  | string | First name                 |
-| LastName   | string | Last name                  |
-| MiddleName | string | Middle name                |
-| Position   | string | Job position               |
-| Birthdate  | string | Date of birth              |
-| Phone      | string | Phone number               |
-| Address    | string | Home address               |
-| Email      | string | Email address              |
-| FESID      | string | Company employee ID        |
-| Photo      | string | Profile photo URL          |
-
-#### Tasks Table
-
-| Field       | Type   | Description                   |
-| ----------- | ------ | ----------------------------- |
-| ID          | uint   | Primary key                   |
-| TaskID      | string | Unique task identifier (UUID) |
-| Title       | string | Task title                    |
-| ProjectName | string | Project name                  |
-| ClientID    | string | Foreign key to Client         |
-
-#### TaskRecords Table
-
-| Field       | Type         | Description                  |
-| ----------- | ------------ | ---------------------------- |
-| ID          | uint         | Primary key                  |
-| TaskID      | string       | Foreign key to Task          |
-| UserID      | string       | Foreign key to User          |
-| StartedAt   | timestamp    | Task start time              |
-| EndedAt     | timestamp    | Task end time                |
-| Duration    | uint32       | Duration in seconds          |
-| Screenshots | []Screenshot | Related screenshots          |
-| Notes       | string       | Task notes                   |
-| SyncedAt    | timestamp    | Last sync timestamp          |
-| SyncStatus  | string       | Sync status (pending/synced) |
-
-#### Screenshots Table
-
-| Field        | Type      | Description               |
-| ------------ | --------- | ------------------------- |
-| ID           | uint      | Primary key               |
-| TaskRecordID | uint      | Foreign key to TaskRecord |
-| Filename     | string    | Screenshot filename       |
-| FolderName   | string    | Screenshot folder         |
-| Path         | string    | Local file path           |
-| SyncedAt     | timestamp | Last sync timestamp       |
-| SyncStatus   | string    | Sync status               |
-
-#### Attendance Table
-
-| Field         | Type      | Description            |
-| ------------- | --------- | ---------------------- |
-| ID            | uint      | Primary key            |
-| UserID        | string    | Foreign key to User    |
-| ClientTime    | uint32    | Total client work time |
-| TotalGap      | uint32    | Total gap time         |
-| TimeIn        | timestamp | Login time             |
-| TimeOut       | timestamp | Logout time            |
-| LoginLogoutID | string    | Session identifier     |
-| SyncedAt      | timestamp | Last sync timestamp    |
-| SyncStatus    | string    | Sync status            |
-
-### Migrations
-
-Database migrations are run automatically on app startup using GORM's AutoMigrate feature.
-
----
-
-## ⚙️ Configuration
-
-### App Configuration
-
-The main configuration file is `wails.json`:
-
-```json
-{
-  "name": "fesapp",
-  "outputfilename": "FesApp Tracker",
-  "frontend:install": "npm install",
-  "frontend:build": "npm run build",
-  "info": {
-    "productName": "FESApp Tracker",
-    "productVersion": "2.1.0",
-    "companyName": "First Encoding Services",
-    "copyright": "Copyright 2025 First Encoding Services"
-  }
-}
+```bash
+go test ./backend/...
 ```
 
-### Environment Variables
+## Architecture Snapshot
 
-| Variable | Description      | Default     |
-| -------- | ---------------- | ----------- |
-| `GO_ENV` | Environment mode | development |
+```text
+React UI
+  -> generated Wails bindings
+    -> backend/app.App
+      -> service classes
+        -> repositories
+          -> SQLite
 
-### Key Storage
-
-Credentials are stored securely using the system keyring:
-
-- Firebase refresh tokens
-- Cloud storage credentials
-
----
-
-## 📁 Project Structure
-
-```
-FES-APP-TRACKER/
-├── backend/
-│   ├── app/              # Wails app configuration
-│   ├── config.go         # App configuration
-│   ├── db/               # Database layer
-│   │   ├── db.go         # Database initialization
-│   │   └── models/       # Database models
-│   ├── repository/      # Data access layer
-│   ├── service_classes/  # Business logic services
-│   ├── services/         # Additional services
-│   ├── types/           # Type definitions
-│   └── utils/            # Utility functions
-├── frontend/
-│   ├── src/
-│   │   ├── components/  # React components
-│   │   ├── hooks/       # Custom React hooks
-│   │   ├── layouts/     # Page layouts
-│   │   ├── lib/         # Utility libraries
-│   │   ├── pages/       # Page components
-│   │   ├── store/       # State management
-│   │   └── styles/      # CSS styles
-│   ├── index.html       # HTML entry point
-│   ├── package.json    # Frontend dependencies
-│   └── vite.config.ts   # Vite configuration
-├── main.go              # Go entry point
-├── wails.json          # Wails configuration
-└── README.md           # This file
+backend/app.App
+  -> FES API
+  -> sync queue
+  -> screenshot capture
+  -> Backblaze upload
+  -> desktop-specific runtime features
 ```
 
----
+The most important backend boundary is `backend/app.App`. The most important operational subsystem is `backend/service_classes/sync.service.go`.
 
-## 📄 License
+## Current Realities To Know Before Editing
 
-Copyright © 2025 **First Encoding Services**. All rights reserved.
+- `backend/services` and `backend/service_classes` overlap in responsibility. Inspect call sites before refactoring either package.
+- The app is local-first. A successful UI action does not always mean the remote FES system is already in sync.
+- Attendance state is an upstream dependency for task sync. If attendance is not ready, task sync may block.
+- Screenshot behavior spans multiple layers: task tracking, local file storage, SQLite metadata, sync reconciliation, and Backblaze upload.
+- Version strings are not currently aligned across all files.
+- Firebase exists in the frontend, but the main working login flow is driven by Wails calls into the Go backend and the FES API.
 
----
+These details are documented more fully in [`guide/README.md`](guide/README.md).
 
-## 🆘 Support
+## Notes For Maintainers
 
-For support and bug reports, please contact:
+- Do not edit `frontend/wailsjs/` manually. Those files are generated.
+- Treat the local SQLite database as important user data.
+- Be careful with sync-state fields such as `pending`, `failed`, and `blocked`.
+- Read the guide before changing auth, tracking, migrations, screenshot behavior, or sync logic.
 
-- Email: johnpaultunacao.firstencoding@gmail.com
-- GitHub Issues: https://github.com/FES-Paul/FES-APP-TRACKER/issues
+## License
+
+Internal project for First Encoding Services unless the repository owner specifies otherwise.

@@ -12,7 +12,7 @@ type AttendanceService struct {
 
 func NewAttendanceService(SyncService *SyncService) *AttendanceService {
 	return &AttendanceService{
-		AttendanceRepo: &repository.AttendanceRepository{},
+		AttendanceRepo: repository.NewAttendanceRepository(),
 		SyncService:    SyncService,
 	}
 }

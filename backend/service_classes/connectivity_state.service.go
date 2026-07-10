@@ -1,0 +1,25 @@
+package service_classes
+
+import "sync/atomic"
+
+type ConnectivityStateService struct {
+	online atomic.Bool
+}
+
+func NewConnectivityStateService() *ConnectivityStateService {
+	return &ConnectivityStateService{}
+}
+
+func (s *ConnectivityStateService) SetOnline(online bool) {
+	if s == nil {
+		return
+	}
+	s.online.Store(online)
+}
+
+func (s *ConnectivityStateService) IsOnline() bool {
+	if s == nil {
+		return false
+	}
+	return s.online.Load()
+}

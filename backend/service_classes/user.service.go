@@ -9,6 +9,7 @@ import (
 	"fesapp/backend/utils"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -98,14 +99,7 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 	}
 
 	// 1. Extract and format birthdate safely
-	rawBirthdate := safeString(employee, "BirthDate txt")
-	birthdate := ""
-	if rawBirthdate != "" {
-		slicedBd := strings.Split(rawBirthdate, " ")
-		if len(slicedBd) >= 3 {
-			birthdate = fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
-		}
-	}
+	birthdate := extractBirthdate(employee)
 
 	// if rawBirthdate != "" {
 	// 	slicedBd := strings.Split(rawBirthdate, " ")
@@ -147,4 +141,35 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 	}
 
 	return nil
+}
+
+func extractBirthdate(employee map[string]any) string {
+	raw, exists := employee["BirthDate txt"]
+	if !exists || raw == nil {
+		raw = employee["Birthdate"]
+	}
+	if raw == nil {
+		raw = employee["Birthday"]
+	}
+
+	switch v := raw.(type) {
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return ""
+		}
+		slicedBd := strings.Split(trimmed, " ")
+		if len(slicedBd) >= 3 {
+			return fmt.Sprintf("%s %s %s", slicedBd[0], slicedBd[1], slicedBd[2])
+		}
+		return trimmed
+	case float64:
+		// Bubble sometimes returns numeric timestamps in milliseconds.
+		if v <= 0 {
+			return ""
+		}
+		return time.UnixMilli(int64(v)).Format("2006-01-02")
+	default:
+		return ""
+	}
 }

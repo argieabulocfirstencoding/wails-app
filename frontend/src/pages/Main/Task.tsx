@@ -5,17 +5,11 @@ import {
   CircleCheckBig,
   CirclePlay,
   StopCircle,
-  RefreshCcw,
 } from "lucide-react";
 import React, { forwardRef, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
 import upworkLogo from "@/assets/images/upwork_logo.png";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   GetMonitorCount,
   StartTracking,
@@ -23,7 +17,6 @@ import {
   GetLastTaskRecord,
   AddMemo,
   OpenUpwork,
-  SyncUnsyncedTaskRecord,
   SetTaskRecordNotes,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime";
@@ -51,6 +44,7 @@ import {
 } from "@/components/ui/item";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { releaseFlags } from "@/config/release";
 
 interface ScreenshotProps {
   date: number;
@@ -84,17 +78,19 @@ const Task = () => {
 
     try {
       setSyncing(true);
-      resetTimer();
 
       const timeStart = Date.now();
       await StartTracking(id, JSON.stringify(timeStart), isPadagan);
 
+      resetTimer();
       if (lastTaskRecord) {
         lastTaskRecord.padagan = isPadagan;
       }
 
       setStart(true);
       setStartTime(timeStart);
+    } catch (error) {
+      console.error("StartTracking failed:", error);
     } finally {
       setSyncing(false);
     }
@@ -107,15 +103,15 @@ const Task = () => {
   }
 
   function getMemoTagFromNotes(note: string) {
-    if (!note) return;
-
-    let notes = note.split("||");
-
-    for (let i = 0; i < notes.length; i++) {
-      notes[i] = notes[i].trim();
+    if (!note) {
+      setMemo("");
+      setTag("");
+      return;
     }
-    setMemo(notes[0]);
-    setTag(notes[1]);
+
+    const notes = note.split("||").map((part) => part.trim());
+    setMemo(notes[0] || "");
+    setTag(notes[1] || "");
   }
 
   async function stopTime() {
@@ -155,6 +151,60 @@ const Task = () => {
     setMonitor(monitorCount);
   }
 
+  async function hydrateTaskRecord() {
+    if (!id) return;
+
+    try {
+      const response = await GetLastTaskRecord(id);
+      const record = response?.record;
+
+      if (!record || !record.started_at) {
+        setLastTaskRecord(undefined);
+        setSynced(false);
+        setStart(false);
+        setStartTime(0);
+        setEndTime(undefined);
+        setScreenshots(null);
+        setMemo("");
+        setTag("");
+        setTaskID(null);
+        return;
+      }
+
+      const started = new Date(record.started_at).getTime();
+      const ended = record.ended_at
+        ? new Date(record.ended_at).getTime()
+        : null;
+
+      setLastTaskRecord(record);
+      setStartTime(started);
+      setEndTime(ended ?? undefined);
+      setSynced(record.sync_status === "synced");
+      getMemoTagFromNotes(record.notes ?? "");
+
+      const isActive = !record.ended_at;
+      setStart(isActive);
+      setTaskID(isActive ? (id ?? null) : null);
+
+      if (
+        releaseFlags.screenshotsEnabled &&
+        response.screenshots &&
+        response.takenAt
+      ) {
+        setScreenshots({
+          date: response.takenAt,
+          pictures: response.screenshots,
+        });
+      } else {
+        setScreenshots(null);
+      }
+    } catch (err) {
+      console.error("Refresh error:", err);
+    } finally {
+      setHydrated(true);
+    }
+  }
+
   function getLastScreenshotTime() {
     let screenshotTimeAgo = "No screenshots yet.";
     const lastScreenshotDate = screenshots?.date;
@@ -175,12 +225,6 @@ const Task = () => {
       setLaunching(true);
       await OpenUpwork(taskDetails.taskId);
     }
-  }
-
-  async function handleSyncTaskRecord() {
-    if (!lastTaskRecord) return;
-    setSyncing(true);
-    await SyncUnsyncedTaskRecord(lastTaskRecord.id);
   }
 
   function openPreview(base64: string) {
@@ -220,6 +264,11 @@ const Task = () => {
   }, [tasks, id]);
 
   useEffect(() => {
+    if (!releaseFlags.screenshotsEnabled) {
+      setScreenshotDate("Screenshot capture is disabled in this release.");
+      return;
+    }
+
     getLastScreenshotTime();
   }, [screenshots]);
 
@@ -247,42 +296,7 @@ const Task = () => {
   }, [isStarted, timeStarted]);
 
   useEffect(() => {
-    async function init() {
-      if (!id) return;
-      try {
-        const response = await GetLastTaskRecord(id);
-        if (response?.record) {
-          const record = response.record;
-
-          const started = new Date(record.started_at).getTime();
-          const ended = record.ended_at
-            ? new Date(record.ended_at).getTime()
-            : null;
-
-          setLastTaskRecord(record);
-          setStartTime(started);
-          setEndTime(ended ?? undefined);
-          setSynced(record.sync_status === "synced");
-          getMemoTagFromNotes(record.notes);
-
-          const isActive = !record.ended_at;
-          setStart(isActive);
-          if (isActive) setTaskID(id);
-
-          if (response.screenshots && response.takenAt) {
-            setScreenshots({
-              date: response.takenAt,
-              pictures: response.screenshots,
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Init error:", err);
-      } finally {
-        setHydrated(true); // ← moved here, single source of truth
-      }
-    }
-    init();
+    hydrateTaskRecord();
   }, [id]);
 
   useEffect(() => {
@@ -303,7 +317,7 @@ const Task = () => {
   }, [memo, tag]);
 
   useEffect(() => {
-    if (!EventsOn) return;
+    if (!releaseFlags.screenshotsEnabled || !EventsOn) return;
     const off = EventsOn("screenshot", (pictures: string[]) => {
       setSyncing(true);
       const now = Date.now();
@@ -315,13 +329,14 @@ const Task = () => {
 
   useEffect(() => {
     if (!EventsOn) return;
-    const off = EventsOn("record-synced", (synced: boolean) => {
+    const off = EventsOn("record-synced", async (synced: boolean) => {
       setSynced(synced);
       setSyncing(false);
+      await hydrateTaskRecord();
     });
 
     return () => off();
-  }, []);
+  }, [id]);
 
   const titleLower = taskDetails?.title?.toLowerCase() ?? "";
 
@@ -447,20 +462,6 @@ const Task = () => {
                       <span className="inline-flex items-center gap-1 text-amber-500">
                         Not synced
                         <CircleAlert className="w-3 h-3" />
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              onClick={handleSyncTaskRecord}
-                              className="ml-1 rounded-full p-1 text-neutral-400 dark:text-neutral-300 hover:text-neutral-700 dark:hover:text-white transition-colors cursor-pointer"
-                            >
-                              <RefreshCcw className="w-3.5 h-3.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Click to sync this session</p>
-                          </TooltipContent>
-                        </Tooltip>
                       </span>
                     )
                   )
@@ -601,7 +602,7 @@ const Task = () => {
               <div className="space-y-1 text-xs sm:text-sm">
                 <p className="flex gap-1.5">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    📌 <strong>Memo:</strong>
+                    Memo:
                   </span>
                   <span className="truncate text-neutral-800 dark:text-neutral-50">
                     {memo || "No memo set."}
@@ -609,7 +610,7 @@ const Task = () => {
                 </p>
                 <p className="flex gap-1.5 line-clamp-3">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    🏷️ <strong>Activity tag:</strong>
+                    Activity tag:
                   </span>
                   <span className="text-neutral-800 dark:text-neutral-50">
                     {tag || "No tag set."}
@@ -628,7 +629,7 @@ const Task = () => {
         </div>
 
         {/* Latest screenshot block + images stay the same */}
-        {!titleLower.includes("break") ? (
+        {releaseFlags.screenshotsEnabled && !titleLower.includes("break") ? (
           <>
             <div className="flex flex-col mt-4 mb-1">
               <div className="flex justify-between items-baseline">
@@ -717,3 +718,4 @@ function StopButton({ onClick }: ButtonProps) {
     </button>
   );
 }
+

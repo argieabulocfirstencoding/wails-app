@@ -2,7 +2,7 @@ package models
 
 type Client struct {
 	ID          string `gorm:"primaryKey"`
-	Fullname    string `gorm:"type:char(36);"`
+	Fullname    string
 	CompanyName string `validate:"required"`
 	Tasks       []Task
 }

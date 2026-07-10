@@ -56,7 +56,10 @@ func (a *AttendanceRepository) CreateAttendance(userId string) (*models.Attendan
 
 func (a *AttendanceRepository) LogoutAttendance(attendance *models.Attendance) error {
 	now := time.Now()
-	if err := db.DB.Model(&attendance).Update("time_out", now).Error; err != nil {
+	if err := db.DB.Model(attendance).Updates(map[string]any{
+		"time_out":    now,
+		"sync_status": "pending",
+	}).Error; err != nil {
 		return err
 	}
 

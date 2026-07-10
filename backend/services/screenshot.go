@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	config "fesapp/backend"
 	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"fmt"
@@ -54,6 +53,8 @@ type ScreenshotService struct {
 	SyncService  *FirebaseSyncService
 }
 
+const legacyScreenshotsEnabled = false
+
 func NewScreenshotService(sync *FirebaseSyncService) *ScreenshotService {
 	return &ScreenshotService{
 		stopChan:    make(chan struct{}),
@@ -69,6 +70,10 @@ func (s *ScreenshotService) AddMemo(memo, notes string) {
 }
 
 func (s *ScreenshotService) Start(ctx context.Context) {
+	if !legacyScreenshotsEnabled {
+		return
+	}
+
 	s.ctx = ctx
 	taskRecordIDCopy := *s.TaskRecordID
 	env := runtime.Environment(s.ctx)
@@ -118,6 +123,10 @@ func (s *ScreenshotService) Start(ctx context.Context) {
 }
 
 func (s *ScreenshotService) Stop() {
+	if !legacyScreenshotsEnabled {
+		return
+	}
+
 	fmt.Println("Stopped Screenshot Tracking")
 	// Retrieving TaskRecord from TaskRecordID
 	if s.Running {
@@ -129,6 +138,10 @@ func (s *ScreenshotService) Stop() {
 }
 
 func (s *ScreenshotService) Screenshot() ([]string, error) {
+	if !legacyScreenshotsEnabled {
+		return nil, nil
+	}
+
 	taskRecordIDCopy := *s.TaskRecordID
 	taskIDCopy := *s.TaskID
 	n := GetMonitorCount()
@@ -136,11 +149,11 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	// File path where screenshots are saved
 	outputDir, err := filepath.Abs(filepath.Join("backend", "screenshots", s.FolderName))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := os.MkdirAll(outputDir, os.ModePerm); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	pictures := []string{}
@@ -211,7 +224,7 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 
 	go func() {
 		log.Printf("Upload called — isConnected=%v", s.SyncService.Backblaze.isConnected)
-		if config.OnlineMode {
+		if s.SyncService != nil && s.SyncService.isConnected {
 			taskScreenshotModel := taskScreenshot
 			remotePaths, err := s.SyncService.Backblaze.AttemptUpload(paths)
 			if err != nil {
@@ -277,7 +290,11 @@ func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId strin
 }
 
 func (s *ScreenshotService) syncScreenshot(taskRecordIDCopy uint) {
-	if config.OnlineMode {
+	if !legacyScreenshotsEnabled {
+		return
+	}
+
+	if s.SyncService != nil && s.SyncService.isConnected {
 		// Retrieving TaskRecord from TaskRecordID
 		log.Print("Attempting to sync record")
 		taskRecord, err := GetTaskRecordFromID(taskRecordIDCopy)

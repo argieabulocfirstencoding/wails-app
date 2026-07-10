@@ -7,6 +7,7 @@ require (
 	github.com/blang/semver v2.2.0+incompatible
 	github.com/chai2010/webp v1.4.0
 	github.com/getlantern/systray v1.2.2
+	github.com/go-gormigrate/gormigrate/v2 v2.1.6
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/go-vgo/robotgo v0.110.8
 	github.com/google/uuid v1.6.0
@@ -18,7 +19,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/sys v0.43.0
-	gorm.io/gorm v1.31.0
+	gorm.io/gorm v1.31.1
 )
 
 require (

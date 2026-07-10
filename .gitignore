@@ -1,8 +1,48 @@
-build/*
-build
-node_modules
-frontend/dist
-backend/screenshots
-.gitattributes
+# Environment
 .env
+.env.*
+!.env.example
+
+# Logs
+*.log
 log.txt
+
+# Go build and local tooling caches
+.gocache/
+.gomodcache/
+.gotelemetry/
+.tmp/
+.bin/
+__debug_bin.*
+*.test
+*.out
+*.go.[0-9]*
+
+# Wails and platform build artifacts
+fesapp-res.syso
+
+# Ignore everything in build/bin
+build/bin/**
+build/windows/**
+build/windows/installer/**
+
+# Keep build assets
+!build/appicon.png
+!build/icon.ico
+!build/windows/
+!build/windows/icon.ico
+
+backend/screenshots/
+
+# Frontend dependencies and generated bundles
+frontend/node_modules/
+frontend/dist/
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+frontend/wailsjs/go/
+frontend/wailsjs/runtime/

@@ -11,6 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { formatInManila } from "@/lib/timezone";
 
 type Calendar22Props = {
   date: Date | undefined;
@@ -32,9 +33,7 @@ export function Calendar22({ date, setDate }: Calendar22Props) {
             id="date"
             className="w-32 h-8 text-xs justify-between font-normal"
           >
-            {date
-              ? date.toLocaleDateString("en-US", { timeZone: "Asia/Manila" })
-              : "Select date"}
+            {date ? formatInManila(date, "en-US", {}) : "Select date"}
             <ChevronDownIcon />
           </Button>
         </PopoverTrigger>

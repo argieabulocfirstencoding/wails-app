@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"os"
+	_ "time/tzdata"
 
 	"fesapp/backend/app"
 
@@ -23,16 +24,20 @@ func main() {
 	// 2. Determine the unique ID based on the environment using build tags
 	uniqueID := "com.firstencodingservices.myapp"
 
+	title := "FES App Tracker"
 	if exists {
 		uniqueID = uniqueID + ".development"
+		title = title + " Development"
 	}
+
+	
 
 	// Create an instance of the app structure
 	app := app.NewApp()
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "FES App Tracker",
+		Title:  title,
 		Width:  390,
 		Height: 780,
 		AssetServer: &assetserver.Options{

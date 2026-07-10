@@ -9,4 +9,3 @@ const (
 )
 
 var GMT8, _ = time.LoadLocation("Asia/Manila")
-var OnlineMode = false
