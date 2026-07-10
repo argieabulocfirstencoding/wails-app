@@ -125,7 +125,7 @@ const AccountSettings = () => {
           <div className="px-6 pt-5 pb-4 flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
               <img
-                src={user?.photo || "/assets/images/default-avatar.png"}
+                src={user?.photo || "src/assets/images/profile-default-avatar-icon-user.webp"}
                 alt="Profile avatar"
                 className="w-full h-full object-cover"
               />

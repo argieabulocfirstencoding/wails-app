@@ -373,7 +373,7 @@ const ProfileBar = () => {
               // src="//cf9237271c7c9759e747853c3b817950.cdn.bubble.io/f1764841309776x100054280396554060/jp.png"
               src={
                 user?.photo ||
-                "https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"
+                "src/assets/images/profile-default-avatar-icon-user.webp"
               }
               className={`rounded-full border-2 object-cover object-top ${
                 online ? "border-emerald-500" : "border-neutral-500"
@@ -453,11 +453,11 @@ const ProfileBar = () => {
                     Account
                   </button>
                 </Link>
-                <Link to="/notifications">
+                {/* <Link to="/notifications">
                   <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
                     Notifications
                   </button>
-                </Link>
+                </Link> */}
                 <Link to="/activity-logs">
                   <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
                     Activity Logs
