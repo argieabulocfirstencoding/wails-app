@@ -467,6 +467,14 @@ func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
 	return nil
 }
 
+func (a *App) ResyncTaskRecord(taskrecordId uint) error {
+	if err := a.AuthService.TaskService.SyncService.ResyncTaskRecord(taskrecordId); err != nil {
+		return a.stableClientError("resync_task_record", types.WrapOperation("resync.task_record", taskrecordId, a.safeUserID(), err))
+	}
+
+	return nil
+}
+
 func (a *App) SyncUnsyncedAttendance() error {
 	if a.AttendanceID == nil {
 		return types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance to sync.")

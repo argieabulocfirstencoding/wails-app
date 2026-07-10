@@ -188,15 +188,7 @@ func (s *SyncService) SyncTasks() {
 func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	correlationID := utils.NewCorrelationID("task_sync")
 	s.Logger.Infof("op=task_sync_start correlation_id=%s record_id=%d", correlationID, taskRecordId)
-	job := &syncJob{
-		key:  fmt.Sprintf("task-record:%d", taskRecordId),
-		name: fmt.Sprintf("sync_task_record_%d", taskRecordId),
-		fn: func(ctx context.Context) error {
-			return s.syncTaskRecordNow(ctx, taskRecordId)
-		},
-	}
-
-	err = s.enqueueAndWait(job)
+	err = s.syncTaskRecord(taskRecordId, false)
 	if err != nil {
 		s.Logger.Warnf("op=task_sync_failed correlation_id=%s record_id=%d err=%v", correlationID, taskRecordId, err)
 		s.Logger.Println("Failed to sync task record:", err)
@@ -209,7 +201,35 @@ func (s *SyncService) SyncTaskRecord(taskRecordId uint) (err error) {
 	return nil
 }
 
-func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) error {
+func (s *SyncService) ResyncTaskRecord(taskRecordId uint) (err error) {
+	correlationID := utils.NewCorrelationID("task_resync")
+	s.Logger.Infof("op=task_resync_start correlation_id=%s record_id=%d", correlationID, taskRecordId)
+	err = s.syncTaskRecord(taskRecordId, true)
+	if err != nil {
+		s.Logger.Warnf("op=task_resync_failed correlation_id=%s record_id=%d err=%v", correlationID, taskRecordId, err)
+		s.Logger.Println("Failed to resync task record:", err)
+		s.emit("record-synced", false)
+		return err
+	}
+
+	s.Logger.Infof("op=task_resync_success correlation_id=%s record_id=%d", correlationID, taskRecordId)
+	s.emit("record-synced", true)
+	return nil
+}
+
+func (s *SyncService) syncTaskRecord(taskRecordId uint, force bool) error {
+	job := &syncJob{
+		key:  fmt.Sprintf("task-record:%d", taskRecordId),
+		name: fmt.Sprintf("sync_task_record_%d", taskRecordId),
+		fn: func(ctx context.Context) error {
+			return s.syncTaskRecordNow(ctx, taskRecordId, force)
+		},
+	}
+
+	return s.enqueueAndWait(job)
+}
+
+func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, force bool) error {
 	taskRecord, err := s.TaskRepository.GetTaskRecord(taskRecordId)
 	if err != nil {
 		return err
@@ -231,7 +251,7 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint) 
 		return nil
 	}
 
-	if taskRecord.EndedAt != nil && strings.EqualFold(taskRecord.SyncStatus, syncStateSynced) {
+	if shouldSkipCompletedTaskRecordSync(taskRecord, force) {
 		s.drainPendingScreenshotsBestEffort(taskRecord)
 		return nil
 	}
@@ -344,7 +364,7 @@ func (s *SyncService) syncTaskOut(taskRecord *models.TaskRecord) error {
 		Url:    "wf/task_out",
 		Method: "POST",
 		Body: map[string]any{
-			"activity_description":taskRecord.Notes,
+			"activity_description": taskRecord.Notes,
 			"productivity":         taskRecord.Productivity,
 			"total_task_time":      taskRecord.Duration,
 			"task_out":             taskRecord.EndedAt.UnixMilli(),
@@ -659,7 +679,7 @@ func (s *SyncService) syncUnsyncedRecordsNow() error {
 	handled := make(map[uint]struct{}, len(unsynced))
 	for i := range unsynced {
 		handled[unsynced[i].ID] = struct{}{}
-		if err := s.syncTaskRecordNow(s.queueCtx, unsynced[i].ID); err != nil {
+		if err := s.syncTaskRecordNow(s.queueCtx, unsynced[i].ID, false); err != nil {
 			s.emit("record-synced", false)
 			if firstErr == nil {
 				firstErr = err
@@ -679,7 +699,7 @@ func (s *SyncService) syncUnsyncedRecordsNow() error {
 			continue
 		}
 		handled[recordID] = struct{}{}
-		if err := s.syncTaskRecordNow(s.queueCtx, recordID); err != nil {
+		if err := s.syncTaskRecordNow(s.queueCtx, recordID, false); err != nil {
 			s.emit("record-synced", false)
 			if firstErr == nil {
 				firstErr = err
@@ -1044,6 +1064,18 @@ func taskRecordHasRemoteProductivity(taskRecord *models.TaskRecord) bool {
 		return false
 	}
 	return strings.TrimSpace(*taskRecord.Productivity) != ""
+}
+
+func shouldSkipCompletedTaskRecordSync(taskRecord *models.TaskRecord, force bool) bool {
+	if taskRecord == nil || taskRecord.EndedAt == nil {
+		return false
+	}
+
+	if force {
+		return false
+	}
+
+	return strings.EqualFold(taskRecord.SyncStatus, syncStateSynced)
 }
 
 func (s *SyncService) ensureTaskRecordOwnership(taskRecord *models.TaskRecord) error {

@@ -56,3 +56,24 @@ func TestTaskRecordHasRemoteProductivity(t *testing.T) {
 		t.Fatalf("expected task record without productivity id to require task-in sync")
 	}
 }
+
+func TestShouldSkipCompletedTaskRecordSync(t *testing.T) {
+	timeOut := time.Now()
+	record := &models.TaskRecord{
+		EndedAt:    &timeOut,
+		SyncStatus: syncStateSynced,
+	}
+
+	if !shouldSkipCompletedTaskRecordSync(record, false) {
+		t.Fatalf("expected normal sync to skip completed synced task records")
+	}
+
+	if shouldSkipCompletedTaskRecordSync(record, true) {
+		t.Fatalf("expected manual resync to force completed synced task records through remote sync")
+	}
+
+	record.EndedAt = nil
+	if shouldSkipCompletedTaskRecordSync(record, false) {
+		t.Fatalf("expected active task records to remain eligible for sync")
+	}
+}
