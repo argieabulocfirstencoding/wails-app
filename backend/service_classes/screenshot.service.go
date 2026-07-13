@@ -41,7 +41,7 @@ type ScreenshotService struct {
 	workerDone chan struct{}
 }
 
-const screenshotsEnabled = true
+const screenshotsEnabled = false
 const PRODUCTION_SCREENSHOT_INTERVAL = 10
 const DEVELOPMENT_SCREENSHOT_INTERVAL = 1
 

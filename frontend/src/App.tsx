@@ -6,6 +6,7 @@ import Home from "./pages/Main/Home";
 import Login from "./pages/Auth/Login";
 import Task from "./pages/Main/Task";
 import AccountSettings from "@/pages/Account/AccountSettings";
+import ClientAccounts from "@/pages/Account/ClientAccounts";
 import Notifications from "./pages/Main/Notifications";
 import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
@@ -72,6 +73,7 @@ function App() {
         <Route path="/offline-login" element={<OfflineLogin />} />
         <Route path="/task/:id" element={<Task />} />
         <Route path="/account" element={<AccountSettings />} />
+        <Route path="/client-accounts" element={<ClientAccounts />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/activity-logs" element={<ActivityLogs />} />
         <Route path="/logout" element={<Logout />} />

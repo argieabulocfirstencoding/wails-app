@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"os/exec"
@@ -37,6 +38,54 @@ type FesClientService struct {
 	ctx            context.Context
 	apiToken       string
 }
+
+type ClientAccount struct {
+	ID               string `json:"id"`
+	Display          string `json:"display"`
+	Platform         string `json:"platform"`
+	Holder           string `json:"holder"`
+	HasCredentials   bool   `json:"hasCredentials"`
+	GoogleProfile    string `json:"googleProfile"`
+	HasGoogleProfile bool   `json:"hasGoogleProfile"`
+}
+
+type clientAccountRecord struct {
+	ID            string
+	Display       string
+	Platform      string
+	Holder        string
+	Username      string
+	Password      string
+	GoogleProfile string
+}
+
+type upworkCredentials struct {
+	Username string
+	Password string
+}
+
+type chromeLocalState struct {
+	Profile struct {
+		InfoCache map[string]chromeProfileInfo `json:"info_cache"`
+	} `json:"profile"`
+}
+
+type chromeProfileInfo struct {
+	UserName     string `json:"user_name"`
+	Name         string `json:"name"`
+	ShortcutName string `json:"shortcut_name"`
+	GaiaName     string `json:"gaia_name"`
+}
+
+const (
+	upworkInitialFocusDelay              = 1750 * time.Millisecond
+	upworkClientAccountInitialFocusDelay = 4 * time.Second
+	upworkClientAccountPasswordDelay     = 2500 * time.Millisecond
+	upworkClientAccountSubmitDelay       = 500 * time.Millisecond
+	upworkClipboardClearDelay            = 300 * time.Millisecond
+	upworkFieldTransitionDelay           = 350 * time.Millisecond
+	upworkChromeLoginURL                 = "https://www.upwork.com/ab/account-security/login?redir=%2Fab%2Faccount-security%2Foauth2%2Fauthorize%3Fresponse_type%3Dcode%26redirect_uri%3Dupwork%253A%252F%252Fwww.upwork.com%252Foauth2redir%26client_id%3D522767a70366bdd00e95cd6e8756940c"
+)
 
 func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientService {
 	var connectivityState *ConnectivityStateService
@@ -213,6 +262,98 @@ func (f *FesClientService) OpenFesWebApp() error {
 	}
 
 	return nil
+}
+
+func (f *FesClientService) FetchClientAccounts() ([]ClientAccount, error) {
+	if !f.Connectivity.IsOnline() {
+		return nil, f.logger.Error("you are offline")
+	}
+
+	records, err := f.fetchClientAccountRecords()
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := make([]ClientAccount, 0, len(records))
+	for _, record := range records {
+		display := strings.TrimSpace(record.Display)
+		if display == "" {
+			continue
+		}
+
+		accounts = append(accounts, ClientAccount{
+			ID:               record.ID,
+			Display:          display,
+			Platform:         strings.TrimSpace(record.Platform),
+			Holder:           strings.TrimSpace(record.Holder),
+			HasCredentials:   record.Username != "" && record.Password != "",
+			GoogleProfile:    strings.TrimSpace(record.GoogleProfile),
+			HasGoogleProfile: strings.TrimSpace(record.GoogleProfile) != "",
+		})
+	}
+
+	return accounts, nil
+}
+
+func (f *FesClientService) OpenClientAccount(ctx context.Context, accountID string) error {
+	if !f.Connectivity.IsOnline() {
+		return f.logger.Error("you are offline")
+	}
+
+	trimmedID := strings.TrimSpace(accountID)
+	if trimmedID == "" {
+		return f.logger.Error("client account id is required")
+	}
+
+	records, err := f.fetchClientAccountRecords()
+	if err != nil {
+		return err
+	}
+
+	var selected *clientAccountRecord
+	for i := range records {
+		if strings.TrimSpace(records[i].ID) == trimmedID {
+			selected = &records[i]
+			break
+		}
+	}
+
+	if selected == nil {
+		return f.logger.Errorf("client account not found")
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(selected.Platform), "Upwork") {
+		return f.logger.Errorf("only Upwork accounts are supported")
+	}
+
+	creds, source, err := f.resolveUpworkCredentials(selected)
+	if err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(selected.GoogleProfile) == "" {
+		return f.logger.Errorf("google chrome profile email is required for this client account")
+	}
+
+	profileDirectory, err := resolveChromeProfileDirectory(selected.GoogleProfile)
+	if err != nil {
+		return err
+	}
+
+	f.logger.Infof(
+		"op=client_account_chrome_profile_selected account=%q google_profile=%q profile_directory=%q",
+		strings.TrimSpace(selected.Display),
+		strings.TrimSpace(selected.GoogleProfile),
+		profileDirectory,
+	)
+
+	f.logCredentialResolution(selected.Display, source, creds)
+
+	if err := openChromeProfile(profileDirectory, upworkChromeLoginURL); err != nil {
+		return f.logger.Errorf("failed to open Chrome profile for %q: %w", selected.Display, err)
+	}
+
+	return f.launchClientAccountUpworkAutomation(selected.Display, creds)
 }
 
 // ========================== CLIENTS & PROJECTS ===============================
@@ -426,78 +567,332 @@ func (f *FesClientService) fetchProjects() error {
 	return nil
 }
 
-func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) {
+func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) error {
 	if !f.Connectivity.IsOnline() {
-		return
+		return f.logger.Error("you are offline")
 	}
-
-	fmt.Print("Fetching Upwork Credentials Please wait")
-	f.openFESApp()
-	time.Sleep(1000 * time.Millisecond)
-	f.logger.Print("Opening upwork..")
-	// openFESApp(ctx)
-
-	runtime.EventsEmit(ctx, "upwork-button", true)
 
 	task, err := f.TaskRepository.GetTaskFromTaskID(taskID)
 	if err != nil {
 		log.Printf("error on getting task: %v", err)
+		return err
 	}
 
-	url := "wf/fetch-credentials/"
-	body := map[string]any{
-		"account": task.Title,
+	creds, err := f.fetchUpworkCredentialsByAccount(task.Title)
+	if err != nil {
+		return err
 	}
-	response, _ := f.Request(types.Request{
+
+	f.logCredentialResolution(task.Title, "workflow", creds)
+	return f.launchUpworkAutomation(ctx, task.Title, creds)
+}
+
+func (f *FesClientService) fetchClientAccountRecords() ([]clientAccountRecord, error) {
+	if !f.Connectivity.IsOnline() {
+		return nil, f.logger.Error("you are offline")
+	}
+
+	response, err := f.Request(types.Request{
+		Url:    "wf/handled_projects",
 		Method: "POST",
-		Url:    url,
-		Body:   body,
+		Body:   map[string]any{},
 	})
-
-	copyToClipboard := func(key string) error {
-		if valueInterface, ok := response[key]; ok {
-			if value, ok := valueInterface.(string); ok {
-				if value == "" {
-					return fmt.Errorf("error copy")
-				}
-				clipboard.WriteAll(value)
-			} else {
-				// Handle the case where the value is not a string
-				fmt.Println(key + " is not a string")
-				clipboard.WriteAll("")
-				return fmt.Errorf("error copy")
-			}
-		} else {
-			fmt.Println(key + " key not found")
-			clipboard.WriteAll("")
-			return fmt.Errorf("error copy")
-		}
-		return nil
+	if err != nil {
+		return nil, err
 	}
+
+	records, found, err := parseClientAccountRecords(response)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, f.logger.Errorf("handled_projects response is missing client_lists")
+	}
+
+	return records, nil
+}
+
+func parseClientAccountRecords(response map[string]any) ([]clientAccountRecord, bool, error) {
+	rawRecords, exists := response["client_lists"]
+	if !exists {
+		return nil, false, nil
+	}
+
+	list, ok := rawRecords.([]any)
+	if !ok {
+		return nil, true, fmt.Errorf("client_lists has invalid format")
+	}
+
+	records := make([]clientAccountRecord, 0, len(list))
+	for _, item := range list {
+		record, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		records = append(records, clientAccountRecord{
+			ID:            normalizeCredentialValue(record["_id"]),
+			Display:       normalizeCredentialValue(record["Display"]),
+			Platform:      normalizeCredentialValue(record["Platform"]),
+			Holder:        normalizeCredentialValue(record["Holder"]),
+			Username:      normalizeCredentialValue(record["credentials - email"]),
+			Password:      normalizeCredentialValue(record["credentials - password"]),
+			GoogleProfile: normalizeCredentialValue(record["Google profile"]),
+		})
+	}
+
+	return records, true, nil
+}
+
+func (f *FesClientService) fetchUpworkCredentialsByAccount(accountLabel string) (*upworkCredentials, error) {
+	trimmedAccountLabel := strings.TrimSpace(accountLabel)
+	if trimmedAccountLabel == "" {
+		return nil, f.logger.Error("account name is required")
+	}
+
+	response, err := f.Request(types.Request{
+		Method: "POST",
+		Url:    "wf/fetch-credentials/",
+		Body: map[string]any{
+			"account": trimmedAccountLabel,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	creds := parseUpworkCredentialsResponse(response)
+	if creds.Username == "" || creds.Password == "" {
+		return nil, f.logger.Errorf("client account credentials are incomplete")
+	}
+
+	return creds, nil
+}
+
+func (f *FesClientService) resolveUpworkCredentials(record *clientAccountRecord) (*upworkCredentials, string, error) {
+	if record == nil {
+		return nil, "", f.logger.Error("client account record is required")
+	}
+
+	if workflowCreds, err := f.fetchUpworkCredentialsByAccount(record.Display); err == nil {
+		return workflowCreds, "workflow", nil
+	} else if directCreds := directUpworkCredentialsFromRecord(record); directCreds != nil {
+		f.logger.Warnf(
+			"op=upwork_credentials_fallback account=%q workflow_err=%v direct_username=%s direct_password=%s",
+			strings.TrimSpace(record.Display),
+			err,
+			describeCredentialValue(directCreds.Username),
+			describeCredentialValue(directCreds.Password),
+		)
+		return directCreds, "handled_projects", nil
+	} else {
+		return nil, "", err
+	}
+}
+
+func (f *FesClientService) launchUpworkAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials) error {
+	firstPasteValue, secondPasteValue, err := upworkPasteValues(creds)
+	if err != nil {
+		return f.logger.Error(err.Error())
+	}
+
+	fmt.Print("Fetching Upwork Credentials Please wait")
+	f.openFESApp()
+	time.Sleep(upworkInitialFocusDelay)
+	f.logger.Printf("Opening upwork account: %s", strings.TrimSpace(accountLabel))
+	runtime.EventsEmit(ctx, "upwork-button", true)
 
 	go func() {
 		kb, _ := keybd_event.NewKeyBonding()
 
-		// Copy email
-		if err := copyToClipboard("password"); err != nil {
+		if err := pasteClipboardValue(&kb, firstPasteValue); err != nil {
 			return
 		}
-		time.Sleep(1000 * time.Millisecond)
 
-		// Press Ctrl + V
-		kb.SetKeys(keybd_event.VK_V)
-		kb.HasCTRL(true)
-		// Copy password
-		if err := copyToClipboard("username"); err != nil {
+		time.Sleep(upworkFieldTransitionDelay)
+
+		if err := pressKey(&kb, keybd_event.VK_TAB); err != nil {
 			return
 		}
-		kb.HasCTRL(false)
 
+		time.Sleep(upworkFieldTransitionDelay)
+
+		if err := pasteClipboardValue(&kb, secondPasteValue); err != nil {
+			return
+		}
+
+		clearClipboard()
 		time.Sleep(1000 * time.Millisecond)
 
 		f.openFESApp()
 		runtime.EventsEmit(ctx, "upwork-button", true)
 	}()
+
+	return nil
+}
+
+func (f *FesClientService) launchClientAccountUpworkAutomation(accountLabel string, creds *upworkCredentials) error {
+	firstPasteValue, secondPasteValue, err := upworkLoginFormPasteValues(creds)
+	if err != nil {
+		return f.logger.Error(err.Error())
+	}
+
+	time.Sleep(upworkClientAccountInitialFocusDelay)
+	f.logger.Printf("Opening Upwork login form for client account: %s", strings.TrimSpace(accountLabel))
+
+	go func() {
+		kb, _ := keybd_event.NewKeyBonding()
+
+		if err := pasteClipboardValue(&kb, firstPasteValue); err != nil {
+			return
+		}
+
+		time.Sleep(upworkFieldTransitionDelay)
+
+		if err := pressKey(&kb, keybd_event.VK_TAB); err != nil {
+			return
+		}
+
+		time.Sleep(upworkFieldTransitionDelay)
+
+		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
+			return
+		}
+
+		time.Sleep(upworkClientAccountPasswordDelay)
+
+		if err := pasteClipboardValue(&kb, secondPasteValue); err != nil {
+			return
+		}
+
+		time.Sleep(upworkClientAccountSubmitDelay)
+
+		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
+			return
+		}
+
+		clearClipboard()
+	}()
+
+	return nil
+}
+
+func upworkPasteValues(creds *upworkCredentials) (string, string, error) {
+	if creds == nil {
+		return "", "", fmt.Errorf("missing Upwork credentials")
+	}
+
+	username := strings.TrimSpace(creds.Username)
+	password := strings.TrimSpace(creds.Password)
+	if username == "" || password == "" {
+		return "", "", fmt.Errorf("client account credentials are incomplete")
+	}
+
+	return password, username, nil
+}
+
+func upworkLoginFormPasteValues(creds *upworkCredentials) (string, string, error) {
+	if creds == nil {
+		return "", "", fmt.Errorf("missing Upwork credentials")
+	}
+
+	username := strings.TrimSpace(creds.Username)
+	password := strings.TrimSpace(creds.Password)
+	if username == "" || password == "" {
+		return "", "", fmt.Errorf("client account credentials are incomplete")
+	}
+
+	return username, password, nil
+}
+
+func normalizeCredentialValue(value any) string {
+	raw, ok := value.(string)
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(raw)
+}
+
+func parseUpworkCredentialsResponse(response map[string]any) *upworkCredentials {
+	return &upworkCredentials{
+		Username: normalizeCredentialValue(response["username"]),
+		Password: normalizeCredentialValue(response["password"]),
+	}
+}
+
+func directUpworkCredentialsFromRecord(record *clientAccountRecord) *upworkCredentials {
+	if record == nil {
+		return nil
+	}
+
+	creds := &upworkCredentials{
+		Username: strings.TrimSpace(record.Username),
+		Password: strings.TrimSpace(record.Password),
+	}
+	if creds.Username == "" || creds.Password == "" {
+		return nil
+	}
+
+	return creds
+}
+
+func describeCredentialValue(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "empty"
+	}
+
+	return fmt.Sprintf("len=%d has_at=%t", len(trimmed), strings.Contains(trimmed, "@"))
+}
+
+func (f *FesClientService) logCredentialResolution(accountLabel, source string, creds *upworkCredentials) {
+	if f == nil || f.logger == nil || creds == nil {
+		return
+	}
+
+	f.logger.Infof(
+		"op=upwork_credentials_selected account=%q source=%s username=%s password=%s",
+		strings.TrimSpace(accountLabel),
+		strings.TrimSpace(source),
+		describeCredentialValue(creds.Username),
+		describeCredentialValue(creds.Password),
+	)
+}
+
+func pasteClipboardValue(kb *keybd_event.KeyBonding, value string) error {
+	if kb == nil {
+		return fmt.Errorf("keyboard binding is required")
+	}
+
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		clipboard.WriteAll("")
+		return fmt.Errorf("error copy")
+	}
+
+	clipboard.WriteAll(trimmedValue)
+	time.Sleep(150 * time.Millisecond)
+
+	kb.Clear()
+	kb.SetKeys(keybd_event.VK_V)
+	kb.HasCTRL(true)
+	return kb.Launching()
+}
+
+func pressKey(kb *keybd_event.KeyBonding, key int) error {
+	if kb == nil {
+		return fmt.Errorf("keyboard binding is required")
+	}
+
+	kb.Clear()
+	kb.SetKeys(key)
+	return kb.Launching()
+}
+
+func clearClipboard() {
+	time.Sleep(upworkClipboardClearDelay)
+	clipboard.WriteAll("")
 }
 
 // ============================ PRIVATES ========================
@@ -546,4 +941,148 @@ func (f *FesClientService) openIncognitoBrowserUrl(url string) error {
 	}
 
 	return nil
+}
+
+func resolveChromeProfileDirectory(googleProfile string) (string, error) {
+	trimmedProfile := strings.TrimSpace(googleProfile)
+	if trimmedProfile == "" {
+		return "", fmt.Errorf("google chrome profile email is required")
+	}
+
+	localStatePath, err := chromeLocalStatePath()
+	if err != nil {
+		return "", err
+	}
+
+	rawLocalState, err := os.ReadFile(localStatePath)
+	if err != nil {
+		return "", fmt.Errorf("read chrome local state: %w", err)
+	}
+
+	return resolveChromeProfileDirectoryFromLocalState(rawLocalState, trimmedProfile)
+}
+
+func resolveChromeProfileDirectoryFromLocalState(rawLocalState []byte, googleProfile string) (string, error) {
+	trimmedProfile := strings.TrimSpace(googleProfile)
+	if trimmedProfile == "" {
+		return "", fmt.Errorf("google chrome profile email is required")
+	}
+
+	var localState chromeLocalState
+	if err := json.Unmarshal(rawLocalState, &localState); err != nil {
+		return "", fmt.Errorf("parse chrome local state: %w", err)
+	}
+
+	if len(localState.Profile.InfoCache) == 0 {
+		return "", fmt.Errorf("chrome local state did not include any profiles")
+	}
+
+	for profileDirectory, profile := range localState.Profile.InfoCache {
+		if strings.EqualFold(strings.TrimSpace(profile.UserName), trimmedProfile) {
+			return profileDirectory, nil
+		}
+	}
+
+	for profileDirectory, profile := range localState.Profile.InfoCache {
+		if strings.EqualFold(strings.TrimSpace(profile.Name), trimmedProfile) ||
+			strings.EqualFold(strings.TrimSpace(profile.ShortcutName), trimmedProfile) ||
+			strings.EqualFold(strings.TrimSpace(profile.GaiaName), trimmedProfile) {
+			return profileDirectory, nil
+		}
+	}
+
+	return "", fmt.Errorf("no local Google Chrome profile matched %q", trimmedProfile)
+}
+
+func chromeLocalStatePath() (string, error) {
+	switch native_runtime.GOOS {
+	case "windows":
+		localAppData := strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
+		if localAppData == "" {
+			return "", fmt.Errorf("LOCALAPPDATA is not set")
+		}
+		return filepath.Join(localAppData, "Google", "Chrome", "User Data", "Local State"), nil
+	case "darwin":
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
+		return filepath.Join(homeDir, "Library", "Application Support", "Google", "Chrome", "Local State"), nil
+	case "linux":
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
+		return filepath.Join(homeDir, ".config", "google-chrome", "Local State"), nil
+	default:
+		return "", fmt.Errorf("unsupported OS: %s", native_runtime.GOOS)
+	}
+}
+
+func openChromeProfile(profileDirectory, targetURL string) error {
+	trimmedProfileDirectory := strings.TrimSpace(profileDirectory)
+	if trimmedProfileDirectory == "" {
+		return fmt.Errorf("chrome profile directory is required")
+	}
+
+	chromeBinary, err := chromeExecutablePath()
+	if err != nil {
+		return err
+	}
+
+	args := []string{
+		"--profile-directory=" + trimmedProfileDirectory,
+		"--new-window",
+	}
+
+	if trimmedTargetURL := strings.TrimSpace(targetURL); trimmedTargetURL != "" {
+		args = append(args, trimmedTargetURL)
+	}
+
+	cmd := exec.Command(chromeBinary, args...)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("open chrome: %w", err)
+	}
+
+	return nil
+}
+
+func chromeExecutablePath() (string, error) {
+	switch native_runtime.GOOS {
+	case "windows":
+		candidates := []string{
+			filepath.Join(strings.TrimSpace(os.Getenv("LOCALAPPDATA")), "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(strings.TrimSpace(os.Getenv("PROGRAMFILES")), "Google", "Chrome", "Application", "chrome.exe"),
+			filepath.Join(strings.TrimSpace(os.Getenv("PROGRAMFILES(X86)")), "Google", "Chrome", "Application", "chrome.exe"),
+		}
+		for _, candidate := range candidates {
+			if candidate == "" {
+				continue
+			}
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate, nil
+			}
+		}
+		if lookPath, err := exec.LookPath("chrome.exe"); err == nil {
+			return lookPath, nil
+		}
+		if lookPath, err := exec.LookPath("chrome"); err == nil {
+			return lookPath, nil
+		}
+	case "darwin":
+		candidate := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	case "linux":
+		for _, candidate := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser"} {
+			if lookPath, err := exec.LookPath(candidate); err == nil {
+				return lookPath, nil
+			}
+		}
+	default:
+		return "", fmt.Errorf("unsupported OS: %s", native_runtime.GOOS)
+	}
+
+	return "", fmt.Errorf("Google Chrome executable was not found")
 }

@@ -422,7 +422,9 @@ func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, 
 }
 
 func (a *App) OpenUpwork(taskID string) error {
-	a.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID)
+	if err := a.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID); err != nil {
+		return a.stableClientError("open_upwork", err)
+	}
 
 	return nil
 }
@@ -443,6 +445,31 @@ func (a *App) GetAccounts() ([]models.User, error) {
 	}
 
 	return users, nil
+}
+
+func (a *App) GetClientAccounts() ([]service_classes.ClientAccount, error) {
+	if _, err := a.requireAuthenticatedUser(); err != nil {
+		return nil, err
+	}
+
+	accounts, err := a.SyncService.FesClientService.FetchClientAccounts()
+	if err != nil {
+		return nil, a.stableClientError("get_client_accounts", err)
+	}
+
+	return accounts, nil
+}
+
+func (a *App) OpenClientAccount(accountID string) error {
+	if _, err := a.requireAuthenticatedUser(); err != nil {
+		return err
+	}
+
+	if err := a.SyncService.FesClientService.OpenClientAccount(a.ctx, accountID); err != nil {
+		return a.stableClientError("open_client_account", err)
+	}
+
+	return nil
 }
 
 // Not used yet

@@ -46,3 +46,6 @@ Thumbs.db
 
 frontend/wailsjs/go/
 frontend/wailsjs/runtime/
+.tmp-go-cache/README
+.tmp-go-cache/trim.txt
+.tmp-go-cache/

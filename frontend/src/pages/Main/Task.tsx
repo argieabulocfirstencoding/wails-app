@@ -209,7 +209,13 @@ const Task = () => {
 
     if (taskDetails?.taskId) {
       setLaunching(true);
-      await OpenUpwork(taskDetails.taskId);
+      try {
+        await OpenUpwork(taskDetails.taskId);
+      } catch (error) {
+        console.error("Failed to launch Upwork automation:", error);
+      } finally {
+        setLaunching(false);
+      }
     }
   }
 

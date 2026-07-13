@@ -31,6 +31,21 @@ interface SyncUser {
   password: string | null | undefined;
 }
 
+const hiddenClientAccountPositions = new Set([
+  "ojt",
+  "employee",
+  "office staff",
+  "data analyst",
+  "web developer",
+  "call center agent",
+  "graphic designer - web dev",
+  "graphic designer",
+  "seo",
+  "maintenance staff",
+  "office staff - web dev",
+  "office staff - va",
+]);
+
 const ProfileBar = () => {
   const [open, setOpen] = useState(false);
   const [logoutDialog, setLogoutDialog] = useState(false);
@@ -49,6 +64,10 @@ const ProfileBar = () => {
 
   const { online, synced, setSynced, reset } = useAuthStore();
   const navigate = useNavigate();
+  const normalizedPosition = user?.position?.trim().toLowerCase() ?? "";
+  const canViewClientAccounts = !hiddenClientAccountPositions.has(
+    normalizedPosition,
+  );
 
   // THEME TOGGLE STATE
   const [dark, setDark] = useState<boolean>(() => {
@@ -201,7 +220,9 @@ const ProfileBar = () => {
       );
       console.log("Auth Response: ", attendance);
 
+      const currentUser = useAuthStore.getState().user;
       useAuthStore.getState().setUser({
+        ...currentUser,
         uid: attendance.UserID,
         email: syncUser.email || "",
         offline: !online,
@@ -453,6 +474,13 @@ const ProfileBar = () => {
                     Account
                   </button>
                 </Link>
+                {canViewClientAccounts && (
+                  <Link to="/client-accounts">
+                    <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
+                      Client Accounts
+                    </button>
+                  </Link>
+                )}
                 {/* <Link to="/notifications">
                   <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
                     Notifications
