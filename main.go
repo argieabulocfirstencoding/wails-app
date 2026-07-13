@@ -25,7 +25,6 @@ func main() {
 	uniqueID := "com.firstencodingservices.myapp"
 	title := "FES App Tracker"
 
-	title := "FES App Tracker"
 	if exists {
 		uniqueID = uniqueID + ".development"
 		title = title + " Development"
