@@ -50,8 +50,8 @@ type App struct {
 	AttendanceID  *uint
 }
 
-// CurrentVersion will be injected from wails.json or ldflags 
-var CurrentVersion = "2.4.5"
+// CurrentVersion will be injected from wails.json or ldflags
+var CurrentVersion = "2.4.6"
 
 const attendanceResyncWindow = 48 * time.Hour
 
@@ -422,7 +422,9 @@ func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, 
 }
 
 func (a *App) OpenUpwork(taskID string) error {
-	a.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID)
+	if err := a.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID); err != nil {
+		return a.stableClientError("open_upwork", err)
+	}
 
 	return nil
 }
@@ -445,6 +447,31 @@ func (a *App) GetAccounts() ([]models.User, error) {
 	return users, nil
 }
 
+func (a *App) GetClientAccounts() ([]service_classes.ClientAccount, error) {
+	if _, err := a.requireAuthenticatedUser(); err != nil {
+		return nil, err
+	}
+
+	accounts, err := a.SyncService.FesClientService.FetchClientAccounts()
+	if err != nil {
+		return nil, a.stableClientError("get_client_accounts", err)
+	}
+
+	return accounts, nil
+}
+
+func (a *App) OpenClientAccount(accountID string) error {
+	if _, err := a.requireAuthenticatedUser(); err != nil {
+		return err
+	}
+
+	if err := a.SyncService.FesClientService.OpenClientAccount(a.ctx, accountID); err != nil {
+		return a.stableClientError("open_client_account", err)
+	}
+
+	return nil
+}
+
 // Not used yet
 func (a *App) SyncAttendance() error {
 	return a.SyncUnsyncedAttendance()
@@ -462,6 +489,14 @@ func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
 	// FIX change to attempt sync record
 	if err := a.AuthService.TaskService.SyncService.SyncTaskRecord(taskrecordId); err != nil {
 		return a.stableClientError("sync_unsynced_task_record", types.WrapOperation("sync.task_record", taskrecordId, a.safeUserID(), err))
+	}
+
+	return nil
+}
+
+func (a *App) ResyncTaskRecord(taskrecordId uint) error {
+	if err := a.AuthService.TaskService.SyncService.ResyncTaskRecord(taskrecordId); err != nil {
+		return a.stableClientError("resync_task_record", types.WrapOperation("resync.task_record", taskrecordId, a.safeUserID(), err))
 	}
 
 	return nil
@@ -577,16 +612,35 @@ func (a *App) GetLastTaskRecords() ([]models.ExpTaskRecord, error) {
 	return records, nil
 }
 
-func (a *App) AddMemo(memo, notes string) {
-	a.ScreenshotService.AddMemo(memo, notes)
+func (a *App) AddMemo(notes string) {
+	a.ScreenshotService.AddMemo(notes)
 }
 
 func (a *App) GetFolderSize() (int64, error) {
-	return services.GetScreenshotStorageSize(a.ctx)
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return 0, err
+	}
+
+	size, err := services.GetScreenshotStorageSize(a.ctx, authUser.LocalID)
+	if err != nil {
+		return 0, a.stableClientError("get_screenshot_storage_size", err)
+	}
+
+	return size, nil
 }
 
 func (a *App) ClearScreenshots() error {
-	return services.ClearScreenshots(a.ctx)
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return err
+	}
+
+	if err := services.ClearScreenshots(a.ctx, authUser.LocalID); err != nil {
+		return a.stableClientError("clear_screenshots", err)
+	}
+
+	return nil
 }
 
 // ----------------------------------------------------

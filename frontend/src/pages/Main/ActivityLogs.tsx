@@ -15,8 +15,8 @@ import { models } from "@/../wailsjs/go/models";
 import {
   GetActivityLogRecord,
   GetTotalClientRecords,
+  ResyncTaskRecord,
   SyncAttendanceByID,
-  SyncUnsyncedTaskRecord,
 } from "@/../wailsjs/go/app/App";
 import {
   Dialog,
@@ -292,7 +292,7 @@ const ActivityLogs = () => {
     clearSyncError(key);
     try {
       logActivityUI("info", "Task resync requested", { recordID, key });
-      await SyncUnsyncedTaskRecord(recordID);
+      await ResyncTaskRecord(recordID);
       await loadActivityData(date);
       logActivityUI("info", "Task resync completed", { recordID, key });
     } catch (error) {

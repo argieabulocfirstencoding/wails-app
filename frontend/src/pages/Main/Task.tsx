@@ -61,8 +61,7 @@ const Task = () => {
   const [monitor, setMonitor] = useState<number>(0);
   const [screenshots, setScreenshots] = useState<ScreenshotProps | null>(null);
   const [screenshotDate, setScreenshotDate] = useState<string>("");
-  const [memo, setMemo] = useState("");
-  const [tag, setTag] = useState("");
+  const [notes, setNotes] = useState("");
   const [taskDetails, setTaskDetails] = useState<models.ExpTask>();
   const [isSynced, setSynced] = useState(false);
   const [lastTaskRecord, setLastTaskRecord] = useState<models.ExpTaskRecord>();
@@ -100,18 +99,6 @@ const Task = () => {
     setStartTime(0);
     setEndTime(0);
     setElapsedTime(0);
-  }
-
-  function getMemoTagFromNotes(note: string) {
-    if (!note) {
-      setMemo("");
-      setTag("");
-      return;
-    }
-
-    const notes = note.split("||").map((part) => part.trim());
-    setMemo(notes[0] || "");
-    setTag(notes[1] || "");
   }
 
   async function stopTime() {
@@ -165,8 +152,7 @@ const Task = () => {
         setStartTime(0);
         setEndTime(undefined);
         setScreenshots(null);
-        setMemo("");
-        setTag("");
+        setNotes("");
         setTaskID(null);
         return;
       }
@@ -180,7 +166,7 @@ const Task = () => {
       setStartTime(started);
       setEndTime(ended ?? undefined);
       setSynced(record.sync_status === "synced");
-      getMemoTagFromNotes(record.notes ?? "");
+      setNotes(record.notes ?? "");
 
       const isActive = !record.ended_at;
       setStart(isActive);
@@ -223,7 +209,13 @@ const Task = () => {
 
     if (taskDetails?.taskId) {
       setLaunching(true);
-      await OpenUpwork(taskDetails.taskId);
+      try {
+        await OpenUpwork(taskDetails.taskId);
+      } catch (error) {
+        console.error("Failed to launch Upwork automation:", error);
+      } finally {
+        setLaunching(false);
+      }
     }
   }
 
@@ -277,12 +269,10 @@ const Task = () => {
   }, [lastTaskRecord?.sync_status]);
 
   useEffect(() => {
-    const memoRecord = localStorage.getItem("memo");
-    const tagRecord = localStorage.getItem("tag");
-    if (memoRecord) setMemo(memoRecord);
-    if (tagRecord) setTag(tagRecord);
+    const noteRecord = localStorage.getItem("tag");
+    if (noteRecord) setNotes(noteRecord);
 
-    AddMemo(memoRecord || "", tagRecord || "");
+    AddMemo(noteRecord || ""); // FIX make the AddMemo to only 1 params
     countMonitor();
   }, []);
 
@@ -311,10 +301,10 @@ const Task = () => {
   useEffect(() => {
     (async function () {
       if (lastTaskRecord && isStarted) {
-        await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
+        await SetTaskRecordNotes(lastTaskRecord.id, notes);
       }
     })();
-  }, [memo, tag]);
+  }, [notes]);
 
   useEffect(() => {
     if (!releaseFlags.screenshotsEnabled || !EventsOn) return;
@@ -584,14 +574,12 @@ const Task = () => {
                   What are you working on?
                 </h3>
                 <EditWorkDialog
-                  initialMemo={memo}
-                  initialTag={tag}
-                  onSave={(newMemo, newTag) => {
+                  initialNotes={notes}
+                  onSave={(newNotes) => {
                     async function updateMemo() {
-                      setMemo(newMemo);
-                      setTag(newTag);
+                      setNotes(newNotes);
 
-                      await AddMemo(newMemo || "", newTag || "");
+                      await AddMemo(newNotes || "");
                     }
 
                     updateMemo();
@@ -600,20 +588,12 @@ const Task = () => {
               </div>
 
               <div className="space-y-1 text-xs sm:text-sm">
-                <p className="flex gap-1.5">
-                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    Memo:
-                  </span>
-                  <span className="truncate text-neutral-800 dark:text-neutral-50">
-                    {memo || "No memo set."}
-                  </span>
-                </p>
                 <p className="flex gap-1.5 line-clamp-3">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    Activity tag:
+                    Activity notes:
                   </span>
                   <span className="text-neutral-800 dark:text-neutral-50">
-                    {tag || "No tag set."}
+                    {notes || "No notes set."}
                   </span>
                 </p>
               </div>
@@ -718,4 +698,3 @@ function StopButton({ onClick }: ButtonProps) {
     </button>
   );
 }
-

@@ -25,10 +25,13 @@ func main() {
 	uniqueID := "com.firstencodingservices.myapp"
 	title := "FES App Tracker"
 
+	title := "FES App Tracker"
 	if exists {
 		uniqueID = uniqueID + ".development"
-		title = title + " Dev"
+		title = title + " Development"
 	}
+
+	
 
 	// Create an instance of the app structure
 	app := app.NewApp()
