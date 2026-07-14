@@ -17,7 +17,7 @@ require (
 	github.com/kurin/blazer v0.5.3
 	github.com/micmonay/keybd_event v1.1.2
 	github.com/stretchr/testify v1.11.1
-	github.com/wailsapp/wails/v2 v2.13.0
+	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/sys v0.44.0
 	gorm.io/gorm v1.31.1
