@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-vgo/robotgo/clipboard"
+	"github.com/gorilla/websocket"
 	"github.com/micmonay/keybd_event"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
@@ -64,6 +65,41 @@ type upworkCredentials struct {
 	Password string
 }
 
+type chromeDevToolsTarget struct {
+	ID                   string `json:"id"`
+	Title                string `json:"title"`
+	Type                 string `json:"type"`
+	URL                  string `json:"url"`
+	WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+}
+
+type chromeDevToolsMessage struct {
+	ID     int                  `json:"id,omitempty"`
+	Method string               `json:"method,omitempty"`
+	Params map[string]any       `json:"params,omitempty"`
+	Result json.RawMessage      `json:"result,omitempty"`
+	Error  *chromeDevToolsError `json:"error,omitempty"`
+}
+
+type chromeDevToolsError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type chromeRuntimeEvaluateResult struct {
+	Result struct {
+		Type  string `json:"type"`
+		Value any    `json:"value"`
+	} `json:"result"`
+	ExceptionDetails *struct {
+		Text string `json:"text"`
+	} `json:"exceptionDetails,omitempty"`
+}
+
+type chromeDevToolsClient struct {
+	conn   *websocket.Conn
+	nextID int
+}
 type chromeLocalState struct {
 	Profile struct {
 		InfoCache map[string]chromeProfileInfo `json:"info_cache"`
@@ -84,7 +120,28 @@ const (
 	upworkClientAccountSubmitDelay       = 500 * time.Millisecond
 	upworkClipboardClearDelay            = 300 * time.Millisecond
 	upworkFieldTransitionDelay           = 350 * time.Millisecond
+	upworkFieldReadyTimeout              = 20 * time.Second
+	upworkDevToolsTargetTimeout          = 8 * time.Second
+	upworkFieldReadyPollInterval         = 250 * time.Millisecond
+	upworkChromeRemoteDebuggingPort      = 9333
 	upworkChromeLoginURL                 = "https://www.upwork.com/ab/account-security/login?redir=%2Fab%2Faccount-security%2Foauth2%2Fauthorize%3Fresponse_type%3Dcode%26redirect_uri%3Dupwork%253A%252F%252Fwww.upwork.com%252Foauth2redir%26client_id%3D522767a70366bdd00e95cd6e8756940c"
+)
+
+var (
+	upworkUsernameFieldSelectors = []string{
+		`input#login_username`,
+		`input[name="login[username]"]`,
+		`input[name="username"]`,
+		`input[autocomplete="username"]`,
+		`input[type="email"]`,
+	}
+	upworkPasswordFieldSelectors = []string{
+		`input#login_password`,
+		`input[name="login[password]"]`,
+		`input[name="password"]`,
+		`input[autocomplete="current-password"]`,
+		`input[type="password"]`,
+	}
 )
 
 func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientService {
@@ -704,97 +761,12 @@ func (f *FesClientService) launchUpworkAccountRecord(selected *clientAccountReco
 }
 
 func (f *FesClientService) launchUpworkAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials) error {
-	firstPasteValue, secondPasteValue, err := upworkLoginFormPasteValues(creds)
-	if err != nil {
-		return f.logger.Error(err.Error())
-	}
-
 	fmt.Print("Fetching Upwork Credentials Please wait")
-	time.Sleep(upworkClientAccountInitialFocusDelay)
-	f.logger.Printf("Opening upwork account: %s", strings.TrimSpace(accountLabel))
-
-	go func() {
-		kb, _ := keybd_event.NewKeyBonding()
-
-		if err := pasteClipboardValue(&kb, firstPasteValue); err != nil {
-			return
-		}
-
-		time.Sleep(upworkFieldTransitionDelay)
-
-		if err := pressKey(&kb, keybd_event.VK_TAB); err != nil {
-			return
-		}
-
-		time.Sleep(upworkFieldTransitionDelay)
-
-		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
-			return
-		}
-
-		time.Sleep(upworkClientAccountPasswordDelay)
-
-		if err := pasteClipboardValue(&kb, secondPasteValue); err != nil {
-			return
-		}
-
-		time.Sleep(upworkClientAccountSubmitDelay)
-
-		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
-			return
-		}
-
-		clearClipboard()
-		runtime.EventsEmit(ctx, "upwork-button", true)
-	}()
-
-	return nil
+	return f.launchUpworkLoginAutomation(ctx, accountLabel, creds, true)
 }
 
 func (f *FesClientService) launchClientAccountUpworkAutomation(accountLabel string, creds *upworkCredentials) error {
-	firstPasteValue, secondPasteValue, err := upworkLoginFormPasteValues(creds)
-	if err != nil {
-		return f.logger.Error(err.Error())
-	}
-
-	time.Sleep(upworkClientAccountInitialFocusDelay)
-	f.logger.Printf("Opening Upwork login form for client account: %s", strings.TrimSpace(accountLabel))
-
-	go func() {
-		kb, _ := keybd_event.NewKeyBonding()
-
-		if err := pasteClipboardValue(&kb, firstPasteValue); err != nil {
-			return
-		}
-
-		time.Sleep(upworkFieldTransitionDelay)
-
-		if err := pressKey(&kb, keybd_event.VK_TAB); err != nil {
-			return
-		}
-
-		time.Sleep(upworkFieldTransitionDelay)
-
-		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
-			return
-		}
-
-		time.Sleep(upworkClientAccountPasswordDelay)
-
-		if err := pasteClipboardValue(&kb, secondPasteValue); err != nil {
-			return
-		}
-
-		time.Sleep(upworkClientAccountSubmitDelay)
-
-		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
-			return
-		}
-
-		clearClipboard()
-	}()
-
-	return nil
+	return f.launchUpworkLoginAutomation(nil, accountLabel, creds, false)
 }
 
 func upworkLoginFormPasteValues(creds *upworkCredentials) (string, string, error) {
@@ -901,6 +873,412 @@ func clearClipboard() {
 	clipboard.WriteAll("")
 }
 
+func (f *FesClientService) launchUpworkLoginAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials, emitCompletionEvent bool) error {
+	firstPasteValue, secondPasteValue, err := upworkLoginFormPasteValues(creds)
+	if err != nil {
+		return f.logger.Error(err.Error())
+	}
+
+	f.logger.Printf("Opening Upwork login form for account: %s", strings.TrimSpace(accountLabel))
+
+	go func() {
+		defer clearClipboard()
+		if emitCompletionEvent && ctx != nil {
+			defer runtime.EventsEmit(ctx, "upwork-button", true)
+		}
+
+		if err := f.performUpworkLoginAutomation(firstPasteValue, secondPasteValue); err != nil {
+			f.logger.Warnf("op=upwork_login_automation_failed account=%q err=%v", strings.TrimSpace(accountLabel), err)
+		}
+	}()
+
+	return nil
+}
+
+func (f *FesClientService) performUpworkLoginAutomation(username, password string) error {
+	kb, _ := keybd_event.NewKeyBonding()
+	if _, err := f.waitForUpworkLoginTarget(upworkDevToolsTargetTimeout); err != nil {
+		f.logger.Warnf("op=upwork_login_ready_check_unavailable err=%v; falling back to legacy timing", err)
+		return performLegacyUpworkLogin(&kb, username, password)
+	}
+	usernameSelector, err := f.waitForUpworkFieldFocus("username", upworkUsernameFieldSelectors, upworkFieldReadyTimeout)
+	if err != nil {
+		return err
+	}
+	f.logger.Infof("op=upwork_username_field_ready selector=%q", usernameSelector)
+	if err := pasteClipboardValue(&kb, username); err != nil {
+		return err
+	}
+	time.Sleep(upworkFieldTransitionDelay)
+	if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
+		return err
+	}
+	passwordSelector, err := f.waitForUpworkFieldFocus("password", upworkPasswordFieldSelectors, upworkFieldReadyTimeout)
+	if err != nil {
+		return err
+	}
+	f.logger.Infof("op=upwork_password_field_ready selector=%q", passwordSelector)
+	if err := pasteClipboardValue(&kb, password); err != nil {
+		return err
+	}
+	time.Sleep(upworkClientAccountSubmitDelay)
+	return pressKey(&kb, keybd_event.VK_ENTER)
+}
+
+func performLegacyUpworkLogin(kb *keybd_event.KeyBonding, firstPasteValue, secondPasteValue string) error {
+	if kb == nil {
+		return fmt.Errorf("keyboard binding is required")
+	}
+
+	time.Sleep(upworkClientAccountInitialFocusDelay)
+	if err := pasteClipboardValue(kb, firstPasteValue); err != nil {
+		return err
+	}
+
+	time.Sleep(upworkFieldTransitionDelay)
+	if err := pressKey(kb, keybd_event.VK_TAB); err != nil {
+		return err
+	}
+
+	time.Sleep(upworkFieldTransitionDelay)
+	if err := pressKey(kb, keybd_event.VK_ENTER); err != nil {
+		return err
+	}
+
+	time.Sleep(upworkClientAccountPasswordDelay)
+	if err := pasteClipboardValue(kb, secondPasteValue); err != nil {
+		return err
+	}
+
+	time.Sleep(upworkClientAccountSubmitDelay)
+	return pressKey(kb, keybd_event.VK_ENTER)
+}
+
+func (f *FesClientService) waitForUpworkLoginTarget(timeout time.Duration) (*chromeDevToolsTarget, error) {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		targets, err := fetchChromeDevToolsTargets()
+		if err != nil {
+			lastErr = err
+			time.Sleep(upworkFieldReadyPollInterval)
+			continue
+		}
+
+		if target := selectUpworkLoginTarget(targets); target != nil {
+			return target, nil
+		}
+
+		lastErr = fmt.Errorf("Upwork login tab not found in Chrome targets")
+		time.Sleep(upworkFieldReadyPollInterval)
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("timed out waiting for Upwork browser target: %w", lastErr)
+	}
+
+	return nil, fmt.Errorf("timed out waiting for Upwork browser target")
+}
+
+func (f *FesClientService) waitForUpworkFieldFocus(stage string, selectors []string, timeout time.Duration) (string, error) {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		target, err := f.waitForUpworkLoginTarget(upworkFieldReadyPollInterval)
+		if err != nil {
+			lastErr = err
+			time.Sleep(upworkFieldReadyPollInterval)
+			continue
+		}
+
+		selector, err := focusVisibleUpworkField(target, selectors)
+		if err == nil && strings.TrimSpace(selector) != "" {
+			return selector, nil
+		}
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = fmt.Errorf("%s field is not interactable yet", stage)
+		}
+
+		time.Sleep(upworkFieldReadyPollInterval)
+	}
+
+	if lastErr != nil {
+		return "", fmt.Errorf("timed out waiting for Upwork %s field: %w", stage, lastErr)
+	}
+
+	return "", fmt.Errorf("timed out waiting for Upwork %s field", stage)
+}
+
+func fetchChromeDevToolsTargets() ([]chromeDevToolsTarget, error) {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(chromeDevToolsListURL())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("chrome devtools endpoint returned status %d", resp.StatusCode)
+	}
+
+	var targets []chromeDevToolsTarget
+	if err := json.NewDecoder(resp.Body).Decode(&targets); err != nil {
+		return nil, fmt.Errorf("decode chrome devtools targets: %w", err)
+	}
+
+	return targets, nil
+}
+
+func selectUpworkLoginTarget(targets []chromeDevToolsTarget) *chromeDevToolsTarget {
+	for i := range targets {
+		target := &targets[i]
+		if target.Type != "page" || strings.TrimSpace(target.WebSocketDebuggerURL) == "" {
+			continue
+		}
+		if isUpworkLoginPageURL(target.URL) {
+			return target
+		}
+	}
+
+	for i := range targets {
+		target := &targets[i]
+		if target.Type != "page" || strings.TrimSpace(target.WebSocketDebuggerURL) == "" {
+			continue
+		}
+		if strings.Contains(strings.ToLower(strings.TrimSpace(target.URL)), "upwork.com") {
+			return target
+		}
+	}
+
+	return nil
+}
+
+func isUpworkLoginPageURL(rawURL string) bool {
+	trimmedURL := strings.ToLower(strings.TrimSpace(rawURL))
+	if trimmedURL == "" || !strings.Contains(trimmedURL, "upwork.com") {
+		return false
+	}
+
+	return strings.Contains(trimmedURL, "/account-security/login") ||
+		strings.Contains(trimmedURL, "/nx/login") ||
+		strings.Contains(trimmedURL, "/login")
+}
+
+func focusVisibleUpworkField(target *chromeDevToolsTarget, selectors []string) (string, error) {
+	if target == nil {
+		return "", fmt.Errorf("chrome devtools target is required")
+	}
+
+	client, err := newChromeDevToolsClient(strings.TrimSpace(target.WebSocketDebuggerURL))
+	if err != nil {
+		return "", err
+	}
+	defer client.Close()
+
+	if err := client.bringToFront(); err != nil {
+		return "", err
+	}
+	if err := client.enableRuntime(); err != nil {
+		return "", err
+	}
+
+	return client.focusVisibleField(selectors)
+}
+
+func newChromeDevToolsClient(wsURL string) (*chromeDevToolsClient, error) {
+	trimmedURL := strings.TrimSpace(wsURL)
+	if trimmedURL == "" {
+		return nil, fmt.Errorf("chrome devtools websocket URL is required")
+	}
+
+	conn, _, err := websocket.DefaultDialer.Dial(trimmedURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("connect chrome devtools websocket: %w", err)
+	}
+
+	return &chromeDevToolsClient{conn: conn}, nil
+}
+
+func (c *chromeDevToolsClient) Close() error {
+	if c == nil || c.conn == nil {
+		return nil
+	}
+	return c.conn.Close()
+}
+
+func (c *chromeDevToolsClient) bringToFront() error {
+	_, err := c.call("Page.bringToFront", nil)
+	return err
+}
+
+func (c *chromeDevToolsClient) enableRuntime() error {
+	_, err := c.call("Runtime.enable", nil)
+	return err
+}
+
+func (c *chromeDevToolsClient) focusVisibleField(selectors []string) (string, error) {
+	expression, err := buildUpworkFieldFocusExpression(selectors)
+	if err != nil {
+		return "", err
+	}
+
+	value, err := c.evaluateValue(expression)
+	if err != nil {
+		return "", err
+	}
+
+	selector, _ := value.(string)
+	return strings.TrimSpace(selector), nil
+}
+
+func buildUpworkFieldFocusExpression(selectors []string) (string, error) {
+	serializedSelectors, err := json.Marshal(selectors)
+	if err != nil {
+		return "", fmt.Errorf("marshal field selectors: %w", err)
+	}
+
+	return fmt.Sprintf(`(() => {
+		const selectors = %s;
+		const activateField = (field) => {
+			try {
+				field.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+			} catch (error) {
+				try {
+					field.scrollIntoView({ block: "center", inline: "center" });
+				} catch (innerError) {}
+			}
+
+			const rect = field.getBoundingClientRect();
+			const clientX = rect.left + (rect.width / 2);
+			const clientY = rect.top + (rect.height / 2);
+			const mouseEvents = ["pointerdown", "mousedown", "mouseup", "click"];
+			for (const eventName of mouseEvents) {
+				try {
+					field.dispatchEvent(new MouseEvent(eventName, {
+						bubbles: true,
+						cancelable: true,
+						view: window,
+						button: 0,
+						buttons: 1,
+						clientX,
+						clientY
+					}));
+				} catch (error) {}
+			}
+
+			try {
+				field.click();
+			} catch (error) {}
+
+			try {
+				field.focus({ preventScroll: true });
+			} catch (error) {
+				try {
+					field.focus();
+				} catch (innerError) {}
+			}
+
+			if (typeof field.select === "function") {
+				try {
+					field.select();
+				} catch (error) {}
+			}
+			if (typeof field.setSelectionRange === "function") {
+				try {
+					const valueLength = typeof field.value === "string" ? field.value.length : 0;
+					field.setSelectionRange(0, valueLength);
+				} catch (error) {}
+			}
+
+			return document.activeElement === field || field.matches(":focus");
+		};
+
+		for (const selector of selectors) {
+			const field = document.querySelector(selector);
+			if (!(field instanceof HTMLElement)) {
+				continue;
+			}
+
+			const rect = field.getBoundingClientRect();
+			const style = window.getComputedStyle(field);
+			const visible = !!style && style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+			const interactable = visible && !field.hasAttribute("disabled") && !field.hasAttribute("readonly") && field.getAttribute("aria-hidden") !== "true";
+			if (!interactable) {
+				continue;
+			}
+
+			if (activateField(field)) {
+				return selector;
+			}
+		}
+
+		return "";
+	})()`, string(serializedSelectors)), nil
+}
+
+func (c *chromeDevToolsClient) evaluateValue(expression string) (any, error) {
+	result, err := c.call("Runtime.evaluate", map[string]any{
+		"expression":    expression,
+		"returnByValue": true,
+		"awaitPromise":  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed chromeRuntimeEvaluateResult
+	if err := json.Unmarshal(result, &parsed); err != nil {
+		return nil, fmt.Errorf("decode runtime evaluate result: %w", err)
+	}
+	if parsed.ExceptionDetails != nil {
+		return nil, fmt.Errorf("chrome runtime evaluate exception: %s", strings.TrimSpace(parsed.ExceptionDetails.Text))
+	}
+
+	return parsed.Result.Value, nil
+}
+
+func (c *chromeDevToolsClient) call(method string, params map[string]any) (json.RawMessage, error) {
+	if c == nil || c.conn == nil {
+		return nil, fmt.Errorf("chrome devtools connection is required")
+	}
+
+	c.nextID++
+	requestID := c.nextID
+	if err := c.conn.WriteJSON(chromeDevToolsMessage{
+		ID:     requestID,
+		Method: method,
+		Params: params,
+	}); err != nil {
+		return nil, fmt.Errorf("write chrome devtools command %s: %w", method, err)
+	}
+
+	for {
+		var response chromeDevToolsMessage
+		if err := c.conn.ReadJSON(&response); err != nil {
+			return nil, fmt.Errorf("read chrome devtools command %s: %w", method, err)
+		}
+		if response.ID != requestID {
+			continue
+		}
+		if response.Error != nil {
+			return nil, fmt.Errorf("chrome devtools command %s failed: %s", method, strings.TrimSpace(response.Error.Message))
+		}
+		return response.Result, nil
+	}
+}
+
+func chromeDevToolsListURL() string {
+	return fmt.Sprintf("http://127.0.0.1:%d/json/list", upworkChromeRemoteDebuggingPort)
+}
+
+func chromeRemoteDebuggingFlag() string {
+	return fmt.Sprintf("--remote-debugging-port=%d", upworkChromeRemoteDebuggingPort)
+}
+
 // ============================ PRIVATES ========================
 
 func (f *FesClientService) openFESApp() {
@@ -929,7 +1307,7 @@ func (f *FesClientService) openIncognitoBrowserUrl(url string) error {
 		return err
 	}
 
-	args := []string{"--incognito", "--new-window"}
+	args := []string{"--incognito", "--new-window", chromeRemoteDebuggingFlag()}
 	if trimmedURL := strings.TrimSpace(url); trimmedURL != "" {
 		args = append(args, trimmedURL)
 	}
@@ -1032,8 +1410,8 @@ func openChromeProfile(profileDirectory, targetURL string) error {
 	args := []string{
 		"--profile-directory=" + trimmedProfileDirectory,
 		"--new-window",
+		chromeRemoteDebuggingFlag(),
 	}
-
 	if trimmedTargetURL := strings.TrimSpace(targetURL); trimmedTargetURL != "" {
 		args = append(args, trimmedTargetURL)
 	}

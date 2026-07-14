@@ -1,6 +1,9 @@
 package service_classes
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseClientAccountRecords(t *testing.T) {
 	response := map[string]any{
@@ -205,5 +208,91 @@ func TestUpworkLoginFormPasteValuesRejectsIncompleteCredentials(t *testing.T) {
 func TestUpworkChromeLoginURLUsesProvidedOAuthFlow(t *testing.T) {
 	if upworkChromeLoginURL != "https://www.upwork.com/ab/account-security/login?redir=%2Fab%2Faccount-security%2Foauth2%2Fauthorize%3Fresponse_type%3Dcode%26redirect_uri%3Dupwork%253A%252F%252Fwww.upwork.com%252Foauth2redir%26client_id%3D522767a70366bdd00e95cd6e8756940c" {
 		t.Fatalf("expected provided OAuth login URL, got %q", upworkChromeLoginURL)
+	}
+}
+
+func TestIsUpworkLoginPageURL(t *testing.T) {
+	if !isUpworkLoginPageURL("https://www.upwork.com/ab/account-security/login") {
+		t.Fatalf("expected account-security login URL to match")
+	}
+	if !isUpworkLoginPageURL("https://www.upwork.com/nx/login") {
+		t.Fatalf("expected nx login URL to match")
+	}
+	if isUpworkLoginPageURL("https://www.example.com/login") {
+		t.Fatalf("expected non-Upwork login URL to be rejected")
+	}
+}
+
+func TestSelectUpworkLoginTargetPrefersLoginPage(t *testing.T) {
+	targets := []chromeDevToolsTarget{
+		{
+			Type:                 "page",
+			URL:                  "https://www.upwork.com/freelancers/",
+			WebSocketDebuggerURL: "ws://127.0.0.1/devtools/page/1",
+		},
+		{
+			Type:                 "page",
+			URL:                  "https://www.upwork.com/ab/account-security/login",
+			WebSocketDebuggerURL: "ws://127.0.0.1/devtools/page/2",
+		},
+	}
+
+	selected := selectUpworkLoginTarget(targets)
+	if selected == nil {
+		t.Fatalf("expected a matching Upwork target")
+	}
+	if selected.WebSocketDebuggerURL != "ws://127.0.0.1/devtools/page/2" {
+		t.Fatalf("expected login target to be selected, got %q", selected.WebSocketDebuggerURL)
+	}
+}
+
+func TestSelectUpworkLoginTargetFallsBackToAnyUpworkPage(t *testing.T) {
+	targets := []chromeDevToolsTarget{
+		{
+			Type:                 "page",
+			URL:                  "https://www.upwork.com/freelancers/",
+			WebSocketDebuggerURL: "ws://127.0.0.1/devtools/page/1",
+		},
+		{
+			Type:                 "page",
+			URL:                  "https://www.example.com/login",
+			WebSocketDebuggerURL: "ws://127.0.0.1/devtools/page/2",
+		},
+	}
+
+	selected := selectUpworkLoginTarget(targets)
+	if selected == nil {
+		t.Fatalf("expected Upwork page fallback target")
+	}
+	if selected.WebSocketDebuggerURL != "ws://127.0.0.1/devtools/page/1" {
+		t.Fatalf("expected Upwork fallback target, got %q", selected.WebSocketDebuggerURL)
+	}
+}
+
+func TestBuildUpworkFieldFocusExpressionIncludesSelectors(t *testing.T) {
+	expression, err := buildUpworkFieldFocusExpression([]string{`input[name="username"]`, `input[type="password"]`})
+	if err != nil {
+		t.Fatalf("expected field focus expression without error, got %v", err)
+	}
+	if expression == "" {
+		t.Fatalf("expected field focus expression to be non-empty")
+	}
+	if !strings.Contains(expression, `input[name=\"username\"]`) {
+		t.Fatalf("expected expression to contain serialized username selector, got %q", expression)
+	}
+	if !strings.Contains(expression, `input[type=\"password\"]`) {
+		t.Fatalf("expected expression to contain serialized password selector, got %q", expression)
+	}
+	if !strings.Contains(expression, `scrollIntoView`) {
+		t.Fatalf("expected expression to scroll the field into view, got %q", expression)
+	}
+	if !strings.Contains(expression, `dispatchEvent(new MouseEvent`) {
+		t.Fatalf("expected expression to dispatch mouse events before paste, got %q", expression)
+	}
+	if !strings.Contains(expression, `document.activeElement === field`) {
+		t.Fatalf("expected expression to verify the focused field, got %q", expression)
+	}
+	if !strings.Contains(expression, `field.click()`) {
+		t.Fatalf("expected expression to click the field, got %q", expression)
 	}
 }
