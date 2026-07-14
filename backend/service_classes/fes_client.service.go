@@ -326,34 +326,7 @@ func (f *FesClientService) OpenClientAccount(ctx context.Context, accountID stri
 		return f.logger.Errorf("only Upwork accounts are supported")
 	}
 
-	creds, source, err := f.resolveUpworkCredentials(selected)
-	if err != nil {
-		return err
-	}
-
-	if strings.TrimSpace(selected.GoogleProfile) == "" {
-		return f.logger.Errorf("google chrome profile email is required for this client account")
-	}
-
-	profileDirectory, err := resolveChromeProfileDirectory(selected.GoogleProfile)
-	if err != nil {
-		return err
-	}
-
-	f.logger.Infof(
-		"op=client_account_chrome_profile_selected account=%q google_profile=%q profile_directory=%q",
-		strings.TrimSpace(selected.Display),
-		strings.TrimSpace(selected.GoogleProfile),
-		profileDirectory,
-	)
-
-	f.logCredentialResolution(selected.Display, source, creds)
-
-	if err := openChromeProfile(profileDirectory, upworkChromeLoginURL); err != nil {
-		return f.logger.Errorf("failed to open Chrome profile for %q: %w", selected.Display, err)
-	}
-
-	return f.launchClientAccountUpworkAutomation(selected.Display, creds)
+	return f.launchUpworkAccountRecord(selected)
 }
 
 // ========================== CLIENTS & PROJECTS ===============================
@@ -584,6 +557,11 @@ func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) 
 	}
 
 	f.logCredentialResolution(task.Title, "workflow", creds)
+
+	if err := f.openIncognitoBrowserUrl(upworkChromeLoginURL); err != nil {
+		return err
+	}
+
 	return f.launchUpworkAutomation(ctx, task.Title, creds)
 }
 
@@ -690,17 +668,50 @@ func (f *FesClientService) resolveUpworkCredentials(record *clientAccountRecord)
 	}
 }
 
+func (f *FesClientService) launchUpworkAccountRecord(selected *clientAccountRecord) error {
+	if selected == nil {
+		return f.logger.Errorf("client account record is required")
+	}
+
+	creds, source, err := f.resolveUpworkCredentials(selected)
+	if err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(selected.GoogleProfile) == "" {
+		return f.logger.Errorf("google chrome profile email is required for this client account")
+	}
+
+	profileDirectory, err := resolveChromeProfileDirectory(selected.GoogleProfile)
+	if err != nil {
+		return err
+	}
+
+	f.logger.Infof(
+		"op=client_account_chrome_profile_selected account=%q google_profile=%q profile_directory=%q",
+		strings.TrimSpace(selected.Display),
+		strings.TrimSpace(selected.GoogleProfile),
+		profileDirectory,
+	)
+
+	f.logCredentialResolution(selected.Display, source, creds)
+
+	if err := openChromeProfile(profileDirectory, upworkChromeLoginURL); err != nil {
+		return f.logger.Errorf("failed to open Chrome profile for %q: %w", selected.Display, err)
+	}
+
+	return f.launchClientAccountUpworkAutomation(selected.Display, creds)
+}
+
 func (f *FesClientService) launchUpworkAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials) error {
-	firstPasteValue, secondPasteValue, err := upworkPasteValues(creds)
+	firstPasteValue, secondPasteValue, err := upworkLoginFormPasteValues(creds)
 	if err != nil {
 		return f.logger.Error(err.Error())
 	}
 
 	fmt.Print("Fetching Upwork Credentials Please wait")
-	f.openFESApp()
-	time.Sleep(upworkInitialFocusDelay)
+	time.Sleep(upworkClientAccountInitialFocusDelay)
 	f.logger.Printf("Opening upwork account: %s", strings.TrimSpace(accountLabel))
-	runtime.EventsEmit(ctx, "upwork-button", true)
 
 	go func() {
 		kb, _ := keybd_event.NewKeyBonding()
@@ -717,14 +728,23 @@ func (f *FesClientService) launchUpworkAutomation(ctx context.Context, accountLa
 
 		time.Sleep(upworkFieldTransitionDelay)
 
+		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
+			return
+		}
+
+		time.Sleep(upworkClientAccountPasswordDelay)
+
 		if err := pasteClipboardValue(&kb, secondPasteValue); err != nil {
 			return
 		}
 
-		clearClipboard()
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(upworkClientAccountSubmitDelay)
 
-		f.openFESApp()
+		if err := pressKey(&kb, keybd_event.VK_ENTER); err != nil {
+			return
+		}
+
+		clearClipboard()
 		runtime.EventsEmit(ctx, "upwork-button", true)
 	}()
 
@@ -775,20 +795,6 @@ func (f *FesClientService) launchClientAccountUpworkAutomation(accountLabel stri
 	}()
 
 	return nil
-}
-
-func upworkPasteValues(creds *upworkCredentials) (string, string, error) {
-	if creds == nil {
-		return "", "", fmt.Errorf("missing Upwork credentials")
-	}
-
-	username := strings.TrimSpace(creds.Username)
-	password := strings.TrimSpace(creds.Password)
-	if username == "" || password == "" {
-		return "", "", fmt.Errorf("client account credentials are incomplete")
-	}
-
-	return password, username, nil
 }
 
 func upworkLoginFormPasteValues(creds *upworkCredentials) (string, string, error) {
@@ -918,25 +924,18 @@ func (f *FesClientService) openFESApp() {
 }
 
 func (f *FesClientService) openIncognitoBrowserUrl(url string) error {
-	var cmd *exec.Cmd
-
-	switch native_runtime.GOOS {
-	case "windows":
-		// Windows: use 'start' or call chrome directly
-		// Note: If chrome isn't in PATH, you may need the full path
-		cmd = exec.Command("cmd", "/c", "start", "chrome", "--incognito", url)
-	case "darwin":
-		// macOS: uses the 'open' command with the -a flag for the app name
-		cmd = exec.Command("open", "-na", "Google Chrome", "--args", "--incognito", url)
-	case "linux":
-		// Linux: usually 'google-chrome' or 'google-chrome-stable'
-		cmd = exec.Command("google-chrome", "--incognito", url)
-	default:
-		return f.logger.Errorf("Unsupported OS")
+	chromeBinary, err := chromeExecutablePath()
+	if err != nil {
+		return err
 	}
 
-	err := cmd.Start()
-	if err != nil {
+	args := []string{"--incognito", "--new-window"}
+	if trimmedURL := strings.TrimSpace(url); trimmedURL != "" {
+		args = append(args, trimmedURL)
+	}
+
+	cmd := exec.Command(chromeBinary, args...)
+	if err := cmd.Start(); err != nil {
 		return f.logger.Errorf("Error opening Chrome: %s", err.Error())
 	}
 

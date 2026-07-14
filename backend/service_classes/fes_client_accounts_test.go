@@ -177,31 +177,6 @@ func TestDescribeCredentialValue(t *testing.T) {
 	}
 }
 
-func TestUpworkPasteValuesUsesPasswordFirstThenUsername(t *testing.T) {
-	first, second, err := upworkPasteValues(&upworkCredentials{
-		Username: "johnna-mae@example.com\n",
-		Password: "super-secret-password\n",
-	})
-	if err != nil {
-		t.Fatalf("expected paste values without error, got %v", err)
-	}
-	if first != "super-secret-password" {
-		t.Fatalf("expected first paste value to be password, got %q", first)
-	}
-	if second != "johnna-mae@example.com" {
-		t.Fatalf("expected second paste value to be username, got %q", second)
-	}
-}
-
-func TestUpworkPasteValuesRejectsIncompleteCredentials(t *testing.T) {
-	_, _, err := upworkPasteValues(&upworkCredentials{
-		Username: "johnna-mae@example.com",
-	})
-	if err == nil {
-		t.Fatalf("expected error for incomplete credentials")
-	}
-}
-
 func TestUpworkLoginFormPasteValuesUsesUsernameFirstThenPassword(t *testing.T) {
 	first, second, err := upworkLoginFormPasteValues(&upworkCredentials{
 		Username: "johnna-mae@example.com\n",
