@@ -729,6 +729,20 @@ func (a *App) ResyncTaskRecord(taskrecordId uint) error {
 	return nil
 }
 
+// ForceSyncTaskRecord is the explicit, confirmation-gated UI action for
+// re-sending a selected local productivity record to Bubble.
+func (a *App) ForceSyncTaskRecord(taskrecordId uint) error {
+	if a.AuthUser == nil || a.AuthUser.LocalID == "" {
+		return types.NewStableError("AUTH_REQUIRED", "cannot force sync task record without authenticated user")
+	}
+
+	if err := a.AuthService.TaskService.SyncService.ResyncTaskRecord(taskrecordId); err != nil {
+		return a.stableClientError("force_sync_task_record", types.WrapOperation("force_sync.task_record", taskrecordId, a.safeUserID(), err))
+	}
+
+	return nil
+}
+
 func (a *App) SyncUnsyncedAttendance() error {
 	if a.AttendanceID == nil {
 		return types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance to sync.")
@@ -768,6 +782,30 @@ func (a *App) SyncAttendanceByID(attendanceID uint) error {
 
 	if err := a.AuthService.TaskService.SyncService.SyncAttendance(attendance); err != nil {
 		return a.stableClientError("sync_attendance_by_id", types.WrapOperation("sync.attendance", attendance.ID, attendance.UserID, err))
+	}
+
+	return nil
+}
+
+// ForceSyncAttendanceByID re-sends a selected local attendance record to
+// Bubble without the normal 48-hour manual-resync limit. Ownership checks are
+// intentionally retained for every force sync.
+func (a *App) ForceSyncAttendanceByID(attendanceID uint) error {
+	if a.AuthUser == nil || a.AuthUser.LocalID == "" {
+		return types.NewStableError("AUTH_REQUIRED", "cannot force sync attendance without authenticated user")
+	}
+
+	attendance, err := services.GetAttendanceFromID(attendanceID)
+	if err != nil {
+		return a.stableClientError("force_sync_attendance_by_id_fetch", types.WrapOperation("force_sync.attendance.fetch", attendanceID, a.safeUserID(), err))
+	}
+
+	if attendance.UserID != a.AuthUser.LocalID {
+		return types.NewStableError("ATTENDANCE_OWNERSHIP_DENIED", "cannot force sync attendance owned by another user")
+	}
+
+	if err := a.AuthService.TaskService.SyncService.ForceSyncAttendance(attendance); err != nil {
+		return a.stableClientError("force_sync_attendance_by_id", types.WrapOperation("force_sync.attendance", attendance.ID, attendance.UserID, err))
 	}
 
 	return nil

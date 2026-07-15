@@ -190,3 +190,66 @@ func TestCompletedRecordWithProductivityOnlySendsTaskOut(t *testing.T) {
 		t.Fatalf("expected synced record, got %q", stored.SyncStatus)
 	}
 }
+
+func TestForceSyncAttendanceResendsAnAlreadySyncedLogout(t *testing.T) {
+	testDB, err := db.NewTestDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalDB := db.DB
+	db.DB = testDB
+	t.Cleanup(func() { db.DB = originalDB })
+
+	user := &models.User{ID: "user-1", Email: "user@example.com"}
+	if err := testDB.Create(user).Error; err != nil {
+		t.Fatal(err)
+	}
+	remoteAttendanceID := "attendance-remote-1"
+	timeOut := time.Now()
+	syncedAt := timeOut.Add(time.Second)
+	attendance := &models.Attendance{
+		UserID:        user.ID,
+		TimeIn:        timeOut.Add(-time.Hour),
+		TimeOut:       &timeOut,
+		LoginLogoutID: &remoteAttendanceID,
+		SyncedAt:      &syncedAt,
+		SyncStatus:    syncStateSynced,
+	}
+	if err := testDB.Create(attendance).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	logoutCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/wf/logout" {
+			t.Errorf("unexpected sync endpoint %q", r.URL.Path)
+		}
+		logoutCalls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{}}`))
+	}))
+	defer server.Close()
+
+	connectivity := NewConnectivityStateService()
+	connectivity.SetOnline(true)
+	syncService := NewSyncService(connectivity)
+	fesClient := NewFesClientService(connectivity)
+	fesClient.baseUrl = server.URL + "/"
+	fesClient.client = server.Client()
+	syncService.FesClientService = fesClient
+	syncService.AuthUser = &models.AuthUser{LocalID: user.ID, Email: user.Email}
+
+	if err := syncService.syncAttendanceNowWithForce(attendance, false); err != nil {
+		t.Fatalf("normal synced attendance check returned error: %v", err)
+	}
+	if logoutCalls != 0 {
+		t.Fatalf("expected normal sync to skip already-synced logout, got %d calls", logoutCalls)
+	}
+
+	if err := syncService.syncAttendanceNowWithForce(attendance, true); err != nil {
+		t.Fatalf("force sync returned error: %v", err)
+	}
+	if logoutCalls != 1 {
+		t.Fatalf("expected force sync to resend logout once, got %d calls", logoutCalls)
+	}
+}

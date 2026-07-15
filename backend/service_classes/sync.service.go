@@ -492,7 +492,53 @@ func (s *SyncService) SyncAttendance(attendance *models.Attendance) (err error) 
 	return nil
 }
 
+// ForceSyncAttendance deliberately re-sends a locally saved attendance record
+// to Bubble, including records that are already marked synced. Callers must
+// have already obtained explicit user confirmation for this operation.
+func (s *SyncService) ForceSyncAttendance(attendance *models.Attendance) (err error) {
+	if attendance == nil {
+		return fmt.Errorf("cannot force sync nil attendance")
+	}
+	if s.AuthUser == nil || strings.TrimSpace(s.AuthUser.LocalID) == "" {
+		return fmt.Errorf("cannot force sync attendance without authenticated user")
+	}
+	if attendance.UserID != s.AuthUser.LocalID {
+		return fmt.Errorf("cannot force sync attendance owned by another user")
+	}
+
+	correlationID := utils.NewCorrelationID("attendance_force_sync")
+	s.Logger.Infof("op=attendance_force_sync_start correlation_id=%s attendance_id=%d", correlationID, attendance.ID)
+
+	key := fmt.Sprintf("attendance:%d:%t", attendance.ID, attendance.TimeOut != nil)
+	if attendance.TimeOut != nil {
+		key = fmt.Sprintf("%s:%d", key, attendance.TimeOut.UnixMilli())
+	}
+
+	job := &syncJob{
+		key:  key,
+		name: fmt.Sprintf("force_sync_attendance_%d", attendance.ID),
+		fn: func(ctx context.Context) error {
+			return s.syncAttendanceNowWithForce(attendance, true)
+		},
+	}
+
+	err = s.enqueueAndWait(job)
+	if err != nil {
+		s.Logger.Warnf("op=attendance_force_sync_failed correlation_id=%s attendance_id=%d err=%v", correlationID, attendance.ID, err)
+		s.emit("attendance-synced", false)
+		return err
+	}
+
+	s.Logger.Infof("op=attendance_force_sync_success correlation_id=%s attendance_id=%d", correlationID, attendance.ID)
+	s.emit("attendance-synced", true)
+	return nil
+}
+
 func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
+	return s.syncAttendanceNowWithForce(attendance, false)
+}
+
+func (s *SyncService) syncAttendanceNowWithForce(attendance *models.Attendance, force bool) error {
 	if attendance == nil {
 		return fmt.Errorf("cannot sync nil attendance")
 	}
@@ -502,11 +548,11 @@ func (s *SyncService) syncAttendanceNow(attendance *models.Attendance) error {
 		return s.updateAttendanceSyncState(attendance, syncStateBlocked, fmt.Errorf("cannot sync attendance while offline"))
 	}
 
-	if attendance.TimeOut != nil && attendanceLogoutAlreadySynced(attendance) {
+	if !force && attendance.TimeOut != nil && attendanceLogoutAlreadySynced(attendance) {
 		return nil
 	}
 
-	if attendance.TimeOut == nil && attendanceLoginAlreadySynced(attendance) {
+	if !force && attendance.TimeOut == nil && attendanceLoginAlreadySynced(attendance) {
 		return nil
 	}
 

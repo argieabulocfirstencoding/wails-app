@@ -128,3 +128,30 @@ func TestSyncAttendanceByIDGuards(t *testing.T) {
 		}
 	})
 }
+
+func TestForceSyncAttendanceByIDStillBlocksAnotherUsersRecord(t *testing.T) {
+	original := services.GetAttendanceFromID
+	defer func() { services.GetAttendanceFromID = original }()
+
+	services.GetAttendanceFromID = func(attendanceID uint) (*models.Attendance, error) {
+		return &models.Attendance{
+			Model:  gorm.Model{ID: attendanceID},
+			UserID: "other-user",
+			TimeIn: time.Now().Add(-72 * time.Hour),
+		}, nil
+	}
+
+	a := &App{AuthUser: &models.AuthUser{LocalID: "current-user"}}
+	err := a.ForceSyncAttendanceByID(1)
+	if err == nil || err.Error() != "cannot force sync attendance owned by another user" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestForceSyncTaskRecordRequiresAuthenticatedUser(t *testing.T) {
+	a := &App{}
+	err := a.ForceSyncTaskRecord(1)
+	if err == nil || err.Error() != "cannot force sync task record without authenticated user" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
