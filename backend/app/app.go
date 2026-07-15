@@ -217,8 +217,16 @@ func (a *App) StartTracking(taskId, localStorageValue string, padagan bool) erro
 	return nil
 }
 
-func (a *App) StopTracking(taskId string) {
-	a.AuthService.TaskService.StopTracking(taskId)
+func (a *App) StopTracking(taskId string) (*service_classes.StopTrackingResult, error) {
+	result, err := a.AuthService.TaskService.StopTracking(taskId)
+	if err != nil {
+		// A stop failure means the local record could not be finalized. Return it
+		// directly so the caller can keep the task UI active and retry; do not
+		// route it through runtime logging because shutdown paths may not have a
+		// Wails lifecycle context.
+		return nil, err
+	}
+	return result, nil
 }
 
 // NOTE this is offline login
@@ -1221,6 +1229,11 @@ func (a *App) stableClientError(op string, err error) error {
 
 	if stable, ok := err.(*types.StableError); ok {
 		return stable
+	}
+
+	var remoteErr *types.RemoteAPIError
+	if errors.As(err, &remoteErr) && remoteErr.StatusCode == http.StatusUnauthorized {
+		return types.NewStableError("SESSION_EXPIRED", "Your Bubble session expired. Sign in again, then retry sync.")
 	}
 
 	utils.Logger.Printf("app error op=%s user_id=%s err=%v", op, a.safeUserID(), err)

@@ -32,6 +32,16 @@ interface SyncUser {
   password: string | null | undefined;
 }
 
+function getSyncErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "Sync failed. Please sign in again and retry.";
+}
+
 const hiddenClientAccountPositions = new Set([
   "ojt",
   "employee",
@@ -240,10 +250,10 @@ const ProfileBar = () => {
 
       const fetchedTasks: any = await GetTasks(false);
       if (fetchedTasks) setTasks(fetchedTasks);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       setOpenSyncDialog(true);
-      setSyncErrorMsg(error);
+      setSyncErrorMsg(getSyncErrorMessage(error));
     } finally {
       setSyncLoading(false);
     }

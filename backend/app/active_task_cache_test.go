@@ -178,6 +178,42 @@ func TestStopTrackingClearsCacheOnMissingActiveRow(t *testing.T) {
 	}
 }
 
+func TestStopTrackingOfflineKeepsARecoverableLocalRecord(t *testing.T) {
+	_, user, _, task, attendance, taskRecord := setupActiveTaskCacheTestDB(t)
+
+	a := NewApp()
+	a.ctx = context.Background()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+	a.Connectivity.SetOnline(false)
+	a.AuthService.TaskService.Attendance = &a.Attendance
+	a.AuthService.TaskService.WorkingTaskID = &a.WorkingTaskID
+	a.AuthService.TaskService.ScreenshotService = a.ScreenshotService
+	a.AuthService.TaskService.TaskRepository = repository.NewTaskRepository()
+	a.ScreenshotService.TaskID = &task.TaskID
+	a.ScreenshotService.TaskRecordID = &taskRecord.ID
+	a.WorkingTaskID = &task.TaskID
+
+	result, err := a.StopTracking(task.TaskID)
+	if err != nil {
+		t.Fatalf("StopTracking returned error: %v", err)
+	}
+	if result == nil || result.RecordID != taskRecord.ID {
+		t.Fatalf("expected stopped record result for %d, got %#v", taskRecord.ID, result)
+	}
+	if result.SyncStatus != "pending" || result.SyncFailureCode != "offline" {
+		t.Fatalf("expected pending offline result, got %#v", result)
+	}
+
+	var stored models.TaskRecord
+	if err := db.DB.First(&stored, taskRecord.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.EndedAt == nil || stored.SyncStatus != "pending" {
+		t.Fatalf("expected durable pending stopped record, got %#v", stored)
+	}
+}
+
 func TestHandlePendingBrowserTaskEventActivatesImportedRecord(t *testing.T) {
 	_, user, _, _, attendance, localRecord := setupActiveTaskCacheTestDB(t)
 

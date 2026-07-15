@@ -2,6 +2,29 @@ package types
 
 import "fmt"
 
+// RemoteAPIError preserves the HTTP status from a remote service without
+// exposing request credentials or response bodies to the UI.
+type RemoteAPIError struct {
+	Service    string
+	StatusCode int
+	Message    string
+}
+
+func (e *RemoteAPIError) Error() string {
+	if e == nil {
+		return "remote API error"
+	}
+	return fmt.Sprintf("%s request failed (%d): %s", e.Service, e.StatusCode, e.Message)
+}
+
+func NewRemoteAPIError(service string, statusCode int, message string) error {
+	return &RemoteAPIError{
+		Service:    service,
+		StatusCode: statusCode,
+		Message:    message,
+	}
+}
+
 type OperationError struct {
 	Op       string
 	RecordID uint

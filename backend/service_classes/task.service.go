@@ -30,6 +30,15 @@ type TaskService struct {
 	ctx context.Context
 }
 
+// StopTrackingResult distinguishes a durable local stop from the later remote
+// sync outcome. A task must remain stopped locally even if Bubble is offline
+// or rejects the current session token.
+type StopTrackingResult struct {
+	RecordID        uint   `json:"recordId"`
+	SyncStatus      string `json:"syncStatus"`
+	SyncFailureCode string `json:"syncFailureCode,omitempty"`
+}
+
 func NewTaskService(SyncService *SyncService, connectivity ...*ConnectivityStateService) *TaskService {
 	var connectivityState *ConnectivityStateService
 	if len(connectivity) > 0 {
@@ -340,10 +349,9 @@ func (t *TaskService) ActivateBrowserTaskRecord(taskRecordID uint) error {
 	return nil
 }
 
-func (t *TaskService) StopTracking(taskId string) {
+func (t *TaskService) StopTracking(taskId string) (*StopTrackingResult, error) {
 	if t.Attendance == nil || *t.Attendance == nil {
-		t.Logger.Println("StopTracking error: Attendance is nil")
-		return
+		return nil, fmt.Errorf("StopTracking error: Attendance is nil")
 	}
 	userId := (*t.Attendance).UserID
 
@@ -364,7 +372,7 @@ func (t *TaskService) StopTracking(taskId string) {
 	if err != nil {
 		t.Logger.Println("StopTaskRecord error:", err)
 		clearActiveTaskCache()
-		return
+		return nil, err
 	}
 
 	taskRecord, err := t.TaskRepository.GetLastTaskRecord(userId, taskId)
@@ -372,12 +380,12 @@ func (t *TaskService) StopTracking(taskId string) {
 	if err != nil {
 		t.Logger.Printf("error retrieving task record: %v\n", err)
 		clearActiveTaskCache()
-		return
+		return nil, err
 	}
 	if taskRecord == nil {
 		t.Logger.Printf("error retrieving task record: no record found for user %s task %s\n", userId, taskId)
 		clearActiveTaskCache()
-		return
+		return nil, fmt.Errorf("no stopped task record found for user %s task %s", userId, taskId)
 	}
 
 	if err := db.DB.Model(taskRecord).Updates(map[string]any{
@@ -387,7 +395,12 @@ func (t *TaskService) StopTracking(taskId string) {
 	}).Error; err != nil {
 		t.Logger.Printf("error updating sync status: %v", types.WrapOperation("task.stop.mark_pending", taskRecord.ID, userId, err))
 		clearActiveTaskCache()
-		return
+		return nil, err
+	}
+
+	result := &StopTrackingResult{
+		RecordID:   taskRecord.ID,
+		SyncStatus: syncStatePending,
 	}
 
 	// Syncing TaskRecord to the active production sync service.
@@ -396,11 +409,29 @@ func (t *TaskService) StopTracking(taskId string) {
 		t.Logger.Printf("Syncing record: %v\n", taskRecord)
 		if err := t.SyncService.SyncTaskRecord(taskRecord.ID); err != nil {
 			t.Logger.Printf("error syncing task_record: %v", err)
+			result.SyncFailureCode = taskSyncFailureCode(err)
 		}
+	} else {
+		result.SyncFailureCode = "offline"
+	}
+
+	if refreshed, err := t.TaskRepository.GetTaskRecord(taskRecord.ID); err != nil {
+		t.Logger.Printf("error refreshing stopped task record: %v", err)
+	} else if refreshed != nil {
+		result.SyncStatus = refreshed.SyncStatus
 	}
 
 	t.TaskRecord = nil
 	clearActiveTaskCache()
+	return result, nil
+}
+
+func taskSyncFailureCode(err error) string {
+	var remoteErr *types.RemoteAPIError
+	if errors.As(err, &remoteErr) && remoteErr.StatusCode == 401 {
+		return "session_expired"
+	}
+	return "sync_failed"
 }
 
 func (t *TaskService) StopAllActiveRecords() error {

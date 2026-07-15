@@ -1,7 +1,13 @@
 package service_classes
 
 import (
+	"context"
+	"errors"
+	"fesapp/backend/db"
 	"fesapp/backend/db/models"
+	"fesapp/backend/types"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -88,5 +94,99 @@ func TestRemoteMissingTaskRecordRequiresExplicitRepair(t *testing.T) {
 	}
 	if syncFailureState(false) != syncStateFailed {
 		t.Fatal("expected normal sync failure to use failed state")
+	}
+}
+
+func TestTaskSyncFailureCode(t *testing.T) {
+	unauthorized := types.NewRemoteAPIError("FES API", 401, "Invalid or expired token")
+	if got := taskSyncFailureCode(unauthorized); got != "session_expired" {
+		t.Fatalf("expected session_expired for 401, got %q", got)
+	}
+
+	if got := taskSyncFailureCode(errors.New("network interrupted")); got != "sync_failed" {
+		t.Fatalf("expected sync_failed for a generic error, got %q", got)
+	}
+}
+
+func TestCompletedRecordWithProductivityOnlySendsTaskOut(t *testing.T) {
+	testDB, err := db.NewTestDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalDB := db.DB
+	db.DB = testDB
+	t.Cleanup(func() { db.DB = originalDB })
+
+	user := &models.User{ID: "user-1", Email: "user@example.com"}
+	if err := testDB.Create(user).Error; err != nil {
+		t.Fatal(err)
+	}
+	task := &models.Task{TaskID: "task-1", Title: "Task", ProjectName: "Project"}
+	if err := testDB.Create(task).Error; err != nil {
+		t.Fatal(err)
+	}
+	attendanceID := "attendance-remote-1"
+	attendance := &models.Attendance{
+		UserID:        user.ID,
+		TimeIn:        time.Now().Add(-time.Hour),
+		LoginLogoutID: &attendanceID,
+		SyncStatus:    syncStateSynced,
+	}
+	if err := testDB.Create(attendance).Error; err != nil {
+		t.Fatal(err)
+	}
+	productivityID := "productivity-remote-1"
+	endedAt := time.Now()
+	record := &models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: attendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    endedAt.Add(-5 * time.Minute),
+		EndedAt:      &endedAt,
+		Duration:     300,
+		Productivity: &productivityID,
+		SyncStatus:   syncStatePending,
+	}
+	if err := testDB.Create(record).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var taskInCalls, taskOutCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wf/task_in":
+			taskInCalls++
+		case "/wf/task_out":
+			taskOutCalls++
+		default:
+			t.Errorf("unexpected sync endpoint %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"response":{}}`))
+	}))
+	defer server.Close()
+
+	connectivity := NewConnectivityStateService()
+	connectivity.SetOnline(true)
+	syncService := NewSyncService(connectivity)
+	fesClient := NewFesClientService(connectivity)
+	fesClient.baseUrl = server.URL + "/"
+	fesClient.client = server.Client()
+	syncService.FesClientService = fesClient
+	syncService.AuthUser = &models.AuthUser{LocalID: user.ID}
+
+	if err := syncService.syncTaskRecordNow(context.Background(), record.ID, false); err != nil {
+		t.Fatalf("syncTaskRecordNow returned error: %v", err)
+	}
+	if taskInCalls != 0 || taskOutCalls != 1 {
+		t.Fatalf("expected one task-out and no task-in, got task-in=%d task-out=%d", taskInCalls, taskOutCalls)
+	}
+
+	var stored models.TaskRecord
+	if err := testDB.First(&stored, record.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.SyncStatus != syncStateSynced {
+		t.Fatalf("expected synced record, got %q", stored.SyncStatus)
 	}
 }

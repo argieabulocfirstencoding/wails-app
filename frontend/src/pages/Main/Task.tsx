@@ -69,6 +69,7 @@ const Task = () => {
   const [isSyncing, setSyncing] = useState(false);
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
+  const [syncNotice, setSyncNotice] = useState("");
 
   const { setTaskID, tasks, online, synced } = useAuthStore();
 
@@ -103,15 +104,38 @@ const Task = () => {
 
   async function stopTime() {
     setSyncing(true);
-    if (id) {
-      await StopTracking(id);
+    setSyncNotice("");
+    try {
+      if (id) {
+        const result = await StopTracking(id);
+        setSynced(result.syncStatus === "synced");
+
+        if (result.syncFailureCode === "session_expired") {
+          setSyncNotice(
+            "Time was saved locally. Your Bubble session expired—use Sync to sign in again and upload it.",
+          );
+        } else if (result.syncFailureCode === "offline") {
+          setSyncNotice(
+            "Time was saved locally. Connect to the internet and use Sync to upload it.",
+          );
+        } else if (result.syncFailureCode === "sync_failed") {
+          setSyncNotice(
+            "Time was saved locally, but Bubble could not be updated. Use Sync to retry it.",
+          );
+        }
+      }
+
+      setTaskID(null);
+      const timeStop = Date.now();
+      setStart(false);
+      setEndTime(timeStop);
+      await hydrateTaskRecord();
+    } catch (error) {
+      console.error("StopTracking failed:", error);
+      setSyncNotice("The task could not be stopped locally. Please try again.");
+    } finally {
+      setSyncing(false);
     }
-
-    setTaskID(null);
-    const timeStop = Date.now();
-    setStart(false);
-
-    setEndTime(timeStop);
   }
 
   function getFormattedTime() {
@@ -467,6 +491,12 @@ const Task = () => {
                   ""
                 )}
               </div>
+
+              {syncNotice && (
+                <p className="max-w-56 text-right text-[11px] leading-4 text-amber-600 dark:text-amber-400">
+                  {syncNotice}
+                </p>
+              )}
 
               {titleLower.includes("break") ||
               titleLower.includes("training") ? (

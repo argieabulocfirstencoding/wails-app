@@ -235,7 +235,7 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 			errMsg = trimmed
 		}
 
-		return nil, fmt.Errorf("fes api request failed (%d): %s", res.StatusCode, errMsg)
+		return nil, types.NewRemoteAPIError("FES API", res.StatusCode, errMsg)
 	}
 
 	var result map[string]any
