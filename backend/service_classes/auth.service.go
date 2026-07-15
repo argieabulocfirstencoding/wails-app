@@ -20,6 +20,11 @@ type AuthService struct {
 	ctx               context.Context
 }
 
+type authenticatedLogin struct {
+	UserID string
+	Email  string
+}
+
 func NewAuthService(connectivity ...*ConnectivityStateService) *AuthService {
 	var connectivityState *ConnectivityStateService
 	if len(connectivity) > 0 {
@@ -44,12 +49,12 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	a.ctx = ctx
 	a.TaskService.Connect(ctx)
 
-	userId, err := a.AttemptLogin(email, password)
+	login, err := a.AttemptLogin(email, password)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	attendance, err := a.AttendanceService.LoginAttendance(*userId)
+	attendance, err := a.AttendanceService.LoginAttendance(login.UserID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,8 +63,8 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	}
 
 	authUser := &models.AuthUser{
-		LocalID: *userId,
-		Email:   email,
+		LocalID: login.UserID,
+		Email:   login.Email,
 	}
 
 	// NOTE INITIALIZATIONS
@@ -73,12 +78,16 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
 	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
 
-	attendance.User.ID = *userId
-	attendance.User.Email = email
+	attendance.User.ID = login.UserID
+	attendance.User.Email = login.Email
 
 	if err := a.UserService.FetchEmployeeDetails(ctx, &attendance.User); err != nil {
 		return nil, nil, err
 	}
+
+	// The login identifier may be an FES ID. Use only a validated employee
+	// email for the authenticated session and downstream Chrome profile match.
+	authUser.Email = resolvedAuthenticatedEmployeeEmail(&attendance.User)
 
 	// go func() {
 	// 	a.SyncService.Connect(a.ctx)
@@ -117,7 +126,7 @@ func (a *AuthService) Logout() error {
 
 //  ======================= PRIVATE METHODS ===========================
 
-func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
+func (a *AuthService) AttemptLogin(identifier, password string) (*authenticatedLogin, error) {
 
 	// a.logger.Printlnf("Login Attempt Email: ", email)
 	// a.logger.Printlnf("Login Attempt Password: ", a.maskPassword(password))
@@ -127,7 +136,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 		Url:    "wf/login",
 		Method: "POST",
 		Body: map[string]any{
-			"email":    email,
+			"email":    identifier,
 			"password": password,
 			// "timestamp": now.UnixMilli(), // TODO find way to add this
 		},
@@ -158,12 +167,24 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 
 	a.TaskService.SyncService.FesClientService.SetApiToken(token)
 
-	_, create_user_err := a.UserService.CreateUser(userId, email)
+	authenticatedEmail := authenticatedEmailFromLoginResponse(resp, identifier)
+	_, create_user_err := a.UserService.CreateUser(userId, authenticatedEmail)
 	if create_user_err != nil {
 		a.Logger.Printlnf("Error creating user: %v", create_user_err)
 	}
 
-	return &userId, nil
+	return &authenticatedLogin{UserID: userId, Email: authenticatedEmail}, nil
+}
+
+// authenticatedEmailFromLoginResponse prefers the identity confirmed by the
+// FES login endpoint. Falling back to the supplied identifier preserves normal
+// email login while preventing an FES ID from being treated as an email.
+func authenticatedEmailFromLoginResponse(response map[string]any, identifier string) string {
+	if email := extractEmployeeEmail(response, nil); email != "" {
+		return email
+	}
+
+	return normalizedEmployeeEmail(identifier)
 }
 
 func (a *AuthService) maskPassword(p string) string {

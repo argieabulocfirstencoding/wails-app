@@ -295,7 +295,7 @@ func (f *FesClientService) GetBucketKeys() error {
 
 // ========================== UTILITY ===============================
 
-func (f *FesClientService) OpenFesWebApp() error {
+func (f *FesClientService) OpenFesWebApp(employeeEmail string) error {
 	if !f.Connectivity.IsOnline() {
 		return f.logger.Error("you are offline")
 	}
@@ -310,8 +310,18 @@ func (f *FesClientService) OpenFesWebApp() error {
 			return f.logger.Errorf("Error on opening fes web app")
 		}
 
-		if err := f.openIncognitoBrowserUrl(url); err != nil {
-			return err
+		profileDirectory, useIncognito := fesWebAppChromeLaunchTarget(
+			employeeEmail,
+			resolveChromeProfileDirectory,
+		)
+		if useIncognito {
+			f.logger.Infof("op=open_fes_web_app_browser mode=incognito")
+			return f.openIncognitoBrowserUrl(url)
+		}
+
+		f.logger.Infof("op=open_fes_web_app_browser mode=profile")
+		if err := openChromeProfile(profileDirectory, url); err != nil {
+			return f.logger.Errorf("open First Encoding web app in Chrome profile: %w", err)
 		}
 
 	} else {
@@ -319,6 +329,22 @@ func (f *FesClientService) OpenFesWebApp() error {
 	}
 
 	return nil
+}
+
+// fesWebAppChromeLaunchTarget selects the employee's signed-in Chrome profile
+// when it is available locally. Profile discovery is intentionally best-effort:
+// users without a matching profile continue in a fresh incognito window.
+func fesWebAppChromeLaunchTarget(employeeEmail string, resolveProfile func(string) (string, error)) (string, bool) {
+	if strings.TrimSpace(employeeEmail) == "" {
+		return "", true
+	}
+
+	profileDirectory, err := resolveProfile(employeeEmail)
+	if err != nil || strings.TrimSpace(profileDirectory) == "" {
+		return "", true
+	}
+
+	return profileDirectory, false
 }
 
 func (f *FesClientService) FetchClientAccounts() ([]ClientAccount, error) {

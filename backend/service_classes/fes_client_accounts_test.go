@@ -1,9 +1,12 @@
 package service_classes
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
+
+var errNoMatchingChromeProfile = errors.New("no matching Chrome profile")
 
 func TestParseClientAccountRecords(t *testing.T) {
 	response := map[string]any{
@@ -165,6 +168,68 @@ func TestResolveChromeProfileDirectoryFromLocalStateRejectsMissingMatch(t *testi
 	_, err := resolveChromeProfileDirectoryFromLocalState(rawLocalState, "johnnamaeyodico@gmail.com")
 	if err == nil {
 		t.Fatalf("expected error when no local chrome profile matches")
+	}
+}
+
+func TestFesWebAppChromeLaunchTargetUsesMatchingEmployeeProfile(t *testing.T) {
+	profileDirectory, useIncognito := fesWebAppChromeLaunchTarget(
+		"employee@firstencoding.app",
+		func(email string) (string, error) {
+			if email != "employee@firstencoding.app" {
+				t.Fatalf("resolver received %q, want employee email", email)
+			}
+			return "Profile 4", nil
+		},
+	)
+
+	if useIncognito {
+		t.Fatal("expected matching Chrome profile to be used")
+	}
+	if profileDirectory != "Profile 4" {
+		t.Fatalf("profile directory = %q, want %q", profileDirectory, "Profile 4")
+	}
+}
+
+func TestFesWebAppChromeLaunchTargetFallsBackToIncognito(t *testing.T) {
+	tests := []struct {
+		name          string
+		employeeEmail string
+		resolver      func(string) (string, error)
+	}{
+		{
+			name:          "employee email is unavailable",
+			employeeEmail: " ",
+			resolver: func(string) (string, error) {
+				t.Fatal("resolver must not run without an employee email")
+				return "", nil
+			},
+		},
+		{
+			name:          "no local Chrome profile matches",
+			employeeEmail: "employee@firstencoding.app",
+			resolver: func(string) (string, error) {
+				return "", errNoMatchingChromeProfile
+			},
+		},
+		{
+			name:          "matching profile has no directory",
+			employeeEmail: "employee@firstencoding.app",
+			resolver: func(string) (string, error) {
+				return " ", nil
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			profileDirectory, useIncognito := fesWebAppChromeLaunchTarget(test.employeeEmail, test.resolver)
+			if !useIncognito {
+				t.Fatal("expected incognito fallback")
+			}
+			if profileDirectory != "" {
+				t.Fatalf("profile directory = %q, want empty", profileDirectory)
+			}
+		})
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -68,19 +69,6 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 		return nil
 	}
 
-	// --- Helper function to prevent nil-to-string conversion crashes ---
-	safeString := func(m map[string]any, key string) string {
-		val, exists := m[key]
-		if !exists || val == nil {
-			return ""
-		}
-		s, ok := val.(string)
-		if !ok {
-			return ""
-		}
-		return s
-	}
-
 	var employee map[string]any
 
 	// Handle both Map and Slice responses
@@ -114,22 +102,24 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 	// }
 
 	// 2. Map fields safely (This prevents the "interface {} is nil" error)
-	fesid := safeString(response, "fesid")
+	hydrateEmployeeEmail(user, response, employee)
+
+	fesid := employeeDetailsString(response, "fesid")
 	if fesid != "" {
-		user.Name = safeString(employee, "Full Name")
-		user.FirstName = safeString(employee, "FirstName")
-		user.LastName = safeString(employee, "LastName")
-		user.MiddleName = safeString(employee, "MiddleName")
+		user.Name = employeeDetailsString(employee, "Full Name")
+		user.FirstName = employeeDetailsString(employee, "FirstName")
+		user.LastName = employeeDetailsString(employee, "LastName")
+		user.MiddleName = employeeDetailsString(employee, "MiddleName")
 
 		user.FESID = fesid
-		user.Photo = safeString(response, "photo")
-		user.Position = safeString(response, "position")
-		user.Phone = safeString(employee, "Account phone number")
-		user.Address = safeString(employee, "Address")
+		user.Photo = employeeDetailsString(response, "photo")
+		user.Position = employeeDetailsString(response, "position")
+		user.Phone = employeeDetailsString(employee, "Account phone number")
+		user.Address = employeeDetailsString(employee, "Address")
 		user.Birthdate = birthdate
-		user.SupervisorId = safeString(response, "immediate_supervisor")
-		user.EmployeeId = safeString(response, "employee_unique_id")
-		user.EmploymentId = safeString(response, "employeement_unique_id")
+		user.SupervisorId = employeeDetailsString(response, "immediate_supervisor")
+		user.EmployeeId = employeeDetailsString(response, "employee_unique_id")
+		user.EmploymentId = employeeDetailsString(response, "employeement_unique_id")
 
 		if err := db.DB.Save(&user).Error; err != nil {
 			u.logger.Println("Failed to save user:", err)
@@ -141,6 +131,112 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 	}
 
 	return nil
+}
+
+func employeeDetailsString(values map[string]any, key string) string {
+	if values == nil {
+		return ""
+	}
+
+	value, exists := values[key]
+	if !exists || value == nil {
+		return ""
+	}
+
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(text)
+}
+
+// extractEmployeeEmail returns the canonical email exposed by the employee
+// details endpoint. The top-level response takes precedence because it is the
+// workflow's authenticated-user value; employee-record fields support the
+// existing Bubble data shapes.
+func extractEmployeeEmail(response, employee map[string]any) string {
+	if email := canonicalEmailFromFields(response); email != "" {
+		return email
+	}
+
+	return canonicalEmailFromFields(employee)
+}
+
+func canonicalEmailFromFields(values map[string]any) string {
+	if values == nil {
+		return ""
+	}
+
+	normalizedValues := make(map[string]string, len(values))
+	for key := range values {
+		normalizedValues[normalizeEmailFieldName(key)] = employeeDetailsString(values, key)
+	}
+
+	for _, fieldName := range []string{
+		"email",
+		"useremail",
+		"accountemail",
+		"emailaddress",
+		"accountemailaddress",
+		"googleemail",
+	} {
+		if email := normalizedEmployeeEmail(normalizedValues[fieldName]); email != "" {
+			return email
+		}
+	}
+
+	return ""
+}
+
+func normalizeEmailFieldName(value string) string {
+	var normalized strings.Builder
+	for _, char := range strings.ToLower(value) {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') {
+			normalized.WriteRune(char)
+		}
+	}
+
+	return normalized.String()
+}
+
+func hydrateEmployeeEmail(user *models.User, response, employee map[string]any) {
+	if user == nil {
+		return
+	}
+
+	if email := extractEmployeeEmail(response, employee); email != "" {
+		user.Email = email
+		return
+	}
+
+	if normalizedEmployeeEmail(user.Email) == "" {
+		// An FES ID is a valid login identifier but must never be retained as
+		// the user's email or used to select a Chrome profile.
+		user.Email = ""
+	}
+}
+
+func normalizedEmployeeEmail(value string) string {
+	email := strings.TrimSpace(value)
+	if email == "" {
+		return ""
+	}
+
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email || !strings.Contains(address.Address, "@") {
+		return ""
+	}
+
+	return address.Address
+}
+
+func resolvedAuthenticatedEmployeeEmail(user *models.User) string {
+	if user == nil {
+		return ""
+	}
+
+	return normalizedEmployeeEmail(user.Email)
 }
 
 func extractBirthdate(employee map[string]any) string {

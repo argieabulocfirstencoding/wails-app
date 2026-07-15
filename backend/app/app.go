@@ -16,6 +16,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"os/exec"
@@ -430,7 +431,50 @@ func (a *App) OpenUpwork(taskID string) error {
 }
 
 func (a *App) OpenFesWebApp() error {
-	return a.SyncService.FesClientService.OpenFesWebApp()
+	return a.SyncService.FesClientService.OpenFesWebApp(a.currentUserEmail())
+}
+
+// currentUserEmail returns an email only for the authenticated user. It never
+// consults GetAccounts because that list can include other employees cached for
+// offline login on the same machine.
+func (a *App) currentUserEmail() string {
+	if a.AuthUser == nil {
+		return ""
+	}
+
+	if email := normalizedUserEmail(a.AuthUser.Email); email != "" {
+		return email
+	}
+
+	if strings.TrimSpace(a.AuthUser.LocalID) == "" {
+		return ""
+	}
+
+	user, err := services.GetUserFromId(a.AuthUser.LocalID)
+	if err != nil {
+		return ""
+	}
+
+	email := normalizedUserEmail(user.Email)
+	if email != "" {
+		a.AuthUser.Email = email
+	}
+
+	return email
+}
+
+func normalizedUserEmail(value string) string {
+	email := strings.TrimSpace(value)
+	if email == "" {
+		return ""
+	}
+
+	address, err := mail.ParseAddress(email)
+	if err != nil || address.Address != email || !strings.Contains(address.Address, "@") {
+		return ""
+	}
+
+	return address.Address
 }
 
 func (a *App) GetAccounts() ([]models.User, error) {
