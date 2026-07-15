@@ -328,6 +328,14 @@ const Task = () => {
     return () => off();
   }, [id]);
 
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("browser-records-synced", async () => {
+      await hydrateTaskRecord();
+    });
+
+    return () => off();
+  }, [id]);
   const titleLower = taskDetails?.title?.toLowerCase() ?? "";
 
   return (

@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/AuthContext";
 import { Calendar22 } from "@/components/ui/calendar22";
 import { secondsToHHMM } from "@/lib/utils";
+import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatInManila, supportsManilaTimeZone, toManilaDateOnly } from "@/lib/timezone";
 
 const RESYNC_WINDOW_MS = 48 * 60 * 60 * 1000;
@@ -115,6 +116,9 @@ const isSynced = (syncStatus?: string, syncedAt?: unknown): boolean => {
 
 const statusLabel = (syncStatus?: string, syncedAt?: unknown): string => {
   if (isSynced(syncStatus, syncedAt)) return "Synced";
+  if (syncStatus?.toLowerCase() === "remote_missing") {
+    return "Missing in Bubble";
+  }
   if (syncStatus?.toLowerCase() === "pending") return "Pending";
   return "Unsynced";
 };
@@ -266,6 +270,14 @@ const ActivityLogs = () => {
     loadActivityData(date);
   }, [date, loadActivityData]);
 
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("browser-records-synced", () => {
+      void loadActivityData(date);
+    });
+
+    return () => off();
+  }, [date, loadActivityData]);
   const setSyncing = (key: string, syncing: boolean) => {
     setSyncingKeys((prev) => ({ ...prev, [key]: syncing }));
   };
@@ -516,7 +528,12 @@ const ActivityLogs = () => {
                           syncStatus={record.SyncStatus}
                           syncedAt={record.SyncedAt}
                           syncing={!!syncingKeys[key]}
-                          syncError={syncErrorByKey[key]}
+                          syncError={
+                            syncErrorByKey[key] ||
+                            (record.SyncStatus?.toLowerCase() === "remote_missing"
+                              ? record.LastError
+                              : "")
+                          }
                           pendingScreenshotCount={pendingScreenshotCount}
                           statusLabelOverride={
                             pendingScreenshotCount > 0
@@ -584,11 +601,12 @@ const ActivityLogs = () => {
         <DialogContent className="sm:max-w-[420px] rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl">
           <DialogHeader className="space-y-2">
             <DialogTitle className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-50">
-              Confirm Resync
+              Confirm Resync or Repair
             </DialogTitle>
             <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              Resyncing this activity may override what was recorded by another
-              tracker for the same session.
+              Resyncing may override what was recorded by another tracker. A
+              record missing in Bubble will create a fresh Bubble productivity
+              record before its final details are synced.
             </DialogDescription>
           </DialogHeader>
 
@@ -614,7 +632,7 @@ const ActivityLogs = () => {
               onClick={confirmSync}
               className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 cursor-pointer"
             >
-              Continue Resync
+              Continue
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -657,9 +675,10 @@ function ActivityBanner({
   const eventTime = formatTimestamp(isoTime);
   const syncedTime = formatTimestamp(syncedAt);
   const synced = isSynced(syncStatus, syncedAt);
+  const remoteMissing = syncStatus?.toLowerCase() === "remote_missing";
   const currentStatus = statusLabelOverride ?? statusLabel(syncStatus, syncedAt);
   const currentTone =
-    statusTone ?? (synced ? "success" : "danger");
+    statusTone ?? (synced ? "success" : remoteMissing ? "warning" : "danger");
   const pendingNote =
     pendingScreenshotCount > 0
       ? syncing
@@ -749,14 +768,16 @@ function ActivityBanner({
             resyncAllowed
               ? pendingScreenshotCount > 0
                 ? "Retry task record and pending screenshot uploads"
-                : synced
+              : synced
                 ? "Resync this entry"
+                : remoteMissing
+                  ? "Create a replacement Bubble productivity record"
                 : "Retry sync"
               : resyncBlockedReason
           }
         >
           <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Syncing..." : "Resync"}
+          {syncing ? (remoteMissing ? "Repairing..." : "Syncing...") : remoteMissing ? "Repair" : "Resync"}
         </button>
       </div>
     </div>

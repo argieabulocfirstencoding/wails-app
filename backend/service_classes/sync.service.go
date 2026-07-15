@@ -22,11 +22,12 @@ import (
 )
 
 const (
-	syncStatePending    = "pending"
-	syncStateInProgress = "in_progress"
-	syncStateSynced     = "synced"
-	syncStateFailed     = "failed"
-	syncStateBlocked    = "blocked"
+	syncStatePending       = "pending"
+	syncStateInProgress    = "in_progress"
+	syncStateSynced        = "synced"
+	syncStateFailed        = "failed"
+	syncStateBlocked       = "blocked"
+	syncStateRemoteMissing = "remote_missing"
 )
 
 var errSyncBlocked = errors.New("sync blocked")
@@ -243,7 +244,12 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 		return s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, fmt.Errorf("cannot sync task record while offline"))
 	}
 
-	if taskRecord.EndedAt == nil && taskRecordHasRemoteProductivity(taskRecord) {
+	remoteMissing := taskRecordNeedsRemoteRepair(taskRecord)
+	if remoteMissing && !force {
+		return fmt.Errorf("task record is missing in Bubble and requires an explicit repair")
+	}
+
+	if !remoteMissing && taskRecord.EndedAt == nil && taskRecordHasRemoteProductivity(taskRecord) {
 		if err := s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil); err != nil {
 			return err
 		}
@@ -273,9 +279,9 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 	}
 
 	if taskRecord.EndedAt != nil {
-		if !taskRecordHasRemoteProductivity(taskRecord) {
+		if !taskRecordHasRemoteProductivity(taskRecord) || remoteMissing {
 			if err := s.syncTaskIn(taskRecord, attendance, user); err != nil {
-				_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
+				_ = s.updateTaskRecordSyncState(taskRecord, syncFailureState(remoteMissing), err)
 				return err
 			}
 			taskRecord, err = s.TaskRepository.GetTaskRecord(taskRecordId)
@@ -285,6 +291,9 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 		}
 
 		if err := s.syncTaskOut(taskRecord); err != nil {
+			// A repaired task-in has already produced a fresh Bubble record. A
+			// task-out failure is therefore a normal retryable sync failure, not a
+			// remote-missing record.
 			_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
 			return err
 		}
@@ -297,7 +306,7 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 	}
 
 	if err := s.syncTaskIn(taskRecord, attendance, user); err != nil {
-		_ = s.updateTaskRecordSyncState(taskRecord, syncStateFailed, err)
+		_ = s.updateTaskRecordSyncState(taskRecord, syncFailureState(remoteMissing), err)
 		return err
 	}
 
@@ -343,9 +352,11 @@ func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *mode
 		s.Logger.Printlnf("Sync Task Record Response: %v", resp)
 		s.Logger.Printlnf("PRODUCTIVITY ID: %v", resp["productivity"])
 
-		if productivity, ok := resp["productivity"].(string); ok {
-			taskRecord.Productivity = &productivity
+		productivity, ok := resp["productivity"].(string)
+		if !ok || strings.TrimSpace(productivity) == "" {
+			return fmt.Errorf("task-in response missing productivity identifier")
 		}
+		taskRecord.Productivity = &productivity
 
 		if err := s.reconcileTaskRecord(taskRecord, attendance); err != nil {
 			return err
@@ -999,11 +1010,9 @@ func (s *SyncService) reconcileTaskRecord(taskRecord *models.TaskRecord, attenda
 		return fmt.Errorf("cannot reconcile task record without synced attendance dependency")
 	}
 
-	// For task-in, require a remote productivity ID before marking record as synced.
-	if taskRecord.EndedAt == nil {
-		if taskRecord.Productivity == nil || strings.TrimSpace(*taskRecord.Productivity) == "" {
-			return fmt.Errorf("remote reconciliation failed: missing productivity id")
-		}
+	// Task-in must always supply a remote productivity ID before local success is recorded.
+	if taskRecord.Productivity == nil || strings.TrimSpace(*taskRecord.Productivity) == "" {
+		return fmt.Errorf("remote reconciliation failed: missing productivity id")
 	}
 
 	return nil
@@ -1064,6 +1073,17 @@ func taskRecordHasRemoteProductivity(taskRecord *models.TaskRecord) bool {
 		return false
 	}
 	return strings.TrimSpace(*taskRecord.Productivity) != ""
+}
+
+func taskRecordNeedsRemoteRepair(taskRecord *models.TaskRecord) bool {
+	return taskRecord != nil && strings.EqualFold(taskRecord.SyncStatus, syncStateRemoteMissing)
+}
+
+func syncFailureState(remoteMissing bool) string {
+	if remoteMissing {
+		return syncStateRemoteMissing
+	}
+	return syncStateFailed
 }
 
 func shouldSkipCompletedTaskRecordSync(taskRecord *models.TaskRecord, force bool) bool {

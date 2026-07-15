@@ -107,6 +107,17 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("browser-records-synced", async () => {
+      await refreshTaskRecords();
+      const fetchedTasks: any = await GetTasks(false);
+      if (fetchedTasks) setTasks(fetchedTasks);
+      await fetchTodayClientSummary();
+    });
+
+    return () => off();
+  }, []);
+  useEffect(() => {
     const off = EventsOn("attendance-synced", (synced: boolean) => {
       setAttendanceSynced(synced);
       fetchCurrentAttendance();

@@ -267,14 +267,73 @@ const ProfileBar = () => {
         (result?.recordsUpdated || 0);
       const conflicts = result?.conflicts || 0;
       const skipped = result?.skipped || 0;
+      const details: string[] = [];
 
-      if (changed === 0 && conflicts === 0 && skipped === 0) {
-        setBrowserSyncMessage("Browser records are up to date.");
-      } else {
-        setBrowserSyncMessage(
-          `Browser check: ${changed} update${changed === 1 ? "" : "s"}, ${conflicts} conflict${conflicts === 1 ? "" : "s"}, ${skipped} skipped.`,
+      if (result?.recoveredAttendanceLinks) {
+        details.push(
+          `${result.recoveredAttendanceLinks} legacy attendance link${
+            result.recoveredAttendanceLinks === 1 ? "" : "s"
+          } recovered`,
         );
       }
+      if (result?.fallbackTasksCreated) {
+        details.push(
+          `${result.fallbackTasksCreated} project fallback${
+            result.fallbackTasksCreated === 1 ? "" : "s"
+          } created`,
+        );
+      }
+      if (result?.skippedMissingAttendance) {
+        details.push(
+          `${result.skippedMissingAttendance} missing attendance link${
+            result.skippedMissingAttendance === 1 ? "" : "s"
+          }`,
+        );
+      }
+      if (result?.skippedMalformed) {
+        details.push(
+          `${result.skippedMalformed} incomplete Bubble row${
+            result.skippedMalformed === 1 ? "" : "s"
+          }`,
+        );
+      }
+      if (result?.recordsVerified) {
+        details.push(
+          `${result.recordsVerified} local productivity record${
+            result.recordsVerified === 1 ? "" : "s"
+          } verified`,
+        );
+      }
+      if (result?.recordsMissingInBubble) {
+        details.push(
+          `${result.recordsMissingInBubble} local productivity record${
+            result.recordsMissingInBubble === 1 ? " is" : "s are"
+          } missing in Bubble`,
+        );
+      }
+      if (result?.recordsMissingId) {
+        details.push(
+          `${result.recordsMissingId} synced local record${
+            result.recordsMissingId === 1 ? " has" : "s have"
+          } no productivity ID`,
+        );
+      }
+      if (result?.verificationSkipped) {
+        details.push(
+          result?.verificationWarning || "Bubble verification skipped",
+        );
+      }
+      if (result?.catalogRefreshWarning) {
+        details.push("project catalog refresh warning");
+      }
+
+      const baseMessage =
+        changed === 0 && conflicts === 0 && skipped === 0
+          ? "Browser records are up to date."
+          : `Browser check: ${changed} update${changed === 1 ? "" : "s"}, ${conflicts} conflict${conflicts === 1 ? "" : "s"}, ${skipped} skipped.`;
+      setBrowserSyncMessage(
+        details.length > 0 ? `${baseMessage} ${details.join("; ")}.` : baseMessage,
+      );
 
       const fetchedTasks: any = await GetTasks(false);
       if (fetchedTasks) setTasks(fetchedTasks);
@@ -285,6 +344,7 @@ const ProfileBar = () => {
       setBrowserSyncLoading(false);
     }
   }
+
   return (
     <div className="sticky bottom-0 z-20">
       {/* Local Mode Banner */}
@@ -456,22 +516,6 @@ const ProfileBar = () => {
 
         {/* Right side – Sync + Settings */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {online && (
-            <button
-              onClick={checkBrowserUpdates}
-              disabled={browserSyncLoading}
-              className="inline-flex justify-center items-center gap-1 px-3 py-2 text-xs font-medium rounded-full border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 disabled:opacity-60 cursor-pointer"
-              title={
-                browserSyncMessage ||
-                "Check for attendance and productivity updates made in the browser"
-              }
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${browserSyncLoading ? "animate-spin" : ""}`}
-              />
-              {browserSyncLoading ? "Checking..." : "Check updates"}
-            </button>
-          )}
           {online && !synced && (
             <button
               onClick={() => setOpenSyncDialog(true)}
@@ -542,6 +586,26 @@ const ProfileBar = () => {
                     Activity Logs
                   </button>
                 </Link>
+                <button
+                  onClick={checkBrowserUpdates}
+                  disabled={!online || browserSyncLoading}
+                  className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Check Bubble updates and verify local productivity records"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw
+                      className={`w-4 h-4 ${browserSyncLoading ? "animate-spin" : ""}`}
+                    />
+                    {browserSyncLoading
+                      ? "Verifying Bubble records..."
+                      : "Verify Bubble records"}
+                  </span>
+                </button>
+                {browserSyncMessage && (
+                  <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
+                    {browserSyncMessage}
+                  </p>
+                )}
 
                 <button
                   onClick={() => setLogoutDialog(true)}

@@ -599,13 +599,14 @@ func (a *App) GetCurrentAttendance() (*models.ExpAttendance, error) {
 }
 
 func (a *App) GetTotalClientRecords(dateStr string) ([]types.TaskSummary, error) {
-	userID := "<nil>"
-	if a.AuthUser != nil {
-		userID = a.AuthUser.LocalID
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
 	}
+	userID := authUser.LocalID
 
 	utils.Logger.Printf("app.GetTotalClientRecords: start date=%q user_id=%q", dateStr, userID)
-	records, err := services.GetTodaySummary(dateStr)
+	records, err := services.GetTodaySummary(dateStr, userID)
 	if err != nil {
 		utils.Logger.Printf("app.GetTotalClientRecords: failed date=%q user_id=%q err=%v", dateStr, userID, err)
 		return nil, err

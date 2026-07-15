@@ -77,3 +77,16 @@ func TestShouldSkipCompletedTaskRecordSync(t *testing.T) {
 		t.Fatalf("expected active task records to remain eligible for sync")
 	}
 }
+
+func TestRemoteMissingTaskRecordRequiresExplicitRepair(t *testing.T) {
+	record := &models.TaskRecord{SyncStatus: syncStateRemoteMissing}
+	if !taskRecordNeedsRemoteRepair(record) {
+		t.Fatal("expected remote-missing record to require repair")
+	}
+	if syncFailureState(true) != syncStateRemoteMissing {
+		t.Fatal("expected repair failure to preserve remote-missing state")
+	}
+	if syncFailureState(false) != syncStateFailed {
+		t.Fatal("expected normal sync failure to use failed state")
+	}
+}
