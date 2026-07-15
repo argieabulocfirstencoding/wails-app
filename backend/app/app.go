@@ -57,7 +57,7 @@ type App struct {
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
-var CurrentVersion = "2.4.7"
+var CurrentVersion = "2.4.7b"
 
 const attendanceResyncWindow = 48 * time.Hour
 
