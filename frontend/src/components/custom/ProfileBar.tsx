@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Settings } from "lucide-react";
+import { RefreshCw, Settings } from "lucide-react";
 import Drawer from "@/components/custom/Drawer";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import {
   LoginUserOnline,
   LogoutUser,
   SyncUnsyncedRecords,
+  SyncBrowserRecords,
   OpenFesWebApp,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
@@ -56,6 +57,8 @@ const ProfileBar = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [browserSyncLoading, setBrowserSyncLoading] = useState(false);
+  const [browserSyncMessage, setBrowserSyncMessage] = useState("");
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
   const [syncErrorMsg, setSyncErrorMsg] = useState("");
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -250,6 +253,38 @@ const ProfileBar = () => {
     console.log("user updated", user);
   }, [user]);
 
+  async function checkBrowserUpdates() {
+    if (!online || browserSyncLoading) return;
+
+    setBrowserSyncLoading(true);
+    setBrowserSyncMessage("");
+    try {
+      const result: any = await SyncBrowserRecords();
+      const changed =
+        (result?.attendancesCreated || 0) +
+        (result?.attendancesUpdated || 0) +
+        (result?.recordsCreated || 0) +
+        (result?.recordsUpdated || 0);
+      const conflicts = result?.conflicts || 0;
+      const skipped = result?.skipped || 0;
+
+      if (changed === 0 && conflicts === 0 && skipped === 0) {
+        setBrowserSyncMessage("Browser records are up to date.");
+      } else {
+        setBrowserSyncMessage(
+          `Browser check: ${changed} update${changed === 1 ? "" : "s"}, ${conflicts} conflict${conflicts === 1 ? "" : "s"}, ${skipped} skipped.`,
+        );
+      }
+
+      const fetchedTasks: any = await GetTasks(false);
+      if (fetchedTasks) setTasks(fetchedTasks);
+    } catch (error) {
+      console.error("Browser sync failed:", error);
+      setBrowserSyncMessage("Could not check browser updates.");
+    } finally {
+      setBrowserSyncLoading(false);
+    }
+  }
   return (
     <div className="sticky bottom-0 z-20">
       {/* Local Mode Banner */}
@@ -421,6 +456,22 @@ const ProfileBar = () => {
 
         {/* Right side – Sync + Settings */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {online && (
+            <button
+              onClick={checkBrowserUpdates}
+              disabled={browserSyncLoading}
+              className="inline-flex justify-center items-center gap-1 px-3 py-2 text-xs font-medium rounded-full border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 disabled:opacity-60 cursor-pointer"
+              title={
+                browserSyncMessage ||
+                "Check for attendance and productivity updates made in the browser"
+              }
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${browserSyncLoading ? "animate-spin" : ""}`}
+              />
+              {browserSyncLoading ? "Checking..." : "Check updates"}
+            </button>
+          )}
           {online && !synced && (
             <button
               onClick={() => setOpenSyncDialog(true)}

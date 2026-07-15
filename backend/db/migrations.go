@@ -102,6 +102,12 @@ func migrationCatalog() []catalogMigration {
 			Plan:        planIndexesMigration,
 			Migrate:     ensureSchemaIndexes,
 		},
+		{
+			ID:          "20260715_008_remote_sync_metadata",
+			Description: "add Bubble reconciliation metadata",
+			Plan:        planRemoteSyncMetadataMigration,
+			Migrate:     ensureRemoteSyncMetadata,
+		},
 	}
 }
 

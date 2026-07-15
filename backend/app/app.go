@@ -485,6 +485,19 @@ func (a *App) SyncUnsyncedRecords() error {
 	return nil
 }
 
+// SyncBrowserRecords imports newer attendance and productivity records created in Bubble.
+func (a *App) SyncBrowserRecords() (*service_classes.BrowserSyncResult, error) {
+	if _, err := a.requireAuthenticatedUser(); err != nil {
+		return nil, err
+	}
+
+	result, err := a.SyncService.SyncBrowserRecords()
+	if err != nil {
+		return nil, a.stableClientError("sync_browser_records", err)
+	}
+	return result, nil
+}
+
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
 	// FIX change to attempt sync record
 	if err := a.AuthService.TaskService.SyncService.SyncTaskRecord(taskrecordId); err != nil {
