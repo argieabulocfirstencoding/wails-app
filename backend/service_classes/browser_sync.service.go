@@ -15,6 +15,8 @@ import (
 
 const bubbleAttendanceProductivitySyncEndpoint = "wf/sync_attendance_prod"
 const bubbleEmployeeDetailsEndpoint = "wf/employee_details"
+const bubblePendingBrowserTaskEventsEndpoint = "wf/pending_browser_task_events"
+const bubbleAcknowledgeBrowserTaskEventEndpoint = "wf/acknowledge_browser_task_event"
 
 type BrowserSyncResult struct {
 	AttendancesCreated       int    `json:"attendancesCreated"`
@@ -34,6 +36,14 @@ type BrowserSyncResult struct {
 	VerificationSkipped      bool   `json:"verificationSkipped"`
 	VerificationWarning      string `json:"verificationWarning"`
 	CatalogRefreshWarning    string `json:"catalogRefreshWarning"`
+}
+
+// BrowserTaskEvent is the desktop-facing representation of a Bubble browser
+// task-in notification. Bubble's task_in_browser workflow only needs to send
+// the productivity ID; the desktop imports the complete record separately.
+type BrowserTaskEvent struct {
+	ID             string
+	ProductivityID string
 }
 
 type bubbleAttendanceRecord struct {
@@ -233,6 +243,115 @@ func (s *SyncService) SyncBrowserRecords() (*BrowserSyncResult, error) {
 
 	s.emit("browser-records-synced", result)
 	return result, nil
+}
+
+// GetPendingBrowserTaskEvents returns unacknowledged browser task-ins for the
+// authenticated employee. The API authenticates the employee from the existing
+// bearer token, so no employee identifier is accepted from the desktop client.
+func (s *SyncService) GetPendingBrowserTaskEvents() ([]BrowserTaskEvent, error) {
+	if s == nil || s.FesClientService == nil {
+		return nil, fmt.Errorf("browser task event service is unavailable")
+	}
+	if !s.Connectivity.IsOnline() {
+		return nil, fmt.Errorf("cannot check browser task events while offline")
+	}
+	if s.AuthUser == nil || strings.TrimSpace(s.AuthUser.LocalID) == "" {
+		return nil, fmt.Errorf("cannot check browser task events without an authenticated user")
+	}
+
+	response, err := s.FesClientService.Request(types.Request{
+		Url:    bubblePendingBrowserTaskEventsEndpoint,
+		Method: "GET",
+		Body:   map[string]any{},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fetch pending browser task events: %w", err)
+	}
+
+	events, err := parsePendingBrowserTaskEvents(response)
+	if err != nil {
+		return nil, fmt.Errorf("parse pending browser task events: %w", err)
+	}
+	return events, nil
+}
+
+// AcknowledgeBrowserTaskEvent marks an event handled only after its
+// productivity record has been imported and, when active, adopted by desktop
+// tracking. Retrying an unacknowledged event is therefore safe.
+func (s *SyncService) AcknowledgeBrowserTaskEvent(event BrowserTaskEvent) error {
+	if s == nil || s.FesClientService == nil {
+		return fmt.Errorf("browser task event service is unavailable")
+	}
+	if !s.Connectivity.IsOnline() {
+		return fmt.Errorf("cannot acknowledge browser task event while offline")
+	}
+	if s.AuthUser == nil || strings.TrimSpace(s.AuthUser.LocalID) == "" {
+		return fmt.Errorf("cannot acknowledge browser task event without an authenticated user")
+	}
+
+	productivityID := strings.TrimSpace(event.ProductivityID)
+	if productivityID == "" {
+		return fmt.Errorf("cannot acknowledge browser task event without prod_id")
+	}
+
+	body := map[string]any{"prod_id": productivityID}
+	if eventID := strings.TrimSpace(event.ID); eventID != "" {
+		body["event_id"] = eventID
+	}
+	if _, err := s.FesClientService.Request(types.Request{
+		Url:    bubbleAcknowledgeBrowserTaskEventEndpoint,
+		Method: "POST",
+		Body:   body,
+	}); err != nil {
+		return fmt.Errorf("acknowledge browser task event %q: %w", productivityID, err)
+	}
+	return nil
+}
+
+func parsePendingBrowserTaskEvents(response map[string]any) ([]BrowserTaskEvent, error) {
+	if response == nil {
+		return []BrowserTaskEvent{}, nil
+	}
+
+	var rawEvents any
+	for _, key := range []string{"events", "pending_events", "browser_task_events"} {
+		if value, found := response[key]; found {
+			rawEvents = value
+			break
+		}
+	}
+	if rawEvents == nil {
+		// Supporting a single prod_id keeps the initial Bubble workflow simple.
+		if productivityID := firstBubbleString(response, "prod_id", "productivity_id"); productivityID != "" {
+			return []BrowserTaskEvent{{
+				ID:             firstBubbleString(response, "event_id", "_id"),
+				ProductivityID: productivityID,
+			}}, nil
+		}
+		return []BrowserTaskEvent{}, nil
+	}
+
+	objects, err := bubbleObjectList(rawEvents)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]BrowserTaskEvent, 0, len(objects))
+	seenProductivityIDs := make(map[string]struct{}, len(objects))
+	for _, item := range objects {
+		productivityID := firstBubbleString(item, "prod_id", "productivity_id")
+		if productivityID == "" {
+			continue
+		}
+		if _, seen := seenProductivityIDs[productivityID]; seen {
+			continue
+		}
+		seenProductivityIDs[productivityID] = struct{}{}
+		events = append(events, BrowserTaskEvent{
+			ID:             firstBubbleString(item, "event_id", "_id"),
+			ProductivityID: productivityID,
+		})
+	}
+	return events, nil
 }
 
 func (s *SyncService) resolveEmployeeID(user *models.User) (string, error) {

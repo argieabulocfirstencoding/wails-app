@@ -265,10 +265,10 @@ func (s *ScreenshotService) AddMemo(notes string) {
 	s.mu.Unlock()
 }
 
-func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId string) (*models.TaskRecordWithScreenshots, error) {
+func (s *ScreenshotService) GetLatestRecordsWithScreenshots(userId, taskId string, attendanceID uint) (*models.TaskRecordWithScreenshots, error) {
 	trws := &models.TaskRecordWithScreenshots{}
 
-	taskRecord, err := s.TaskRepo.GetLastTaskRecord(userId, taskId)
+	taskRecord, err := s.TaskRepo.GetTaskRecordForDisplay(userId, taskId, attendanceID)
 	if taskRecord == nil {
 		return nil, nil
 	}

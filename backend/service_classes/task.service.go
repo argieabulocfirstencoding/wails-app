@@ -253,6 +253,93 @@ func (t *TaskService) StartTracking(taskId, localStorageValue string, padagan bo
 	return nil
 }
 
+// ActivateBrowserTaskRecord adopts an already-imported Bubble productivity
+// record as the desktop's active task. It deliberately does not call
+// StartTaskRecord or SyncTaskRecord for the adopted record: Bubble has already
+// created its remote productivity ID, so creating another task-in would
+// duplicate time tracking remotely.
+func (t *TaskService) ActivateBrowserTaskRecord(taskRecordID uint) error {
+	if t == nil || t.Attendance == nil || *t.Attendance == nil {
+		return fmt.Errorf("activate browser task: attendance is nil")
+	}
+	if t.TaskRepository == nil || t.ScreenshotService == nil {
+		return fmt.Errorf("activate browser task: task service is unavailable")
+	}
+
+	record, err := t.TaskRepository.GetTaskRecord(taskRecordID)
+	if err != nil {
+		return fmt.Errorf("activate browser task: load task record: %w", err)
+	}
+	attendance := *t.Attendance
+	if record.UserID != attendance.UserID || record.AttendanceID != attendance.ID {
+		return fmt.Errorf("activate browser task: task record does not belong to the current attendance")
+	}
+	if record.EndedAt != nil {
+		return nil
+	}
+	if !taskRecordHasRemoteProductivity(record) {
+		return fmt.Errorf("activate browser task: task record has no productivity ID")
+	}
+
+	task, err := t.TaskRepository.GetTask(record.TaskID)
+	if err != nil {
+		return fmt.Errorf("activate browser task: load task: %w", err)
+	}
+
+	// A browser task-in takes over from any other local active task. End only
+	// the conflicting records, never the imported target record.
+	var conflicting []models.TaskRecord
+	if err := db.DB.
+		Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL AND id <> ?", attendance.UserID, attendance.ID, record.ID).
+		Find(&conflicting).Error; err != nil {
+		return fmt.Errorf("activate browser task: find conflicting active records: %w", err)
+	}
+
+	if len(conflicting) > 0 {
+		if t.ScreenshotService.TaskRecordID != nil && *t.ScreenshotService.TaskRecordID != record.ID {
+			t.ScreenshotService.Stop()
+		}
+
+		if err := db.DB.Transaction(func(tx *gorm.DB) error {
+			now := time.Now()
+			for i := range conflicting {
+				endAt := now
+				if record.StartedAt.After(conflicting[i].StartedAt) && record.StartedAt.Before(now) {
+					endAt = record.StartedAt
+				}
+				conflicting[i].EndedAt = &endAt
+				conflicting[i].Duration = int32(endAt.Sub(conflicting[i].StartedAt).Seconds())
+				if conflicting[i].Duration < 0 {
+					conflicting[i].Duration = 0
+				}
+				conflicting[i].SyncStatus = syncStatePending
+				conflicting[i].LastError = ""
+				conflicting[i].SyncedAt = nil
+				if err := tx.Save(&conflicting[i]).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return fmt.Errorf("activate browser task: stop conflicting active records: %w", err)
+		}
+	}
+
+	taskID := record.TaskID
+	t.ScreenshotService.FolderName = fmt.Sprintf("%d", record.StartedAt.UnixMilli())
+	t.ScreenshotService.TaskID = &taskID
+	t.ScreenshotService.TaskRecordID = &record.ID
+	t.TaskRecord = record
+	if t.WorkingTaskID != nil {
+		*t.WorkingTaskID = &taskID
+	}
+
+	if task.ProjectName != "Break" {
+		t.ScreenshotService.Start(t.ctx)
+	}
+	return nil
+}
+
 func (t *TaskService) StopTracking(taskId string) {
 	if t.Attendance == nil || *t.Attendance == nil {
 		t.Logger.Println("StopTracking error: Attendance is nil")

@@ -354,3 +354,35 @@ func TestResolveEmployeeIDUsesSavedProfile(t *testing.T) {
 		t.Fatalf("resolveEmployeeID() = %q, want %q", got, "employee-1")
 	}
 }
+
+func TestParsePendingBrowserTaskEventsAcceptsProdIDOnly(t *testing.T) {
+	events, err := parsePendingBrowserTaskEvents(map[string]any{
+		"events": []any{
+			map[string]any{"_id": "event-1", "prod_id": "productivity-1"},
+			map[string]any{"_id": "event-duplicate", "prod_id": "productivity-1"},
+			map[string]any{"_id": "event-missing-prod"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one deduplicated event, got %#v", events)
+	}
+	if events[0].ID != "event-1" || events[0].ProductivityID != "productivity-1" {
+		t.Fatalf("unexpected parsed event: %#v", events[0])
+	}
+}
+
+func TestParsePendingBrowserTaskEventsAcceptsSingleProdID(t *testing.T) {
+	events, err := parsePendingBrowserTaskEvents(map[string]any{
+		"event_id": "event-1",
+		"prod_id":  "productivity-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].ProductivityID != "productivity-1" {
+		t.Fatalf("unexpected parsed events: %#v", events)
+	}
+}

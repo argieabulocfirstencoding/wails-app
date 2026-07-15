@@ -23,6 +23,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -49,6 +50,10 @@ type App struct {
 	Attendance    *models.Attendance
 	WorkingTaskID *string
 	AttendanceID  *uint
+
+	browserTaskEventsMu         sync.Mutex
+	browserTaskEventsCancel     context.CancelFunc
+	browserTaskEventsGeneration uint64
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
@@ -175,6 +180,7 @@ func (a *App) Startup(ctx context.Context) {
 
 func (a *App) Shutdown(ctx context.Context) {
 	a.ctx = ctx
+	a.stopBrowserTaskEventPolling()
 
 	if a.ScreenshotService != nil {
 		a.ScreenshotService.Stop()
@@ -263,6 +269,7 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 		}
 	})
 	a.SyncService.KickoffAutoSyncOnLogin(attendance)
+	a.startBrowserTaskEventPolling()
 	a.Logger.Infof("op=login_online_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
 
 	return attendance, nil
@@ -349,7 +356,11 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 		return nil, err
 	}
 
-	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(authUser.LocalID, taskId)
+	attendanceID := uint(0)
+	if a.Attendance != nil {
+		attendanceID = a.Attendance.ID
+	}
+	record, err := a.ScreenshotService.GetLatestRecordsWithScreenshots(authUser.LocalID, taskId, attendanceID)
 	if err != nil {
 		return nil, a.stableClientError("get_last_task_record", err)
 	}
@@ -539,7 +550,158 @@ func (a *App) SyncBrowserRecords() (*service_classes.BrowserSyncResult, error) {
 	if err != nil {
 		return nil, a.stableClientError("sync_browser_records", err)
 	}
+	if err := a.activateCurrentBrowserTaskRecord(); err != nil {
+		return nil, a.stableClientError("sync_browser_records_activate", err)
+	}
 	return result, nil
+}
+
+// activateCurrentBrowserTaskRecord completes the manual browser verification
+// path. Reconciliation only stores Bubble records; this method makes a running
+// imported productivity record behave exactly like an active desktop task.
+func (a *App) activateCurrentBrowserTaskRecord() error {
+	if a == nil || a.AuthUser == nil || a.Attendance == nil || a.AuthService == nil || a.AuthService.TaskService == nil {
+		return nil
+	}
+	if strings.TrimSpace(a.AuthUser.LocalID) == "" {
+		return nil
+	}
+
+	var record models.TaskRecord
+	err := db.DB.
+		Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL AND productivity IS NOT NULL AND TRIM(productivity) <> ''", a.AuthUser.LocalID, a.Attendance.ID).
+		Order("started_at DESC, id DESC").
+		First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("find active browser task record: %w", err)
+	}
+	return a.AuthService.TaskService.ActivateBrowserTaskRecord(record.ID)
+}
+
+const browserTaskEventPollInterval = 15 * time.Second
+
+func (a *App) startBrowserTaskEventPolling() {
+	if a == nil || a.SyncService == nil || !browserTaskEventPollingEnabled() {
+		return
+	}
+
+	a.browserTaskEventsMu.Lock()
+	if a.browserTaskEventsCancel != nil {
+		a.browserTaskEventsMu.Unlock()
+		return
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	a.browserTaskEventsCancel = cancel
+	a.browserTaskEventsGeneration++
+	generation := a.browserTaskEventsGeneration
+	a.browserTaskEventsMu.Unlock()
+
+	utils.GoSafe("app.browser_task_events", func() {
+		defer a.clearBrowserTaskEventPolling(generation)
+		a.checkPendingBrowserTaskEvents()
+
+		ticker := time.NewTicker(browserTaskEventPollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				a.checkPendingBrowserTaskEvents()
+			}
+		}
+	})
+}
+
+// Browser task events remain disabled until the two Bubble pull endpoints are
+// published. This prevents released builds from repeatedly calling workflows
+// that have not been configured yet.
+func browserTaskEventPollingEnabled() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("FES_BROWSER_TASK_EVENTS_ENABLED")), "true")
+}
+
+func (a *App) stopBrowserTaskEventPolling() {
+	if a == nil {
+		return
+	}
+	a.browserTaskEventsMu.Lock()
+	cancel := a.browserTaskEventsCancel
+	a.browserTaskEventsCancel = nil
+	a.browserTaskEventsGeneration++
+	a.browserTaskEventsMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (a *App) clearBrowserTaskEventPolling(generation uint64) {
+	a.browserTaskEventsMu.Lock()
+	defer a.browserTaskEventsMu.Unlock()
+	if a.browserTaskEventsGeneration == generation {
+		a.browserTaskEventsCancel = nil
+	}
+}
+
+func (a *App) checkPendingBrowserTaskEvents() {
+	if a == nil || a.SyncService == nil || a.AuthService == nil || a.AuthService.TaskService == nil || a.AuthUser == nil || !a.Connectivity.IsOnline() {
+		return
+	}
+
+	events, err := a.SyncService.GetPendingBrowserTaskEvents()
+	if err != nil {
+		a.Logger.Warnf("op=browser_task_events_poll_failed user_id=%s err=%v", a.safeUserID(), err)
+		return
+	}
+	if len(events) == 0 {
+		return
+	}
+
+	if _, err := a.SyncService.SyncBrowserRecords(); err != nil {
+		a.Logger.Warnf("op=browser_task_events_import_failed user_id=%s err=%v", a.safeUserID(), err)
+		return
+	}
+
+	for _, event := range events {
+		if err := a.handlePendingBrowserTaskEvent(event); err != nil {
+			a.Logger.Warnf("op=browser_task_event_handle_failed user_id=%s prod_id=%s err=%v", a.safeUserID(), event.ProductivityID, err)
+			continue
+		}
+		if err := a.SyncService.AcknowledgeBrowserTaskEvent(event); err != nil {
+			a.Logger.Warnf("op=browser_task_event_ack_failed user_id=%s prod_id=%s err=%v", a.safeUserID(), event.ProductivityID, err)
+		}
+	}
+}
+
+func (a *App) handlePendingBrowserTaskEvent(event service_classes.BrowserTaskEvent) error {
+	if a == nil || a.AuthUser == nil || strings.TrimSpace(a.AuthUser.LocalID) == "" {
+		return fmt.Errorf("browser task event requires an authenticated user")
+	}
+	productivityID := strings.TrimSpace(event.ProductivityID)
+	if productivityID == "" {
+		return fmt.Errorf("browser task event is missing prod_id")
+	}
+
+	var record models.TaskRecord
+	if err := db.DB.Where("user_id = ? AND productivity = ?", a.AuthUser.LocalID, productivityID).First(&record).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("browser productivity %q was not imported", productivityID)
+		}
+		return fmt.Errorf("load imported browser productivity %q: %w", productivityID, err)
+	}
+	if record.EndedAt != nil {
+		return nil
+	}
+	if err := a.AuthService.TaskService.ActivateBrowserTaskRecord(record.ID); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *App) SyncUnsyncedTaskRecord(taskrecordId uint) error {
@@ -1100,6 +1262,7 @@ func (a *App) clearActiveTaskState(stopScreenshot bool) {
 }
 
 func (a *App) clearSessionState() {
+	a.stopBrowserTaskEventPolling()
 	a.clearActiveTaskState(true)
 	a.Attendance = nil
 	a.AttendanceID = nil

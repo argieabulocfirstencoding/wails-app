@@ -145,7 +145,7 @@ func TestGetLatestRecordsWithScreenshotsUsesLatestTaskRecordScreenshot(t *testin
 		t.Fatal(err)
 	}
 
-	record, err := service.GetLatestRecordsWithScreenshots(user.ID, newRecord.TaskID)
+	record, err := service.GetLatestRecordsWithScreenshots(user.ID, newRecord.TaskID, newRecord.AttendanceID)
 	if err != nil {
 		t.Fatalf("GetLatestRecordsWithScreenshots returned error: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestGetLatestRecordsWithScreenshotsSkipsMissingFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err := service.GetLatestRecordsWithScreenshots(user.ID, record.TaskID)
+	result, err := service.GetLatestRecordsWithScreenshots(user.ID, record.TaskID, record.AttendanceID)
 	if err != nil {
 		t.Fatalf("GetLatestRecordsWithScreenshots returned error: %v", err)
 	}

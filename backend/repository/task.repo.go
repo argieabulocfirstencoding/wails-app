@@ -177,6 +177,38 @@ func (t *TaskRepository) GetLastTaskRecord(userId, taskId string) (*models.TaskR
 	return &taskRecord, nil
 }
 
+// GetTaskRecordForDisplay returns the active record for the current attendance
+// before falling back to task history. Task detail screens must not show a
+// completed row merely because it was inserted after the active browser record.
+func (t *TaskRepository) GetTaskRecordForDisplay(userID, taskID string, attendanceID uint) (*models.TaskRecord, error) {
+	if attendanceID != 0 {
+		var active models.TaskRecord
+		err := db.DB.
+			Where("user_id = ? AND task_id = ? AND attendance_id = ? AND ended_at IS NULL", userID, taskID, attendanceID).
+			Order("started_at DESC, id DESC").
+			First(&active).Error
+		if err == nil {
+			return &active, nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+
+	var latest models.TaskRecord
+	err := db.DB.
+		Where("user_id = ? AND task_id = ?", userID, taskID).
+		Order("started_at DESC, id DESC").
+		First(&latest).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &latest, nil
+}
+
 func (t *TaskRepository) GetLastTaskRecordFromAttendance(userId string, attendanceId uint) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 

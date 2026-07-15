@@ -177,3 +177,129 @@ func TestStopTrackingClearsCacheOnMissingActiveRow(t *testing.T) {
 		t.Fatalf("expected ScreenshotService.TaskRecordID to be cleared after failed stop")
 	}
 }
+
+func TestHandlePendingBrowserTaskEventActivatesImportedRecord(t *testing.T) {
+	_, user, _, _, attendance, localRecord := setupActiveTaskCacheTestDB(t)
+
+	browserTask := &models.Task{TaskID: "browser-task", Title: "Browser Task", ProjectName: "Browser Project"}
+	if err := db.DB.Create(browserTask).Error; err != nil {
+		t.Fatal(err)
+	}
+	productivityID := "browser-productivity-1"
+	browserRecord := &models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: attendance.ID,
+		TaskID:       browserTask.TaskID,
+		StartedAt:    time.Now().Add(-time.Minute),
+		Productivity: &productivityID,
+		SyncStatus:   "synced",
+	}
+	if err := db.DB.Create(browserRecord).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewApp()
+	a.ctx = context.Background()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+	a.AuthService.TaskService.Attendance = &a.Attendance
+	a.AuthService.TaskService.WorkingTaskID = &a.WorkingTaskID
+	a.AuthService.TaskService.ScreenshotService = a.ScreenshotService
+	a.AuthService.TaskService.Connect(a.ctx)
+
+	if err := a.handlePendingBrowserTaskEvent(service_classes.BrowserTaskEvent{ProductivityID: productivityID}); err != nil {
+		t.Fatalf("handle pending browser task event: %v", err)
+	}
+	if a.WorkingTaskID == nil || *a.WorkingTaskID != browserTask.TaskID {
+		t.Fatalf("expected browser task to be active, got %#v", a.WorkingTaskID)
+	}
+	if a.ScreenshotService.TaskRecordID == nil || *a.ScreenshotService.TaskRecordID != browserRecord.ID {
+		t.Fatalf("expected screenshots to target browser record, got %#v", a.ScreenshotService.TaskRecordID)
+	}
+
+	var stopped models.TaskRecord
+	if err := db.DB.First(&stopped, localRecord.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stopped.EndedAt == nil || stopped.SyncStatus != "pending" {
+		t.Fatalf("expected local conflicting task to be stopped and pending sync, got %#v", stopped)
+	}
+}
+
+func TestActivateCurrentBrowserTaskRecordActivatesManualBrowserImport(t *testing.T) {
+	_, user, _, _, attendance, localRecord := setupActiveTaskCacheTestDB(t)
+
+	browserTask := &models.Task{TaskID: "manual-browser-task", Title: "Browser Task", ProjectName: "Browser Project"}
+	if err := db.DB.Create(browserTask).Error; err != nil {
+		t.Fatal(err)
+	}
+	productivityID := "manual-browser-productivity"
+	browserRecord := &models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: attendance.ID,
+		TaskID:       browserTask.TaskID,
+		StartedAt:    time.Now().Add(-time.Minute),
+		Productivity: &productivityID,
+		SyncStatus:   "synced",
+	}
+	if err := db.DB.Create(browserRecord).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewApp()
+	a.ctx = context.Background()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+	a.AuthService.TaskService.Attendance = &a.Attendance
+	a.AuthService.TaskService.WorkingTaskID = &a.WorkingTaskID
+	a.AuthService.TaskService.ScreenshotService = a.ScreenshotService
+	a.AuthService.TaskService.Connect(a.ctx)
+
+	if err := a.activateCurrentBrowserTaskRecord(); err != nil {
+		t.Fatalf("activate current browser task: %v", err)
+	}
+	if a.WorkingTaskID == nil || *a.WorkingTaskID != browserTask.TaskID {
+		t.Fatalf("expected manual browser task to be active, got %#v", a.WorkingTaskID)
+	}
+
+	var stopped models.TaskRecord
+	if err := db.DB.First(&stopped, localRecord.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stopped.EndedAt == nil {
+		t.Fatalf("expected conflicting local record to be stopped")
+	}
+}
+
+func TestGetLastTaskRecordPrefersActiveCurrentAttendanceRecord(t *testing.T) {
+	_, user, _, task, attendance, activeRecord := setupActiveTaskCacheTestDB(t)
+
+	endedAt := time.Now().Add(-time.Minute)
+	historical := &models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: attendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    endedAt.Add(-time.Minute),
+		EndedAt:      &endedAt,
+		Duration:     60,
+		SyncStatus:   "synced",
+	}
+	if err := db.DB.Create(historical).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewApp()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+
+	response, err := a.GetLastTaskRecord(task.TaskID)
+	if err != nil {
+		t.Fatalf("get task record for display: %v", err)
+	}
+	if response == nil || response.Record == nil {
+		t.Fatal("expected active task record for display")
+	}
+	if response.Record.ID != activeRecord.ID || response.Record.EndedAt != nil {
+		t.Fatalf("expected active record %d, got %#v", activeRecord.ID, response.Record)
+	}
+}
