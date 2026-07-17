@@ -1,9 +1,17 @@
 package service_classes
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/lxn/win"
+	uia "github.com/sjuhan/w32uiautomation"
 )
 
 var errNoMatchingChromeProfile = errors.New("no matching Chrome profile")
@@ -245,28 +253,173 @@ func TestDescribeCredentialValue(t *testing.T) {
 	}
 }
 
-func TestUpworkLoginFormPasteValuesUsesUsernameFirstThenPassword(t *testing.T) {
-	first, second, err := upworkLoginFormPasteValues(&upworkCredentials{
+func TestUpworkLoginFormValuesUsesUsernameFirstThenPassword(t *testing.T) {
+	first, second, err := upworkLoginFormValues(&upworkCredentials{
 		Username: "johnna-mae@example.com\n",
 		Password: "super-secret-password\n",
 	})
 	if err != nil {
-		t.Fatalf("expected login form paste values without error, got %v", err)
+		t.Fatalf("expected login form values without error, got %v", err)
 	}
 	if first != "johnna-mae@example.com" {
-		t.Fatalf("expected first login form paste value to be username, got %q", first)
+		t.Fatalf("expected first login form value to be username, got %q", first)
 	}
 	if second != "super-secret-password" {
-		t.Fatalf("expected second login form paste value to be password, got %q", second)
+		t.Fatalf("expected second login form value to be password, got %q", second)
 	}
 }
 
-func TestUpworkLoginFormPasteValuesRejectsIncompleteCredentials(t *testing.T) {
-	_, _, err := upworkLoginFormPasteValues(&upworkCredentials{
+func TestUpworkLoginFormValuesRejectsIncompleteCredentials(t *testing.T) {
+	_, _, err := upworkLoginFormValues(&upworkCredentials{
 		Password: "super-secret-password",
 	})
 	if err == nil {
 		t.Fatalf("expected error for incomplete login form credentials")
+	}
+}
+
+func TestChromeDevToolsInsertTextRejectsEmptyValue(t *testing.T) {
+	client := &chromeDevToolsClient{}
+	if err := client.insertText(" \n "); err == nil {
+		t.Fatal("expected empty text to be rejected")
+	}
+}
+
+func TestUpworkChromeLaunchArgsUseIsolatedLocalDevToolsProfile(t *testing.T) {
+	userDataDir := filepath.Join(os.TempDir(), upworkChromeUserDataDirPrefix+"test")
+	args, err := upworkChromeLaunchArgs(userDataDir, " https://www.upwork.com/nx/login ")
+	if err != nil {
+		t.Fatalf("expected launch args without error, got %v", err)
+	}
+
+	want := []string{
+		"--no-first-run",
+		"--no-default-browser-check",
+		"--new-window",
+		"--user-data-dir=" + userDataDir,
+		"--remote-debugging-address=127.0.0.1",
+		chromeRemoteDebuggingFlag(),
+		"https://www.upwork.com/nx/login",
+	}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("launch args = %#v, want %#v", args, want)
+	}
+}
+
+func TestUpworkChromeLaunchArgsRejectMissingProfileDirectory(t *testing.T) {
+	if _, err := upworkChromeLaunchArgs(" ", upworkChromeLoginURL); err == nil {
+		t.Fatal("expected missing isolated profile directory to be rejected")
+	}
+}
+
+func TestNativeUnicodeKeyInputs(t *testing.T) {
+	inputs, err := nativeUnicodeKeyInputs("A🙂")
+	if err != nil {
+		t.Fatalf("build native unicode key inputs: %v", err)
+	}
+	if len(inputs) != 6 {
+		t.Fatalf("unicode input count = %d, want 6", len(inputs))
+	}
+
+	for index, input := range inputs {
+		if input.Type != win.INPUT_KEYBOARD || input.Ki.DwFlags&win.KEYEVENTF_UNICODE == 0 {
+			t.Fatalf("input %d is not a unicode keyboard event: %#v", index, input)
+		}
+		wantKeyUp := index%2 == 1
+		if gotKeyUp := input.Ki.DwFlags&win.KEYEVENTF_KEYUP != 0; gotKeyUp != wantKeyUp {
+			t.Fatalf("input %d key-up=%t, want %t", index, gotKeyUp, wantKeyUp)
+		}
+	}
+
+	if _, err := nativeUnicodeKeyInputs(" \n "); err == nil {
+		t.Fatal("expected empty native text to be rejected")
+	}
+}
+
+func TestNativeVirtualKeyInputs(t *testing.T) {
+	inputs := nativeVirtualKeyInputs(0x0D)
+	if len(inputs) != 2 {
+		t.Fatalf("virtual key input count = %d, want 2", len(inputs))
+	}
+	if inputs[0].Ki.WVk != 0x0D || inputs[0].Ki.DwFlags != 0 {
+		t.Fatalf("unexpected virtual key-down input: %#v", inputs[0])
+	}
+	if inputs[1].Ki.WVk != 0x0D || inputs[1].Ki.DwFlags != win.KEYEVENTF_KEYUP {
+		t.Fatalf("unexpected virtual key-up input: %#v", inputs[1])
+	}
+}
+
+func TestUpworkClientControlTypeName(t *testing.T) {
+	tests := []struct {
+		controlType int
+		want        string
+	}{
+		{controlType: uia.UIA_EditControlTypeId, want: "input"},
+		{controlType: uia.UIA_ButtonControlTypeId, want: "button"},
+		{controlType: 0, want: "automation"},
+	}
+
+	for _, test := range tests {
+		if got := upworkClientControlTypeName(test.controlType); got != test.want {
+			t.Errorf("control type %d = %q, want %q", test.controlType, got, test.want)
+		}
+	}
+}
+
+func TestRetryUpworkClientControlRetriesUntilControlActionSucceeds(t *testing.T) {
+	attempts := 0
+	var retryStages []string
+	err := retryUpworkClientControl(context.Background(), "username input", time.Millisecond, func() error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("input is not ready")
+		}
+		return nil
+	}, func(stage string, err error) {
+		if err == nil {
+			t.Fatal("retry error is required")
+		}
+		retryStages = append(retryStages, stage)
+	})
+	if err != nil {
+		t.Fatalf("retry returned error: %v", err)
+	}
+	if attempts != 3 {
+		t.Fatalf("attempts = %d, want 3", attempts)
+	}
+	if !reflect.DeepEqual(retryStages, []string{"username input"}) {
+		t.Fatalf("retry stages = %#v, want username input once", retryStages)
+	}
+}
+
+func TestRetryUpworkClientControlStopsWhenContextIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	attempts := 0
+	err := retryUpworkClientControl(ctx, "password input", time.Millisecond, func() error {
+		attempts++
+		return nil
+	}, nil)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context cancellation error, got %v", err)
+	}
+	if attempts != 0 {
+		t.Fatalf("attempts = %d, want 0 after cancellation", attempts)
+	}
+}
+
+func TestWaitForUpworkClientDelayStopsWhenContextIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := waitForUpworkClientDelay(ctx, time.Hour); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context cancellation error, got %v", err)
+	}
+}
+
+func TestRemoveManagedUpworkChromeUserDataDirRejectsUnmanagedDirectory(t *testing.T) {
+	unmanagedDir := filepath.Join(os.TempDir(), "other-chrome-profile")
+	if err := removeManagedUpworkChromeUserDataDir(unmanagedDir); err == nil {
+		t.Fatal("expected unmanaged directory removal to be rejected")
 	}
 }
 
@@ -334,13 +487,13 @@ func TestSelectUpworkLoginTargetFallsBackToAnyUpworkPage(t *testing.T) {
 	}
 }
 
-func TestBuildUpworkFieldFocusExpressionIncludesSelectors(t *testing.T) {
-	expression, err := buildUpworkFieldFocusExpression([]string{`input[name="username"]`, `input[type="password"]`})
+func TestBuildUpworkFieldReadinessExpressionIncludesReadinessChecks(t *testing.T) {
+	expression, err := buildUpworkFieldReadinessExpression([]string{`input[name="username"]`, `input[type="password"]`})
 	if err != nil {
-		t.Fatalf("expected field focus expression without error, got %v", err)
+		t.Fatalf("expected field readiness expression without error, got %v", err)
 	}
 	if expression == "" {
-		t.Fatalf("expected field focus expression to be non-empty")
+		t.Fatalf("expected readiness expression to be non-empty")
 	}
 	if !strings.Contains(expression, `input[name=\"username\"]`) {
 		t.Fatalf("expected expression to contain serialized username selector, got %q", expression)
@@ -351,13 +504,87 @@ func TestBuildUpworkFieldFocusExpressionIncludesSelectors(t *testing.T) {
 	if !strings.Contains(expression, `scrollIntoView`) {
 		t.Fatalf("expected expression to scroll the field into view, got %q", expression)
 	}
-	if !strings.Contains(expression, `dispatchEvent(new MouseEvent`) {
-		t.Fatalf("expected expression to dispatch mouse events before paste, got %q", expression)
+	if !strings.Contains(expression, `document.readyState !== "complete"`) {
+		t.Fatalf("expected expression to wait for the document to be complete, got %q", expression)
+	}
+	if !strings.Contains(expression, `document.elementFromPoint`) {
+		t.Fatalf("expected expression to check that the field is unobstructed, got %q", expression)
+	}
+	if strings.Contains(expression, `dispatchEvent(new MouseEvent`) || strings.Contains(expression, `field.click()`) {
+		t.Fatalf("expected trusted DevTools click path without synthetic DOM clicks, got %q", expression)
+	}
+}
+
+func TestBuildUpworkFieldValueMatchExpression(t *testing.T) {
+	expression, err := buildUpworkFieldValueMatchExpression(`input[name="username"]`, "test-value")
+	if err != nil {
+		t.Fatalf("expected value match expression without error, got %v", err)
+	}
+	if !strings.Contains(expression, `field.value === expectedValue`) {
+		t.Fatalf("expected expression to compare the actual field value, got %q", expression)
 	}
 	if !strings.Contains(expression, `document.activeElement === field`) {
-		t.Fatalf("expected expression to verify the focused field, got %q", expression)
+		t.Fatalf("expected expression to require the focused field, got %q", expression)
 	}
-	if !strings.Contains(expression, `field.click()`) {
-		t.Fatalf("expected expression to click the field, got %q", expression)
+}
+
+func TestBuildUpworkNativeFieldValueSetExpression(t *testing.T) {
+	expression, err := buildUpworkNativeFieldValueSetExpression(`input[type="password"]`, "test-value")
+	if err != nil {
+		t.Fatalf("expected native value-set expression without error, got %v", err)
+	}
+	for _, expected := range []string{
+		`HTMLInputElement.prototype`,
+		`Object.getOwnPropertyDescriptor`,
+		`new InputEvent("input"`,
+		`new Event("change"`,
+		`field.value === expectedValue`,
+	} {
+		if !strings.Contains(expression, expected) {
+			t.Fatalf("expected native value-set expression to contain %q, got %q", expected, expression)
+		}
+	}
+}
+
+func TestParseUpworkReadyField(t *testing.T) {
+	field, err := parseUpworkReadyField(map[string]any{
+		"selector": `input[name="username"]`,
+		"x":        120.5,
+		"y":        250.75,
+	})
+	if err != nil {
+		t.Fatalf("expected ready field without error, got %v", err)
+	}
+	if field == nil || field.Selector != `input[name="username"]` || field.X != 120.5 || field.Y != 250.75 {
+		t.Fatalf("unexpected parsed ready field: %#v", field)
+	}
+
+	if field, err := parseUpworkReadyField(nil); err != nil || field != nil {
+		t.Fatalf("expected absent ready field without error, got field=%#v err=%v", field, err)
+	}
+}
+
+func TestUpworkFieldPositionIsStable(t *testing.T) {
+	previous := &upworkReadyField{Selector: "input[name=username]", X: 100, Y: 200}
+	if !upworkFieldPositionIsStable(previous, &upworkReadyField{Selector: "input[name=username]", X: 101.5, Y: 198.5}) {
+		t.Fatal("expected nearby consecutive field positions to be stable")
+	}
+	if upworkFieldPositionIsStable(previous, &upworkReadyField{Selector: "input[name=password]", X: 100, Y: 200}) {
+		t.Fatal("expected different fields to be unstable")
+	}
+	if upworkFieldPositionIsStable(previous, &upworkReadyField{Selector: "input[name=username]", X: 103, Y: 200}) {
+		t.Fatal("expected a field that moved beyond tolerance to be unstable")
+	}
+}
+
+func TestUpworkMouseClickEvents(t *testing.T) {
+	got := upworkMouseClickEvents(120.5, 250.75)
+	want := []map[string]any{
+		{"type": "mouseMoved", "x": 120.5, "y": 250.75},
+		{"type": "mousePressed", "x": 120.5, "y": 250.75, "button": "left", "clickCount": 1},
+		{"type": "mouseReleased", "x": 120.5, "y": 250.75, "button": "left", "clickCount": 1},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("mouse click events = %#v, want %#v", got, want)
 	}
 }
