@@ -1,9 +1,57 @@
 package service_classes
 
 import (
+	"fesapp/backend/db"
 	"fesapp/backend/db/models"
 	"testing"
 )
+
+func TestLoginEmployeeIDFromResponse(t *testing.T) {
+	tests := []struct {
+		name     string
+		response map[string]any
+		want     string
+	}{
+		{name: "valid ID", response: map[string]any{"employee_id": " employee-1 "}, want: "employee-1"},
+		{name: "missing ID", response: map[string]any{}, want: ""},
+		{name: "invalid ID", response: map[string]any{"employee_id": 1}, want: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := loginEmployeeIDFromResponse(test.response); got != test.want {
+				t.Fatalf("loginEmployeeIDFromResponse() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestSaveLoginEmployeeIDPersistsEmployeeRelationship(t *testing.T) {
+	testDB, err := db.NewTestDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalDB := db.DB
+	db.DB = testDB
+	t.Cleanup(func() { db.DB = originalDB })
+
+	if err := testDB.Create(&models.User{ID: "user-1", Email: "employee@example.com"}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	service := NewUserService()
+	if err := service.SaveLoginEmployeeID("user-1", "employee-1"); err != nil {
+		t.Fatalf("SaveLoginEmployeeID() error = %v", err)
+	}
+
+	var stored models.User
+	if err := testDB.First(&stored, "id = ?", "user-1").Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.EmployeeId != "employee-1" {
+		t.Fatalf("stored EmployeeId = %q, want %q", stored.EmployeeId, "employee-1")
+	}
+}
 
 func TestExtractEmployeeEmail(t *testing.T) {
 	tests := []struct {

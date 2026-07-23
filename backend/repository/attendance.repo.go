@@ -22,7 +22,7 @@ func NewAttendanceRepository() *AttendanceRepository {
 
 func (a *AttendanceRepository) CreateAttendance(userId string) (*models.Attendance, error) {
 
-	cutoff := time.Now().Add(-20 * time.Hour)
+	cutoff := time.Now().Add(-16 * time.Hour)
 
 	var lastAttendance models.Attendance
 	// Find the LAST (most recent) attendance record for the user

@@ -319,6 +319,10 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 }
 
 func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *models.Attendance, user *models.User) error {
+	if user == nil || strings.TrimSpace(user.EmployeeId) == "" {
+		return fmt.Errorf("cannot sync task-in without an employee ID")
+	}
+
 	padagan := "No"
 	if taskRecord.Padagan {
 		padagan = "Yes"
@@ -338,7 +342,7 @@ func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *mode
 			"task_in":              taskRecord.StartedAt.UnixMilli(),
 			"date":                 attendance.TimeIn.UnixMilli(),
 			"edited_by":            taskRecord.UserID,
-			"employee_ID":          user.EmployeeId,
+			"employee_ID":          strings.TrimSpace(user.EmployeeId),
 			"padaganan":            padagan,
 			"projects_projects":    taskRecord.TaskID,
 			"tracker_used":         task.Title,

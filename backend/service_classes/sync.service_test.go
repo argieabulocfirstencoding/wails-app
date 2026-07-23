@@ -63,6 +63,14 @@ func TestTaskRecordHasRemoteProductivity(t *testing.T) {
 	}
 }
 
+func TestTaskInRejectsMissingEmployeeID(t *testing.T) {
+	syncService := NewSyncService()
+	err := syncService.syncTaskIn(&models.TaskRecord{}, &models.Attendance{}, &models.User{})
+	if err == nil || err.Error() != "cannot sync task-in without an employee ID" {
+		t.Fatalf("expected missing employee ID error, got %v", err)
+	}
+}
+
 func TestShouldSkipCompletedTaskRecordSync(t *testing.T) {
 	timeOut := time.Now()
 	record := &models.TaskRecord{

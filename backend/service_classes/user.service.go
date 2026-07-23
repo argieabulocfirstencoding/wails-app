@@ -38,6 +38,28 @@ func (u *UserService) CreateUser(id string, email string) (*models.User, error) 
 	return u.userRepo.CreateUser(id, email)
 }
 
+// SaveLoginEmployeeID persists the Employee thing ID supplied by wf/login.
+// Employee profile enrichment is optional; task sync must retain this
+// authoritative relationship even when wf/employee_details is empty.
+func (u *UserService) SaveLoginEmployeeID(userID, employeeID string) error {
+	employeeID = strings.TrimSpace(employeeID)
+	if employeeID == "" {
+		return nil
+	}
+
+	user, err := u.userRepo.GetUserFromId(userID)
+	if err != nil {
+		return err
+	}
+
+	if user.EmployeeId == employeeID {
+		return nil
+	}
+
+	user.EmployeeId = employeeID
+	return db.DB.Save(user).Error
+}
+
 func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 
 	if user == nil {
@@ -118,7 +140,9 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 		user.Address = employeeDetailsString(employee, "Address")
 		user.Birthdate = birthdate
 		user.SupervisorId = employeeDetailsString(response, "immediate_supervisor")
-		user.EmployeeId = employeeDetailsString(response, "employee_unique_id")
+		if employeeID := employeeDetailsString(response, "employee_unique_id"); employeeID != "" {
+			user.EmployeeId = employeeID
+		}
 		user.EmploymentId = employeeDetailsString(response, "employeement_unique_id")
 
 		if err := db.DB.Save(&user).Error; err != nil {

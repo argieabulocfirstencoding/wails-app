@@ -21,8 +21,9 @@ type AuthService struct {
 }
 
 type authenticatedLogin struct {
-	UserID string
-	Email  string
+	UserID     string
+	Email      string
+	EmployeeID string
 }
 
 func NewAuthService(connectivity ...*ConnectivityStateService) *AuthService {
@@ -80,6 +81,10 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 
 	attendance.User.ID = login.UserID
 	attendance.User.Email = login.Email
+	if err := a.UserService.SaveLoginEmployeeID(login.UserID, login.EmployeeID); err != nil {
+		return nil, nil, fmt.Errorf("save login employee ID: %w", err)
+	}
+	attendance.User.EmployeeId = login.EmployeeID
 
 	if err := a.UserService.FetchEmployeeDetails(ctx, &attendance.User); err != nil {
 		return nil, nil, err
@@ -173,7 +178,27 @@ func (a *AuthService) AttemptLogin(identifier, password string) (*authenticatedL
 		a.Logger.Printlnf("Error creating user: %v", create_user_err)
 	}
 
-	return &authenticatedLogin{UserID: userId, Email: authenticatedEmail}, nil
+	return &authenticatedLogin{
+		UserID:     userId,
+		Email:      authenticatedEmail,
+		EmployeeID: loginEmployeeIDFromResponse(resp),
+	}, nil
+}
+
+// loginEmployeeIDFromResponse extracts the Employee thing ID returned by the
+// authenticated login workflow. Unlike the profile lookup, this value is
+// available even when wf/employee_details returns an empty employee object.
+func loginEmployeeIDFromResponse(response map[string]any) string {
+	if response == nil {
+		return ""
+	}
+
+	employeeID, ok := response["employee_id"].(string)
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(employeeID)
 }
 
 // authenticatedEmailFromLoginResponse prefers the identity confirmed by the

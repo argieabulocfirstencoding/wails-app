@@ -15,8 +15,6 @@ import { models } from "@/../wailsjs/go/models";
 import {
   GetActivityLogRecord,
   GetTotalClientRecords,
-  ForceSyncAttendanceByID,
-  ForceSyncTaskRecord,
   ResyncTaskRecord,
   SyncAttendanceByID,
 } from "@/../wailsjs/go/app/App";
@@ -196,7 +194,6 @@ const ActivityLogs = () => {
     id: number;
     key: string;
     label: string;
-    force: boolean;
   } | null>(null);
   const { summaries, setSummary, tasks, online } = useAuthStore();
 
@@ -293,7 +290,7 @@ const ActivityLogs = () => {
     setSyncErrorByKey((prev) => ({ ...prev, [key]: message }));
   };
 
-  const syncTaskRecord = async (recordID: number, key: string, force = false) => {
+  const syncTaskRecord = async (recordID: number, key: string) => {
     if (!online) {
       setSyncError(key, "Cannot sync while offline.");
       logActivityUI("warn", "Blocked task resync while offline", {
@@ -306,14 +303,10 @@ const ActivityLogs = () => {
     setSyncing(key, true);
     clearSyncError(key);
     try {
-      logActivityUI("info", force ? "Task force sync requested" : "Task resync requested", { recordID, key });
-      if (force) {
-        await ForceSyncTaskRecord(recordID);
-      } else {
-        await ResyncTaskRecord(recordID);
-      }
+      logActivityUI("info", "Task resync requested", { recordID, key });
+      await ResyncTaskRecord(recordID);
       await loadActivityData(date);
-      logActivityUI("info", force ? "Task force sync completed" : "Task resync completed", { recordID, key });
+      logActivityUI("info", "Task resync completed", { recordID, key });
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       setSyncError(key, errorMessage);
@@ -328,7 +321,7 @@ const ActivityLogs = () => {
     }
   };
 
-  const syncAttendanceRecord = async (attendanceID: number, key: string, force = false) => {
+  const syncAttendanceRecord = async (attendanceID: number, key: string) => {
     if (!online) {
       setSyncError(key, "Cannot sync while offline.");
       logActivityUI("warn", "Blocked attendance resync while offline", {
@@ -341,17 +334,13 @@ const ActivityLogs = () => {
     setSyncing(key, true);
     clearSyncError(key);
     try {
-      logActivityUI("info", force ? "Attendance force sync requested" : "Attendance resync requested", {
+      logActivityUI("info", "Attendance resync requested", {
         attendanceID,
         key,
       });
-      if (force) {
-        await ForceSyncAttendanceByID(attendanceID);
-      } else {
-        await SyncAttendanceByID(attendanceID);
-      }
+      await SyncAttendanceByID(attendanceID);
       await loadActivityData(date);
-      logActivityUI("info", force ? "Attendance force sync completed" : "Attendance resync completed", {
+      logActivityUI("info", "Attendance resync completed", {
         attendanceID,
         key,
       });
@@ -378,9 +367,8 @@ const ActivityLogs = () => {
     id: number,
     key: string,
     label: string,
-    force = false,
   ) => {
-    setPendingSync({ type, id, key, label, force });
+    setPendingSync({ type, id, key, label });
     setSyncConfirmOpen(true);
   };
 
@@ -388,15 +376,15 @@ const ActivityLogs = () => {
     if (!pendingSync) return;
 
     setSyncConfirmOpen(false);
-    const { type, id, key, force } = pendingSync;
+    const { type, id, key } = pendingSync;
     setPendingSync(null);
 
     if (type === "task") {
-      await syncTaskRecord(id, key, force);
+      await syncTaskRecord(id, key);
       return;
     }
 
-    await syncAttendanceRecord(id, key, force);
+    await syncAttendanceRecord(id, key);
   };
 
   return (
@@ -510,22 +498,12 @@ const ActivityLogs = () => {
                       syncError={syncErrorByKey[attendanceLoginKey]}
                       resyncAllowed={loginResyncAllowed}
                       resyncBlockedReason="Login resync is only available within 2 days."
-                      forceSyncAvailable
                       onSync={() =>
                         requestSync(
                           "attendance",
                           activity.attendance.ID,
                           attendanceLoginKey,
                           "Logged In",
-                        )
-                      }
-                      onForceSync={() =>
-                        requestSync(
-                          "attendance",
-                          activity.attendance.ID,
-                          attendanceLoginKey,
-                          "Logged In",
-                          true,
                         )
                       }
                     />
@@ -566,12 +544,8 @@ const ActivityLogs = () => {
                             pendingScreenshotCount > 0 ? "warning" : undefined
                           }
                           resyncAllowed={true}
-                          forceSyncAvailable
                           onSync={() =>
                             requestSync("task", record.ID, key, "Task Recorded")
-                          }
-                          onForceSync={() =>
-                            requestSync("task", record.ID, key, "Task Recorded", true)
                           }
                         />
                       );
@@ -588,22 +562,12 @@ const ActivityLogs = () => {
                         syncError={syncErrorByKey[attendanceLogoutKey]}
                         resyncAllowed={logoutResyncAllowed}
                         resyncBlockedReason="Logout resync is only available within 2 days."
-                        forceSyncAvailable
                         onSync={() =>
                           requestSync(
                             "attendance",
                             activity.attendance.ID,
                             attendanceLogoutKey,
                             "Logged Out",
-                          )
-                        }
-                        onForceSync={() =>
-                          requestSync(
-                            "attendance",
-                            activity.attendance.ID,
-                            attendanceLogoutKey,
-                            "Logged Out",
-                            true,
                           )
                         }
                       />
@@ -637,12 +601,10 @@ const ActivityLogs = () => {
         <DialogContent className="sm:max-w-[420px] rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl">
           <DialogHeader className="space-y-2">
             <DialogTitle className="text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-50">
-              {pendingSync?.force ? "Force sync to Bubble?" : "Confirm Resync or Repair"}
+              Confirm Resync or Repair
             </DialogTitle>
             <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-              {pendingSync?.force
-                ? "This will re-send this saved local record to Bubble, even if it is old or already marked synced."
-                : "Resyncing may override what was recorded by another tracker. A record missing in Bubble will create a fresh Bubble productivity record before its final details are synced."}
+              Resyncing may override what was recorded by another tracker. A record missing in Bubble will create a fresh Bubble productivity record before its final details are synced.
             </DialogDescription>
           </DialogHeader>
 
@@ -668,7 +630,7 @@ const ActivityLogs = () => {
               onClick={confirmSync}
               className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 cursor-pointer"
             >
-              {pendingSync?.force ? "Force sync" : "Continue"}
+              Continue
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -691,8 +653,6 @@ type ActivityBannerProps = {
   resyncAllowed?: boolean;
   resyncBlockedReason?: string;
   onSync: () => void;
-  forceSyncAvailable?: boolean;
-  onForceSync?: () => void;
 };
 
 function ActivityBanner({
@@ -709,8 +669,6 @@ function ActivityBanner({
   resyncAllowed = true,
   resyncBlockedReason = "Resync is no longer available for this entry.",
   onSync,
-  forceSyncAvailable = false,
-  onForceSync,
 }: ActivityBannerProps) {
   const eventTime = formatTimestamp(isoTime);
   const syncedTime = formatTimestamp(syncedAt);
@@ -819,17 +777,6 @@ function ActivityBanner({
           <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? (remoteMissing ? "Repairing..." : "Syncing...") : remoteMissing ? "Repair" : "Resync"}
         </button>
-        {forceSyncAvailable && onForceSync && (
-          <button
-            onClick={onForceSync}
-            disabled={syncing}
-            className="inline-flex items-center gap-1 rounded-full border border-amber-400 dark:border-amber-700 px-2 py-1 text-[10px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-60 cursor-pointer"
-            title="Re-send this local record to Bubble after confirmation"
-          >
-            <RotateCcw className="w-3 h-3" />
-            Force sync
-          </button>
-        )}
       </div>
     </div>
   );
