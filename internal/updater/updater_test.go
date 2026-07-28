@@ -95,3 +95,17 @@ func TestDevelopmentReleaseLookupErrorExplainsMissingOrPrivateRelease(t *testing
 		t.Fatalf("expected an actionable 404 error, got %v", err)
 	}
 }
+
+func TestDelayedInstallerCommandWaitsForTheCurrentAppToExit(t *testing.T) {
+	command := delayedInstallerCommand(`C:\Temp\FES App's Update.exe`, 4321)
+	args := strings.Join(command.Args, " ")
+	if command.Args[0] != "powershell.exe" {
+		t.Fatalf("expected PowerShell helper, got %#v", command.Args)
+	}
+	if !strings.Contains(args, "Wait-Process -Id 4321") {
+		t.Fatalf("expected helper to wait for the app process, got %q", args)
+	}
+	if !strings.Contains(args, "Start-Process -FilePath 'C:\\Temp\\FES App''s Update.exe' -ArgumentList '/S'") {
+		t.Fatalf("expected safely quoted silent installer launch, got %q", args)
+	}
+}

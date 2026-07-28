@@ -43,16 +43,15 @@ function App() {
       }
     };
 
-    const timerId = window.setTimeout(() => {
-      void checkForDevelopmentUpdate();
-    }, 10_000);
+    // App is mounted above the router, so this check and its dialog are available
+    // on the login screen as well as after authentication.
+    void checkForDevelopmentUpdate();
     const intervalId = window.setInterval(() => {
       void checkForDevelopmentUpdate();
     }, 120_000);
     const unsubscribe = EventsOn("update:download-progress", (progress: number) => setProgress(progress));
 
     return () => {
-      window.clearTimeout(timerId);
       window.clearInterval(intervalId);
       unsubscribe();
     };

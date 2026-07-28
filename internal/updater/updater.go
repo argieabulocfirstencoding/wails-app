@@ -143,7 +143,8 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 }
 
 // Install downloads only the installer selected from the manifest just checked,
-// verifies its SHA-256 file, launches NSIS, then lets the caller shut down Wails.
+// verifies its SHA-256 file, and starts a helper that waits for Wails to exit
+// before launching NSIS. This avoids asking NSIS to overwrite a running executable.
 func (s *Service) Install(ctx context.Context, progress func(int)) error {
 	if runtime.GOOS != "windows" {
 		return errors.New("desktop installation is only supported on Windows")
@@ -178,7 +179,21 @@ func (s *Service) Install(ctx context.Context, progress func(int)) error {
 	if progress != nil {
 		progress(100)
 	}
-	return exec.Command(installerPath, "/S").Start()
+	return delayedInstallerCommand(installerPath, os.Getpid()).Start()
+}
+
+func delayedInstallerCommand(installerPath string, parentPID int) *exec.Cmd {
+	script := fmt.Sprintf(
+		"$parent = Get-Process -Id %d -ErrorAction SilentlyContinue; if ($null -ne $parent) { Wait-Process -Id %d -ErrorAction SilentlyContinue }; Start-Process -FilePath %s -ArgumentList '/S'",
+		parentPID,
+		parentPID,
+		powerShellSingleQuoted(installerPath),
+	)
+	return exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
+}
+
+func powerShellSingleQuoted(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func (s *Service) currentUpdateInfo() UpdateInfo {
