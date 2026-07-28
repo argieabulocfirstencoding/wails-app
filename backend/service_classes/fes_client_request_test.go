@@ -8,6 +8,21 @@ import (
 	"testing"
 )
 
+func TestFesAPIBaseURLUsesTheDevelopmentBubbleAppForDevelopmentBuilds(t *testing.T) {
+	if got := fesAPIBaseURL("development", false); got != developmentFESAPIBaseURL {
+		t.Fatalf("expected development build to use %q, got %q", developmentFESAPIBaseURL, got)
+	}
+	if got := fesAPIBaseURL("production", true); got != developmentFESAPIBaseURL {
+		t.Fatalf("expected local development override to use %q, got %q", developmentFESAPIBaseURL, got)
+	}
+}
+
+func TestFesAPIBaseURLUsesTheProductionBubbleAppForProductionBuilds(t *testing.T) {
+	if got := fesAPIBaseURL("production", false); got != productionFESAPIBaseURL {
+		t.Fatalf("expected production build to use %q, got %q", productionFESAPIBaseURL, got)
+	}
+}
+
 func TestRequestPreservesUnauthorizedStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
