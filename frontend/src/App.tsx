@@ -11,61 +11,56 @@ import Notifications from "./pages/Main/Notifications";
 import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
 
-import { CheckForUpdates, DownloadAndInstall } from "../wailsjs/go/app/App";
+import { CheckForUpdates } from "../wailsjs/go/app/App";
+import { EventsOn } from "../wailsjs/runtime/runtime";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import OfflineLogin from "./pages/Auth/OfflineLogin";
 import Landing from "./pages/Landing";
-import { releaseFlags } from "./config/release";
-
-interface UpdateInfo {
-  exists: boolean;
-  version: string;
-  downloadUrl: string;
-}
+import { useUpdateStore } from "./store/updateStore";
+import DesktopUpdateDialog from "./components/custom/DesktopUpdateDialog";
 
 function App() {
   useFirebaseAuth();
   useOnlineStatus();
 
-  const enableReleaseUpdates = import.meta.env.VITE_ENABLE_RELEASE_UPDATES === "true";
+  const setChecking = useUpdateStore((state) => state.setChecking);
+  const setUpdate = useUpdateStore((state) => state.setUpdate);
+  const setProgress = useUpdateStore((state) => state.setProgress);
+  const setError = useUpdateStore((state) => state.setError);
 
   useEffect(() => {
-    if (!enableReleaseUpdates) {
-      return;
-    }
-
-    const handleUpdateCheck = async () => {
+    const checkForDevelopmentUpdate = async () => {
+      setChecking(true);
+      setError(null);
       try {
-        const info: UpdateInfo = await CheckForUpdates();
-
-        if (info.exists) {
-          // You could replace this with a nice Tailwind/Radix UI Modal
-          const userConfirmed = window.confirm(
-            `A new version (${info.version}) is available. Would you like to update now?`,
-          );
-
-          if (userConfirmed) {
-            console.log("Starting download...");
-            await DownloadAndInstall(info.downloadUrl);
-          }
-        }
+        const info = await CheckForUpdates();
+        setUpdate(info.available ? info : null);
       } catch (err) {
-        console.error("Failed to check for updates:", err);
+        setError(err instanceof Error ? err.message : "Unable to check for updates.");
+      } finally {
+        setChecking(false);
       }
     };
 
     const timerId = window.setTimeout(() => {
-      handleUpdateCheck();
-    }, releaseFlags.updateCheckDelayMs);
+      void checkForDevelopmentUpdate();
+    }, 10_000);
+    const intervalId = window.setInterval(() => {
+      void checkForDevelopmentUpdate();
+    }, 120_000);
+    const unsubscribe = EventsOn("update:download-progress", (progress: number) => setProgress(progress));
 
     return () => {
       window.clearTimeout(timerId);
+      window.clearInterval(intervalId);
+      unsubscribe();
     };
-  }, [enableReleaseUpdates]);
+  }, [setChecking, setError, setProgress, setUpdate]);
 
   return (
     <BrowserRouter>
+      <DesktopUpdateDialog />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/home" element={<Home />} />

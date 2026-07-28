@@ -12,6 +12,8 @@ import (
 	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
+	"fesapp/internal/buildinfo"
+	"fesapp/internal/updater"
 	"fmt"
 	"io"
 	"log"
@@ -42,6 +44,7 @@ type App struct {
 	AuthService         *service_classes.AuthService
 	SyncService         *service_classes.SyncService
 	Connectivity        *service_classes.ConnectivityStateService
+	Updater             *updater.Service
 	windowOpen          bool
 	AuthUser            *models.AuthUser
 	Logger              *utils.LoggerService
@@ -93,6 +96,7 @@ func NewApp() *App {
 		SyncService:         syncService,
 		AuthService:         authService,
 		Connectivity:        connectivity,
+		Updater:             updater.New(buildinfo.Current()),
 		Logger:              logger,
 	}
 
@@ -935,12 +939,73 @@ func (a *App) OnSecondInstanceLaunch(data options.SecondInstanceData) {
 }
 
 func (a *App) GetAppCurrentVersion() string {
-	return CurrentVersion
+	return a.Updater.BuildInfo().Version
 }
 
-// FIX BELOW IS ABOUT AUTO UPDATE PROMPTS BUT NOT WORKING CORRECTLY
+// GetBuildInfo exposes the compiled channel identity without persisting it.
+func (a *App) GetBuildInfo() buildinfo.Info {
+	return a.Updater.BuildInfo()
+}
 
-func (a *App) CheckForUpdates() UpdateInfo {
+// CheckForUpdates checks only the development manifest selected by this build.
+// Stable and beta builds receive a non-available result until their later phases.
+func (a *App) CheckForUpdates() (updater.UpdateInfo, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	info, err := a.Updater.Check(ctx)
+	if err != nil {
+		a.logUpdaterDecision("check_updates_failed", map[string]any{"error": err.Error()})
+		return info, err
+	}
+	if info.Available {
+		a.logUpdaterDecision("check_updates_available", map[string]any{
+			"current_version": info.CurrentVersion,
+			"latest_version":  info.LatestVersion,
+			"latest_commit":   info.LatestCommit,
+		})
+	}
+	return info, nil
+}
+
+// InstallUpdate downloads the manifest-selected installer, verifies its SHA-256,
+// launches NSIS, then exits the current Wails process.
+func (a *App) InstallUpdate() error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	err := a.Updater.Install(ctx, func(progress int) {
+		if a.ctx != nil {
+			runtime.EventsEmit(a.ctx, "update:download-progress", progress)
+		}
+	})
+	if err != nil {
+		a.logUpdaterDecision("install_update_failed", map[string]any{"error": err.Error()})
+		return err
+	}
+
+	a.logUpdaterDecision("install_update_started", nil)
+	if a.ctx != nil {
+		go func(ctx context.Context) {
+			time.Sleep(250 * time.Millisecond)
+			runtime.Quit(ctx)
+		}(a.ctx)
+	}
+	return nil
+}
+
+// DownloadAndInstall remains as a generated-binding compatibility shim. Its URL is
+// intentionally ignored so callers cannot install an untrusted arbitrary download.
+func (a *App) DownloadAndInstall(_ string) error {
+	return a.InstallUpdate()
+}
+
+// checkForStableUpdatesLegacy is retained temporarily only to keep the former
+// stable-release helpers compiling. It is not exposed to Wails.
+
+func (a *App) checkForStableUpdatesLegacy() UpdateInfo {
 	release, err := fetchLatestTrustedRelease()
 	if err != nil {
 		a.logUpdaterDecision("check_updates_release_error", map[string]any{"error": err.Error()})
@@ -1004,7 +1069,7 @@ func (a *App) CheckForUpdates() UpdateInfo {
 	return UpdateInfo{Exists: false}
 }
 
-func (a *App) DownloadAndInstall(url string) error {
+func (a *App) downloadAndInstallLegacy(url string) error {
 	release, err := fetchLatestTrustedRelease()
 	if err != nil {
 		a.logUpdaterDecision("download_install_release_error", map[string]any{"error": err.Error()})
