@@ -40,10 +40,6 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Type-check and build frontend
-        working-directory: frontend
-        run: npm run build
-
       - name: Run Go tests
         run: go test ./...
 
@@ -69,6 +65,9 @@ jobs:
             "-X fesapp/internal/buildinfo.BuildNumber=${{ github.run_number }}"
           ) -join " "
 
+          # Wails generates frontend/wailsjs before invoking `npm run build`.
+          # Do not type-check the frontend in a separate earlier step because a
+          # fresh GitHub Actions checkout does not yet contain those bindings.
           wails build -clean -nsis -platform windows/amd64 -ldflags "$ldflags"
 
           $sourceInstaller = Get-ChildItem build/bin -Filter "*installer.exe" |
