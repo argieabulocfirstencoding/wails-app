@@ -5,10 +5,10 @@ desktop app to download development updates without a GitHub login.
 
 ## What this creates
 
-| Repository | Visibility | Purpose |
-| --- | --- | --- |
-| `FESTrainee01/wails-app` | Private | Source code and build workflow |
-| `argieabulocfirstencoding/fesapp-updates` | Public | Installer, checksum, and update manifest only |
+| Repository                                | Visibility | Purpose                                       |
+| ----------------------------------------- | ---------- | --------------------------------------------- |
+| `FESTrainee01/wails-app`                  | Private    | Source code and build workflow                |
+| `argieabulocfirstencoding/fesapp-updates` | Public     | Installer, checksum, and update manifest only |
 
 The desktop app downloads only the public release assets. It never contains a
 GitHub token.
@@ -152,7 +152,6 @@ Do not commit the token. It must exist only in the GitHub Actions secret.
 5. Start the workflow and wait for every step to finish successfully.
 6. Open `argieabulocfirstencoding/fesapp-updates` → **Releases** → `development-latest`.
 7. Confirm these exact assets exist:
-
    - `FESApp-Development-Setup.exe`
    - `FESApp-Development-Setup.exe.sha256`
    - `development-manifest.json`
@@ -202,3 +201,4 @@ If publishing fails:
 4. Keep the desktop updater pointed at the last known-good public update
    repository, or disable development update checks until a new host is ready.
 
+check update
