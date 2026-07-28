@@ -17,7 +17,7 @@ import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import OfflineLogin from "./pages/Auth/OfflineLogin";
 import Landing from "./pages/Landing";
-import { useUpdateStore } from "./store/updateStore";
+import { updateErrorMessage, useUpdateStore } from "./store/updateStore";
 import DesktopUpdateDialog from "./components/custom/DesktopUpdateDialog";
 
 function App() {
@@ -37,7 +37,7 @@ function App() {
         const info = await CheckForUpdates();
         setUpdate(info.available ? info : null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to check for updates.");
+        setError(updateErrorMessage(err, "Unable to check for updates."));
       } finally {
         setChecking(false);
       }

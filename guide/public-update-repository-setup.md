@@ -8,7 +8,7 @@ desktop app to download development updates without a GitHub login.
 | Repository | Visibility | Purpose |
 | --- | --- | --- |
 | `FESTrainee01/wails-app` | Private | Source code and build workflow |
-| `FESTrainee01/fesapp-updates` | Public | Installer, checksum, and update manifest only |
+| `argieabulocfirstencoding/fesapp-updates` | Public | Installer, checksum, and update manifest only |
 
 The desktop app downloads only the public release assets. It never contains a
 GitHub token.
@@ -16,7 +16,7 @@ GitHub token.
 ## 1. Create the public update repository
 
 1. On GitHub, select **New repository**.
-2. Set the owner to `FESTrainee01`.
+2. Set the owner to `argieabulocfirstencoding`.
 3. Name it `fesapp-updates`.
 4. Select **Public**.
 5. Do not add source code, application configuration, environment files, or
@@ -39,7 +39,7 @@ repository. Create a fine-grained personal access token instead.
 3. Give it a clear name, for example `fesapp-development-update-publisher`.
 4. Choose an expiration date and record its rotation date. A short expiration is preferred.
 5. Under **Repository access**, choose **Only select repositories**.
-6. Select only `FESTrainee01/fesapp-updates`.
+6. Select only `argieabulocfirstencoding/fesapp-updates`.
 7. Under **Repository permissions**, set **Contents** to **Read and write**.
 8. Generate the token and copy it immediately. GitHub shows it only once.
 
@@ -66,7 +66,7 @@ At the top of the workflow, after `permissions`, add:
 
 ```yaml
 env:
-  UPDATES_REPOSITORY: FESTrainee01/fesapp-updates
+  UPDATES_REPOSITORY: argieabulocfirstencoding/fesapp-updates
 ```
 
 ### 4.2 Publish the release to the public repository
@@ -124,7 +124,7 @@ Repository = "FESTrainee01/wails-app"
 to:
 
 ```go
-Repository = "FESTrainee01/fesapp-updates"
+Repository = "argieabulocfirstencoding/fesapp-updates"
 ```
 
 The updater already validates that downloaded assets come from the configured
@@ -150,7 +150,7 @@ Do not commit the token. It must exist only in the GitHub Actions secret.
 3. Select **Run workflow**.
 4. Choose the `developer/jomary` branch.
 5. Start the workflow and wait for every step to finish successfully.
-6. Open `FESTrainee01/fesapp-updates` → **Releases** → `development-latest`.
+6. Open `argieabulocfirstencoding/fesapp-updates` → **Releases** → `development-latest`.
 7. Confirm these exact assets exist:
 
    - `FESApp-Development-Setup.exe`
@@ -160,7 +160,7 @@ Do not commit the token. It must exist only in the GitHub Actions secret.
 8. In an incognito/private browser session, open:
 
    ```text
-   https://api.github.com/repos/FESTrainee01/fesapp-updates/releases/tags/development-latest
+   https://api.github.com/repos/argieabulocfirstencoding/fesapp-updates/releases/tags/development-latest
    ```
 
    It must return JSON with the three assets listed above. A `404` means the
@@ -185,8 +185,8 @@ Expected results:
 ## Security checklist
 
 - [ ] `wails-app` remains private.
-- [ ] `fesapp-updates` contains release assets only.
-- [ ] `UPDATES_REPO_TOKEN` has access only to `fesapp-updates`.
+- [ ] `argieabulocfirstencoding/fesapp-updates` contains release assets only.
+- [ ] `UPDATES_REPO_TOKEN` has access only to `argieabulocfirstencoding/fesapp-updates`.
 - [ ] The token has an expiry date and a documented rotation owner.
 - [ ] No token appears in commits, workflow logs, installer files, or the
       public update repository.
@@ -201,5 +201,4 @@ If publishing fails:
 3. Remove the cross-repository release steps from the workflow.
 4. Keep the desktop updater pointed at the last known-good public update
    repository, or disable development update checks until a new host is ready.
-
 

@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	Repository            = "FESTrainee01/wails-app"
+	Repository            = "argieabulocfirstencoding/fesapp-updates"
 	developmentReleaseTag = "development-latest"
 	developmentManifest   = "development-manifest.json"
 	expectedInstallerName = "FESApp-Development-Setup.exe"
@@ -203,7 +203,7 @@ func (s *Service) fetchDevelopmentRelease(ctx context.Context) (*release, error)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("development release lookup failed with status %d", response.StatusCode)
+		return nil, developmentReleaseLookupError(response.StatusCode)
 	}
 	if !strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "application/json") {
 		return nil, errors.New("development release returned an unexpected content type")
@@ -217,6 +217,13 @@ func (s *Service) fetchDevelopmentRelease(ctx context.Context) (*release, error)
 		return nil, errors.New("development release tag did not match")
 	}
 	return &value, nil
+}
+
+func developmentReleaseLookupError(statusCode int) error {
+	if statusCode == http.StatusNotFound {
+		return errors.New("development update release is not published or is not publicly readable (GitHub returned 404); publish the development-latest prerelease and its assets")
+	}
+	return fmt.Errorf("development release lookup failed with status %d", statusCode)
 }
 
 func (s *Service) fetchManifest(ctx context.Context, manifestURL string) (Manifest, error) {

@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -72,18 +73,25 @@ func TestIsNewerDevelopmentBuildRequiresBothNewRunAndCommit(t *testing.T) {
 }
 
 func TestValidateReleaseAssetURL(t *testing.T) {
-	valid := "https://github.com/FESTrainee01/wails-app/releases/download/development-latest/development-manifest.json"
+	valid := "https://github.com/" + Repository + "/releases/download/development-latest/development-manifest.json"
 	if err := validateReleaseAssetURL(valid); err != nil {
 		t.Fatalf("expected valid URL, got %v", err)
 	}
 
 	for _, raw := range []string{
 		"http://github.com/FESTrainee01/wails-app/releases/download/development-latest/file.exe",
-		"https://github.com/FESTrainee01/wails-app/releases/download/v1.0.0/file.exe",
+		"https://github.com/" + Repository + "/releases/download/v1.0.0/file.exe",
 		"https://example.com/file.exe",
 	} {
 		if err := validateReleaseAssetURL(raw); err == nil {
 			t.Fatalf("expected URL %q to be rejected", raw)
 		}
+	}
+}
+
+func TestDevelopmentReleaseLookupErrorExplainsMissingOrPrivateRelease(t *testing.T) {
+	err := developmentReleaseLookupError(404)
+	if err == nil || !strings.Contains(err.Error(), "not published or is not publicly readable") {
+		t.Fatalf("expected an actionable 404 error, got %v", err)
 	}
 }

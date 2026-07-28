@@ -7,7 +7,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  UPDATES_REPOSITORY: argieabulocfirstencoding/fesapp-updates
 
 concurrency:
   group: development-update-developer-jomary
@@ -125,16 +128,16 @@ jobs:
       - name: Create the fixed development prerelease when needed
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.UPDATES_REPO_TOKEN }}
         run: |
-          gh release view development-latest 2>$null
+          gh release view development-latest --repo "$env:UPDATES_REPOSITORY" 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create development-latest --target "${{ github.sha }}" --title "Latest Development Build" --prerelease --notes "Automated development build."
+            gh release create development-latest --repo "$env:UPDATES_REPOSITORY" --target main --title "Latest Development Build" --prerelease --notes "Automated development build."
           }
 
       - name: Publish development installer and manifest
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.UPDATES_REPO_TOKEN }}
         run: |
-          gh release upload development-latest "${{ steps.build.outputs.installer_path }}" "${{ steps.build.outputs.checksum_path }}" development-manifest.json --clobber
+          gh release upload development-latest --repo "$env:UPDATES_REPOSITORY" "${{ steps.build.outputs.installer_path }}" "${{ steps.build.outputs.checksum_path }}" development-manifest.json --clobber

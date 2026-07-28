@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { GetFolderSize, ClearScreenshots, GetBuildInfo, CheckForUpdates } from "@/../wailsjs/go/app/App";
 import { releaseFlags } from "@/config/release";
-import { useUpdateStore } from "@/store/updateStore";
+import { updateErrorMessage, useUpdateStore } from "@/store/updateStore";
 
 type AccountUser = {
   fullName: string;
@@ -101,7 +101,7 @@ const AccountSettings = () => {
         setUpdateCheckMessage("No newer development build is available.");
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to check for updates.";
+      const message = updateErrorMessage(error, "Unable to check for updates.");
       setUpdateError(message);
       setUpdateCheckMessage(message);
     } finally {
