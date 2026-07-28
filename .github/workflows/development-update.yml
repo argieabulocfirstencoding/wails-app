@@ -50,7 +50,25 @@ jobs:
 
       - name: Install NSIS
         shell: pwsh
-        run: choco install nsis --yes --no-progress
+        run: |
+          choco install nsis --yes --no-progress
+
+          # Chocolatey's NSIS package installs makensis.exe under Program Files
+          # but does not consistently expose it on PATH in GitHub-hosted runners.
+          $nsisCandidates = @(
+            'C:\Program Files (x86)\NSIS\makensis.exe'
+            'C:\Program Files\NSIS\makensis.exe'
+          )
+          $makensis = $nsisCandidates |
+            Where-Object { Test-Path -LiteralPath $_ } |
+            Select-Object -First 1
+
+          if (-not $makensis) {
+            throw "NSIS was installed, but makensis.exe was not found in a supported installation directory."
+          }
+
+          Split-Path -Parent $makensis | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $makensis /VERSION
 
       - name: Build the development installer
         id: build
