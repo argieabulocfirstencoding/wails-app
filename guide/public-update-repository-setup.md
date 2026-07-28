@@ -202,3 +202,4 @@ If publishing fails:
 4. Keep the desktop updater pointed at the last known-good public update
    repository, or disable development update checks until a new host is ready.
 
+
