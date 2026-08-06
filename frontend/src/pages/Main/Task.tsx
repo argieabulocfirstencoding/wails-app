@@ -112,7 +112,7 @@ const Task = () => {
 
         if (result.syncFailureCode === "session_expired") {
           setSyncNotice(
-            "Time was saved locally. Your Bubble session expired—use Sync to sign in again and upload it.",
+            "Time was saved locally. Your Bubble session needs renewal—use Sync to sign in again and upload it.",
           );
         } else if (result.syncFailureCode === "offline") {
           setSyncNotice(

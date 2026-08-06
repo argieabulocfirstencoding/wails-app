@@ -106,6 +106,13 @@ func (s *SyncService) Connect(ctx context.Context) error {
 
 func (s *SyncService) SetAuthUser(authUser *models.AuthUser) {
 	s.AuthUser = authUser
+	if s.FesClientService != nil {
+		if authUser == nil {
+			s.FesClientService.ClearActiveBubbleSession(true)
+		} else {
+			s.FesClientService.SetActiveSessionUser(authUser.LocalID)
+		}
+	}
 	if s.Backblaze != nil {
 		s.Backblaze.SetAuthUser(authUser)
 	}

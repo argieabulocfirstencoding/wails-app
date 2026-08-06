@@ -14,7 +14,7 @@ func TestStableClientErrorMapsExpiredBubbleSession(t *testing.T) {
 	if !errors.As(err, &stable) {
 		t.Fatalf("expected StableError, got %T", err)
 	}
-	if stable.Code != "SESSION_EXPIRED" {
-		t.Fatalf("expected SESSION_EXPIRED, got %q", stable.Code)
+	if stable.Code != "SESSION_REAUTH_REQUIRED" {
+		t.Fatalf("expected SESSION_REAUTH_REQUIRED, got %q", stable.Code)
 	}
 }

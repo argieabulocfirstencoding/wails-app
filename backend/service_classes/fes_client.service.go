@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
@@ -42,7 +43,12 @@ type FesClientService struct {
 	TaskRepository *repository.TaskRepository
 	Connectivity   *ConnectivityStateService
 	ctx            context.Context
-	apiToken       string
+
+	sessionMu     sync.Mutex
+	sessionStore  bubbleSessionStore
+	sessionScope  string
+	sessionUserID string
+	session       *bubbleSession
 }
 
 type ClientAccount struct {
@@ -172,8 +178,8 @@ func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientSe
 	}
 
 	baseUrl := "https://firstencoding.app/api/1.1/"
-	_, exists := os.LookupEnv("DEVELOPMENT")
-	if exists {
+	_, localDevelopmentOverride := os.LookupEnv("DEVELOPMENT")
+	if localDevelopmentOverride {
 		baseUrl = "https://firstencoding.app/version-test/api/1.1/"
 	}
 
@@ -184,32 +190,94 @@ func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientSe
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
 		Connectivity:   connectivityState,
+		sessionStore:   systemBubbleSessionStore{},
+		sessionScope:   bubbleSessionScope(localDevelopmentOverride),
 	}
 
 }
 
 // ============== GENERAL METHODS =======================
 
-func (f *FesClientService) getApiToken() string {
-	if f.apiToken != "" {
-		return f.apiToken
+func bubbleSessionScope(localDevelopmentOverride bool) string {
+	if localDevelopmentOverride {
+		return "development"
 	}
-
-	if apiToken, err := keyring.Get("credentials", "fes_api_token"); err == nil {
-		f.apiToken = apiToken
-		return apiToken
-	}
-
-	return ""
+	return "production"
 }
 
-func (f *FesClientService) SetApiToken(token string) {
-	f.apiToken = token
-	keyring.Set("credentials", "fes_api_token", token)
+func (f *FesClientService) SetActiveSessionUser(userID string) {
+	f.sessionMu.Lock()
+	defer f.sessionMu.Unlock()
+
+	f.sessionUserID = strings.TrimSpace(userID)
+	f.session = nil
+}
+
+func (f *FesClientService) SetBubbleSession(userID, token string, expiresIn time.Duration) error {
+	userID = strings.TrimSpace(userID)
+	token = strings.TrimSpace(token)
+	if userID == "" || token == "" {
+		return fmt.Errorf("cannot store Bubble session without user and token")
+	}
+	if expiresIn <= 0 {
+		return fmt.Errorf("cannot store Bubble session with invalid expiry")
+	}
+
+	session := &bubbleSession{
+		UserID:      userID,
+		Environment: f.sessionScope,
+		Token:       token,
+		ExpiresAt:   time.Now().Add(expiresIn),
+	}
+	if err := f.storeBubbleSession(session); err != nil {
+		return err
+	}
+
+	f.sessionMu.Lock()
+	f.sessionUserID = userID
+	f.session = session
+	f.sessionMu.Unlock()
+
+	// Do not reuse the old unscoped token after a successful secure login.
+	if _, ok := f.sessionStore.(systemBubbleSessionStore); ok {
+		_ = keyring.Delete("credentials", "fes_api_token")
+	}
+	return nil
+}
+
+func (f *FesClientService) ClearActiveBubbleSession(removeStored bool) {
+	f.sessionMu.Lock()
+	userID := f.sessionUserID
+	f.session = nil
+	f.sessionUserID = ""
+	f.sessionMu.Unlock()
+
+	if removeStored && userID != "" && f.sessionStore != nil {
+		_ = f.sessionStore.Delete(bubbleSessionKey(f.sessionScope, userID))
+	}
+}
+
+func (f *FesClientService) authorizedApiToken() (string, error) {
+	session, err := f.activeBubbleSession()
+	if err != nil {
+		return "", err
+	}
+	if time.Now().Add(bubbleSessionExpiryBuffer).After(session.ExpiresAt) {
+		f.ClearActiveBubbleSession(true)
+		return "", newSessionReauthenticationError()
+	}
+	return session.Token, nil
 }
 
 func (f *FesClientService) Request(request types.Request) (map[string]interface{}, error) {
-	apiToken := f.getApiToken()
+	apiToken := ""
+	if request.Url != "wf/login" {
+		var err error
+		apiToken, err = f.authorizedApiToken()
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	url := f.baseUrl + request.Url
 	reqType := request.Method
@@ -227,7 +295,9 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	}
 
 	// Set headers
-	req.Header.Set("Authorization", "Bearer "+apiToken)
+	if apiToken != "" {
+		req.Header.Set("Authorization", "Bearer "+apiToken)
+	}
 	req.Header.Set("Content-Type", "application/json") // important for JSON
 
 	res, err := f.client.Do(req)
@@ -242,6 +312,10 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	}
 
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		if res.StatusCode == http.StatusUnauthorized {
+			f.ClearActiveBubbleSession(true)
+			return nil, newSessionReauthenticationError()
+		}
 		errMsg := http.StatusText(res.StatusCode)
 
 		var parsed map[string]any
@@ -262,7 +336,7 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 		return nil, err
 	}
 
-	f.logger.Printlnf("RESULT: %v", result)
+	f.logger.Printf("FES API request completed endpoint=%s status=%d", request.Url, res.StatusCode)
 	response, ok := result["response"].(map[string]any)
 	if !ok {
 		errorMessage, ok := result["message"].(string)
@@ -447,7 +521,10 @@ func (f *FesClientService) SyncClientsAndProjects() error {
 
 // FetchClients retrieves clients in bubble and store them directly in the database
 func (f *FesClientService) fetchClients() error {
-	apiToken := f.getApiToken()
+	apiToken, err := f.authorizedApiToken()
+	if err != nil {
+		return err
+	}
 
 	fmt.Println("Fetching FES Client Lists")
 	targetUrl := f.baseUrl + "obj/clients?cursor="
@@ -464,12 +541,18 @@ func (f *FesClientService) fetchClients() error {
 		req.Header.Set("Authorization", "Bearer "+apiToken)
 		req.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{}
-		res, err := client.Do(req)
+		res, err := f.client.Do(req)
 		if err != nil {
 			return fmt.Errorf("error when on request :%w", err)
 		}
 		defer res.Body.Close()
+		if res.StatusCode == http.StatusUnauthorized {
+			f.ClearActiveBubbleSession(true)
+			return newSessionReauthenticationError()
+		}
+		if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+			return types.NewRemoteAPIError("FES API", res.StatusCode, http.StatusText(res.StatusCode))
+		}
 
 		var result map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
@@ -534,7 +617,10 @@ func (f *FesClientService) fetchClients() error {
 }
 
 func (f *FesClientService) fetchProjects() error {
-	apiToken := f.getApiToken()
+	apiToken, err := f.authorizedApiToken()
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Fetching FES Projects")
 	targetUrl := f.baseUrl + "obj/projects-projects?limit=100&cursor="
@@ -550,12 +636,18 @@ func (f *FesClientService) fetchProjects() error {
 		req.Header.Set("Authorization", "Bearer "+apiToken)
 		req.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{}
-		res, err := client.Do(req)
+		res, err := f.client.Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to send request: %w", err)
 		}
 		defer res.Body.Close()
+		if res.StatusCode == http.StatusUnauthorized {
+			f.ClearActiveBubbleSession(true)
+			return newSessionReauthenticationError()
+		}
+		if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+			return types.NewRemoteAPIError("FES API", res.StatusCode, http.StatusText(res.StatusCode))
+		}
 
 		var result map[string]interface{}
 		if err := json.NewDecoder(res.Body).Decode(&result); err != nil {

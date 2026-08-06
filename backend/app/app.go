@@ -1271,7 +1271,7 @@ func (a *App) stableClientError(op string, err error) error {
 
 	var remoteErr *types.RemoteAPIError
 	if errors.As(err, &remoteErr) && remoteErr.StatusCode == http.StatusUnauthorized {
-		return types.NewStableError("SESSION_EXPIRED", "Your Bubble session expired. Sign in again, then retry sync.")
+		return types.NewStableError("SESSION_REAUTH_REQUIRED", "Your Bubble session needs renewal. Sign in to resume sync; your tracked time is saved locally.")
 	}
 
 	utils.Logger.Printf("app error op=%s user_id=%s err=%v", op, a.safeUserID(), err)

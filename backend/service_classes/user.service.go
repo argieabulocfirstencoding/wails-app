@@ -38,6 +38,12 @@ func (u *UserService) CreateUser(id string, email string) (*models.User, error) 
 	return u.userRepo.CreateUser(id, email)
 }
 
+func (u *UserService) SetActiveBubbleSessionUser(userID string) {
+	if u != nil && u.fesClient != nil {
+		u.fesClient.SetActiveSessionUser(userID)
+	}
+}
+
 // SaveLoginEmployeeID persists the Employee thing ID supplied by wf/login.
 // Employee profile enrichment is optional; task sync must retain this
 // authoritative relationship even when wf/employee_details is empty.

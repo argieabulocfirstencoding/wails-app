@@ -427,6 +427,10 @@ func (t *TaskService) StopTracking(taskId string) (*StopTrackingResult, error) {
 }
 
 func taskSyncFailureCode(err error) string {
+	var stableErr *types.StableError
+	if errors.As(err, &stableErr) && stableErr.Code == "SESSION_REAUTH_REQUIRED" {
+		return "session_expired"
+	}
 	var remoteErr *types.RemoteAPIError
 	if errors.As(err, &remoteErr) && remoteErr.StatusCode == 401 {
 		return "session_expired"

@@ -7,7 +7,9 @@ import (
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type AuthService struct {
@@ -170,7 +172,14 @@ func (a *AuthService) AttemptLogin(identifier, password string) (*authenticatedL
 		return nil, a.Logger.Error("login response token has invalid format")
 	}
 
-	a.TaskService.SyncService.FesClientService.SetApiToken(token)
+	expiresIn, err := bubbleSessionDuration(resp["expires"])
+	if err != nil {
+		return nil, err
+	}
+	if err := a.TaskService.SyncService.FesClientService.SetBubbleSession(userId, token, expiresIn); err != nil {
+		return nil, err
+	}
+	a.UserService.SetActiveBubbleSessionUser(userId)
 
 	authenticatedEmail := authenticatedEmailFromLoginResponse(resp, identifier)
 	_, create_user_err := a.UserService.CreateUser(userId, authenticatedEmail)
@@ -183,6 +192,30 @@ func (a *AuthService) AttemptLogin(identifier, password string) (*authenticatedL
 		Email:      authenticatedEmail,
 		EmployeeID: loginEmployeeIDFromResponse(resp),
 	}, nil
+}
+
+func bubbleSessionDuration(value any) (time.Duration, error) {
+	var seconds int64
+	switch v := value.(type) {
+	case float64:
+		seconds = int64(v)
+		if v != float64(seconds) {
+			return 0, fmt.Errorf("login response expires has invalid format")
+		}
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("login response expires has invalid format")
+		}
+		seconds = parsed
+	default:
+		return 0, fmt.Errorf("login response missing expires")
+	}
+
+	if seconds <= 0 || seconds > int64((366*24*time.Hour)/time.Second) {
+		return 0, fmt.Errorf("login response expires is outside the allowed range")
+	}
+	return time.Duration(seconds) * time.Second, nil
 }
 
 // loginEmployeeIDFromResponse extracts the Employee thing ID returned by the

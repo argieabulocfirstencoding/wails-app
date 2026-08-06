@@ -106,6 +106,10 @@ func TestRemoteMissingTaskRecordRequiresExplicitRepair(t *testing.T) {
 }
 
 func TestTaskSyncFailureCode(t *testing.T) {
+	if got := taskSyncFailureCode(types.NewStableError("SESSION_REAUTH_REQUIRED", "sign in again")); got != "session_expired" {
+		t.Fatalf("expected session_expired for a reauthentication error, got %q", got)
+	}
+
 	unauthorized := types.NewRemoteAPIError("FES API", 401, "Invalid or expired token")
 	if got := taskSyncFailureCode(unauthorized); got != "session_expired" {
 		t.Fatalf("expected session_expired for 401, got %q", got)
@@ -177,9 +181,7 @@ func TestCompletedRecordWithProductivityOnlySendsTaskOut(t *testing.T) {
 	connectivity := NewConnectivityStateService()
 	connectivity.SetOnline(true)
 	syncService := NewSyncService(connectivity)
-	fesClient := NewFesClientService(connectivity)
-	fesClient.baseUrl = server.URL + "/"
-	fesClient.client = server.Client()
+	fesClient, _ := newTestFesClient(t, server)
 	syncService.FesClientService = fesClient
 	syncService.AuthUser = &models.AuthUser{LocalID: user.ID}
 
@@ -241,9 +243,7 @@ func TestForceSyncAttendanceResendsAnAlreadySyncedLogout(t *testing.T) {
 	connectivity := NewConnectivityStateService()
 	connectivity.SetOnline(true)
 	syncService := NewSyncService(connectivity)
-	fesClient := NewFesClientService(connectivity)
-	fesClient.baseUrl = server.URL + "/"
-	fesClient.client = server.Client()
+	fesClient, _ := newTestFesClient(t, server)
 	syncService.FesClientService = fesClient
 	syncService.AuthUser = &models.AuthUser{LocalID: user.ID, Email: user.Email}
 
