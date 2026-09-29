@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -157,11 +158,12 @@ func NewTaskRecord(userId, taskId string, attendanceId uint, padagan bool) (*mod
 	now := time.Now()
 
 	record := models.TaskRecord{
-		UserID:       userId,
-		AttendanceID: attendanceId,
-		TaskID:       taskId,
-		Padagan:      padagan,
-		StartedAt:    now,
+		ClientSessionID: models.StringPtr(uuid.NewString()),
+		UserID:          userId,
+		AttendanceID:    attendanceId,
+		TaskID:          taskId,
+		Padagan:         padagan,
+		StartedAt:       now,
 	}
 
 	if err := CalculateGap(&record, now); err != nil {

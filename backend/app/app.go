@@ -229,6 +229,14 @@ func (a *App) StopTracking(taskId string) (*service_classes.StopTrackingResult, 
 	return result, nil
 }
 
+func (a *App) StopTrackingRecord(taskRecordID uint) (*service_classes.StopTrackingResult, error) {
+	result, err := a.AuthService.TaskService.StopTrackingRecord(taskRecordID)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // NOTE this is offline login
 func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	correlationID := utils.NewCorrelationID("login_offline")

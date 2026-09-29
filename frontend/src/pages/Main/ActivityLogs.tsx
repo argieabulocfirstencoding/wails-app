@@ -119,6 +119,7 @@ const statusLabel = (syncStatus?: string, syncedAt?: unknown): string => {
   if (syncStatus?.toLowerCase() === "remote_missing") {
     return "Missing in Bubble";
   }
+  if (syncStatus?.toLowerCase() === "identity_conflict") return "Review required";
   if (syncStatus?.toLowerCase() === "pending") return "Pending";
   return "Unsynced";
 };
@@ -674,9 +675,11 @@ function ActivityBanner({
   const syncedTime = formatTimestamp(syncedAt);
   const synced = isSynced(syncStatus, syncedAt);
   const remoteMissing = syncStatus?.toLowerCase() === "remote_missing";
+  const identityConflict = syncStatus?.toLowerCase() === "identity_conflict";
+  const requiresReview = remoteMissing || identityConflict;
   const currentStatus = statusLabelOverride ?? statusLabel(syncStatus, syncedAt);
   const currentTone =
-    statusTone ?? (synced ? "success" : remoteMissing ? "warning" : "danger");
+    statusTone ?? (synced ? "success" : requiresReview ? "warning" : "danger");
   const pendingNote =
     pendingScreenshotCount > 0
       ? syncing
@@ -712,6 +715,11 @@ function ActivityBanner({
           {!resyncAllowed && (
             <p className="text-[10px] text-amber-600 dark:text-amber-400">
               {resyncBlockedReason}
+            </p>
+          )}
+          {requiresReview && (
+            <p className="text-[10px] text-amber-600 dark:text-amber-400">
+              Review the matching Bubble session before resyncing this record.
             </p>
           )}
         </div>
@@ -760,10 +768,12 @@ function ActivityBanner({
 
         <button
           onClick={onSync}
-          disabled={syncing || !resyncAllowed}
+          disabled={syncing || !resyncAllowed || requiresReview}
           className="inline-flex items-center gap-1 rounded-full border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-[10px] font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-60 cursor-pointer"
           title={
-            resyncAllowed
+            requiresReview
+              ? "Review the matching Bubble session first"
+              : resyncAllowed
               ? pendingScreenshotCount > 0
                 ? "Retry task record and pending screenshot uploads"
               : synced
@@ -775,7 +785,7 @@ function ActivityBanner({
           }
         >
           <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? (remoteMissing ? "Repairing..." : "Syncing...") : remoteMissing ? "Repair" : "Resync"}
+          {syncing ? "Syncing..." : requiresReview ? "Review required" : "Resync"}
         </button>
       </div>
     </div>

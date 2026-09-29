@@ -277,6 +277,7 @@ func TestParseBubbleProductivitiesKeepsLegacyRowWithoutAttendanceID(t *testing.T
 	startedAt := attendanceTime.Add(5 * time.Minute)
 	parsed, err := parseBubbleProductivities([]any{map[string]any{
 		"_id":                 "productivity-legacy-1",
+		"client_session_id":   "desktop-session-1",
 		"EmployeeID":          "employee-1",
 		"Projects - Projects": []any{"task-management"},
 		"Modified Date":       float64(startedAt.Add(time.Minute).UnixMilli()),
@@ -295,6 +296,9 @@ func TestParseBubbleProductivitiesKeepsLegacyRowWithoutAttendanceID(t *testing.T
 	}
 	if parsed.Records[0].TaskID != "task-management" {
 		t.Fatalf("expected list-shaped project reference to be accepted, got %#v", parsed.Records[0])
+	}
+	if parsed.Records[0].ClientSessionID != "desktop-session-1" {
+		t.Fatalf("expected client session identity to be preserved, got %#v", parsed.Records[0])
 	}
 }
 

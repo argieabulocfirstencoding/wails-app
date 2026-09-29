@@ -1,6 +1,7 @@
 package service_classes
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -55,19 +56,20 @@ type bubbleAttendanceRecord struct {
 }
 
 type bubbleProductivityRecord struct {
-	ID             string
-	EmployeeID     string
-	ModifiedAt     time.Time
-	AttendanceID   string
-	AttendanceTime time.Time
-	TaskID         string
-	StartedAt      time.Time
-	EndedAt        *time.Time
-	Duration       int32
-	Notes          string
-	Padagan        bool
-	TaskTitle      string
-	ProjectName    string
+	ID              string
+	ClientSessionID string
+	EmployeeID      string
+	ModifiedAt      time.Time
+	AttendanceID    string
+	AttendanceTime  time.Time
+	TaskID          string
+	StartedAt       time.Time
+	EndedAt         *time.Time
+	Duration        int32
+	Notes           string
+	Padagan         bool
+	TaskTitle       string
+	ProjectName     string
 }
 
 type bubbleProductivityParseResult struct {
@@ -76,6 +78,24 @@ type bubbleProductivityParseResult struct {
 }
 
 func (s *SyncService) SyncBrowserRecords() (*BrowserSyncResult, error) {
+	if s == nil {
+		return nil, fmt.Errorf("browser sync service is unavailable")
+	}
+	var result *BrowserSyncResult
+	// Every caller waits for its own result. Do not use a deduplication key:
+	// skipping a pending job would return a nil result to the second caller.
+	err := s.enqueueAndWait(&syncJob{
+		name: "sync_browser_records",
+		fn: func(context.Context) error {
+			var err error
+			result, err = s.syncBrowserRecordsNow()
+			return err
+		},
+	})
+	return result, err
+}
+
+func (s *SyncService) syncBrowserRecordsNow() (*BrowserSyncResult, error) {
 	if s == nil || s.FesClientService == nil {
 		return nil, fmt.Errorf("browser sync service is unavailable")
 	}
@@ -145,6 +165,8 @@ func (s *SyncService) SyncBrowserRecords() (*BrowserSyncResult, error) {
 			}
 			if conflict {
 				result.Conflicts++
+				result.VerificationSkipped = true
+				result.VerificationWarning = "Some Bubble sessions conflict with local records; review is required before synchronization"
 			}
 			if local != nil {
 				attendanceByRemoteID[remote.ID] = local
@@ -213,6 +235,8 @@ func (s *SyncService) SyncBrowserRecords() (*BrowserSyncResult, error) {
 			}
 			if conflict {
 				result.Conflicts++
+				result.VerificationSkipped = true
+				result.VerificationWarning = "Some Bubble sessions conflict with local records; review is required before synchronization"
 			}
 			if skipped {
 				result.Skipped++
@@ -446,12 +470,44 @@ func reconcileBrowserProductivity(tx *gorm.DB, userID string, attendance *models
 		return false, false, false, false, err
 	}
 
-	var local models.TaskRecord
-	err := tx.Where("user_id = ? AND productivity = ?", userID, remote.ID).First(&local).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	remote.ClientSessionID = strings.TrimSpace(remote.ClientSessionID)
+	var matches []models.TaskRecord
+	query := tx.Where("user_id = ?", userID)
+	if remote.ClientSessionID == "" {
+		query = query.Where("productivity = ?", remote.ID)
+	} else {
+		query = query.Where("productivity = ? OR client_session_id = ?", remote.ID, remote.ClientSessionID)
+	}
+	if err := query.Find(&matches).Error; err != nil {
+		return false, false, false, false, err
+	}
+	if len(matches) > 1 {
+		return false, false, true, false, nil
+	}
+	if len(matches) == 0 {
+		// Timestamp equality is only a conflict detector, never proof of identity.
+		// Bubble truncates task_in to milliseconds whereas local time has nanos.
+		var candidates []models.TaskRecord
+		if err := tx.Where("user_id = ? AND attendance_id = ? AND task_id = ? AND (productivity IS NULL OR TRIM(productivity) = '')", userID, attendance.ID, remote.TaskID).
+			Find(&candidates).Error; err != nil {
+			return false, false, false, false, err
+		}
+		conflict := false
+		for _, candidate := range candidates {
+			if candidate.StartedAt.UnixMilli() == remote.StartedAt.UnixMilli() {
+				conflict = true
+				if err := tx.Model(&models.TaskRecord{}).Where("id = ?", candidate.ID).
+					Updates(map[string]any{"sync_status": syncStateIdentityConflict, "last_error": "A Bubble session matches this task's start time but its identity is unresolved; review required"}).Error; err != nil {
+					return false, false, false, false, err
+				}
+			}
+		}
+		if conflict {
+			return false, false, true, false, nil
+		}
 		now := time.Now()
 		remoteID := remote.ID
-		local = models.TaskRecord{
+		local := models.TaskRecord{
 			UserID:           userID,
 			AttendanceID:     attendance.ID,
 			TaskID:           remote.TaskID,
@@ -465,16 +521,48 @@ func reconcileBrowserProductivity(tx *gorm.DB, userID string, attendance *models
 			SyncedAt:         &now,
 			SyncStatus:       syncStateSynced,
 		}
+		if remote.ClientSessionID != "" {
+			local.ClientSessionID = &remote.ClientSessionID
+		}
 		if err := tx.Create(&local).Error; err != nil {
 			return false, false, false, false, err
 		}
 		return true, false, false, false, nil
 	}
-	if err != nil {
-		return false, false, false, false, err
+	local := matches[0]
+	if local.TaskID != remote.TaskID || local.AttendanceID != attendance.ID ||
+		(local.ClientSessionID != nil && remote.ClientSessionID != "" && *local.ClientSessionID != remote.ClientSessionID) ||
+		(taskRecordHasRemoteProductivity(&local) && *local.Productivity != remote.ID) {
+		if !taskRecordHasRemoteProductivity(&local) {
+			if err := tx.Model(&models.TaskRecord{}).Where("id = ?", local.ID).
+				Updates(map[string]any{"sync_status": syncStateIdentityConflict, "last_error": "Bubble session identity conflicts with the local task or attendance; review required"}).Error; err != nil {
+				return false, false, false, false, err
+			}
+		}
+		return false, false, true, false, nil
+	}
+	linked := false
+	if !taskRecordHasRemoteProductivity(&local) {
+		if local.StartedAt.UnixMilli() != remote.StartedAt.UnixMilli() {
+			return false, false, true, false, nil
+		}
+		// Keep all local session data and pending task-out work. Linking identity
+		// is not acknowledgement of any local changes.
+		if err := tx.Model(&models.TaskRecord{}).Where("id = ?", local.ID).
+			Updates(map[string]any{"productivity": remote.ID, "sync_status": syncStatePending, "last_error": "", "synced_at": nil}).Error; err != nil {
+			return false, false, false, false, err
+		}
+		return false, true, false, false, nil
+	}
+	if local.ClientSessionID == nil && remote.ClientSessionID != "" {
+		if err := tx.Model(&models.TaskRecord{}).Where("id = ?", local.ID).Update("client_session_id", remote.ClientSessionID).Error; err != nil {
+			return false, false, false, false, err
+		}
+		local.ClientSessionID = &remote.ClientSessionID
+		linked = true
 	}
 	if hasProtectedLocalSyncState(local.SyncStatus) {
-		return false, false, true, false, nil
+		return false, linked, true, false, nil
 	}
 	if !remoteIsNewer(remote.ModifiedAt, local.RemoteModifiedAt) {
 		return false, false, false, false, nil
@@ -615,7 +703,7 @@ func ensureBrowserTask(tx *gorm.DB, remote bubbleProductivityRecord) (bool, erro
 
 func hasProtectedLocalSyncState(state string) bool {
 	switch strings.ToLower(strings.TrimSpace(state)) {
-	case syncStatePending, syncStateFailed, syncStateBlocked, syncStateInProgress:
+	case syncStatePending, syncStateFailed, syncStateBlocked, syncStateInProgress, syncStateIdentityConflict:
 		return true
 	default:
 		return false
@@ -675,7 +763,8 @@ func parseBubbleProductivities(value any) (bubbleProductivityParseResult, error)
 		}
 		attendanceTime, _ := bubbleTime(item, "Date")
 		out.Records = append(out.Records, bubbleProductivityRecord{
-			ID: id, EmployeeID: employeeID, AttendanceID: attendanceID, AttendanceTime: attendanceTime, TaskID: taskID,
+			ClientSessionID: bubbleString(item, "client_session_id"),
+			ID:              id, EmployeeID: employeeID, AttendanceID: attendanceID, AttendanceTime: attendanceTime, TaskID: taskID,
 			ModifiedAt: modifiedAt, StartedAt: startedAt, EndedAt: endedAt,
 			Duration:    int32(bubbleNumber(item, "Total Task Time")),
 			Notes:       bubbleString(item, "ActivityDescription"),

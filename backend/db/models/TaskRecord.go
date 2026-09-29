@@ -19,6 +19,9 @@ type TaskRecord struct {
 	Duration               int32      `gorm:"not null;default:0"`
 	SyncedAt               *time.Time
 	Productivity           *string
+	ClientSessionID        *string
+	TaskInAttemptedAt      *time.Time
+	TaskInIdempotent       bool `gorm:"not null;default:false"`
 	RemoteModifiedAt       *time.Time
 	SyncStatus             string `gorm:"not null;default:'pending';index:idx_task_records_attendance_sync_started,priority:2"`
 	AttemptCount           int32  `gorm:"not null;default:0"`

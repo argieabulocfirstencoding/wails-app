@@ -6,14 +6,14 @@ import {
   CirclePlay,
   StopCircle,
 } from "lucide-react";
-import React, { forwardRef, useEffect, useState } from "react";
+import React, { forwardRef, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
 import upworkLogo from "@/assets/images/upwork_logo.png";
 import {
   GetMonitorCount,
   StartTracking,
-  StopTracking,
+  StopTrackingRecord,
   GetLastTaskRecord,
   AddMemo,
   OpenUpwork,
@@ -51,6 +51,8 @@ interface ScreenshotProps {
   pictures: string[];
 }
 
+type TrackingAction = "idle" | "starting" | "stopping";
+
 const Task = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -70,11 +72,32 @@ const Task = () => {
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
   const [syncNotice, setSyncNotice] = useState("");
+  const [trackingAction, setTrackingAction] =
+    useState<TrackingAction>("idle");
+  const actionRef = useRef<TrackingAction>("idle");
+  const hydrationRequestRef = useRef(0);
+  const pendingHydrationRef = useRef(false);
 
   const { setTaskID, tasks, online, synced } = useAuthStore();
 
+  function beginTrackingAction(action: Exclude<TrackingAction, "idle">) {
+    if (actionRef.current !== "idle") return false;
+    actionRef.current = action;
+    setTrackingAction(action);
+    return true;
+  }
+
+  async function finishTrackingAction() {
+    actionRef.current = "idle";
+    setTrackingAction("idle");
+    if (pendingHydrationRef.current) {
+      pendingHydrationRef.current = false;
+      await hydrateTaskRecord();
+    }
+  }
+
   async function startTime() {
-    if (!id) return;
+    if (!id || !isHydrated || !beginTrackingAction("starting")) return;
 
     try {
       setSyncing(true);
@@ -82,17 +105,12 @@ const Task = () => {
       const timeStart = Date.now();
       await StartTracking(id, JSON.stringify(timeStart), isPadagan);
 
-      resetTimer();
-      if (lastTaskRecord) {
-        lastTaskRecord.padagan = isPadagan;
-      }
-
-      setStart(true);
-      setStartTime(timeStart);
+      await hydrateTaskRecord(true);
     } catch (error) {
       console.error("StartTracking failed:", error);
     } finally {
       setSyncing(false);
+      await finishTrackingAction();
     }
   }
 
@@ -103,38 +121,37 @@ const Task = () => {
   }
 
   async function stopTime() {
+    const taskRecordID = lastTaskRecord?.id;
+    if (!taskRecordID || !beginTrackingAction("stopping")) return;
+
     setSyncing(true);
     setSyncNotice("");
     try {
-      if (id) {
-        const result = await StopTracking(id);
-        setSynced(result.syncStatus === "synced");
+      const result = await StopTrackingRecord(taskRecordID);
+      setSynced(result.syncStatus === "synced");
 
-        if (result.syncFailureCode === "session_expired") {
-          setSyncNotice(
-            "Time was saved locally. Your Bubble session expired—use Sync to sign in again and upload it.",
-          );
-        } else if (result.syncFailureCode === "offline") {
-          setSyncNotice(
-            "Time was saved locally. Connect to the internet and use Sync to upload it.",
-          );
-        } else if (result.syncFailureCode === "sync_failed") {
-          setSyncNotice(
-            "Time was saved locally, but Bubble could not be updated. Use Sync to retry it.",
-          );
-        }
+      if (result.syncFailureCode === "session_expired") {
+        setSyncNotice(
+          "Time was saved locally. Your Bubble session expired—use Sync to sign in again and upload it.",
+        );
+      } else if (result.syncFailureCode === "offline") {
+        setSyncNotice(
+          "Time was saved locally. Connect to the internet and use Sync to upload it.",
+        );
+      } else if (result.syncFailureCode === "sync_failed") {
+        setSyncNotice(
+          "Time was saved locally, but Bubble could not be updated. Use Sync to retry it.",
+        );
       }
 
       setTaskID(null);
-      const timeStop = Date.now();
-      setStart(false);
-      setEndTime(timeStop);
-      await hydrateTaskRecord();
+      await hydrateTaskRecord(true);
     } catch (error) {
       console.error("StopTracking failed:", error);
       setSyncNotice("The task could not be stopped locally. Please try again.");
     } finally {
       setSyncing(false);
+      await finishTrackingAction();
     }
   }
 
@@ -162,11 +179,24 @@ const Task = () => {
     setMonitor(monitorCount);
   }
 
-  async function hydrateTaskRecord() {
+  async function hydrateTaskRecord(allowDuringAction = false) {
     if (!id) return;
+    if (actionRef.current !== "idle" && !allowDuringAction) {
+      pendingHydrationRef.current = true;
+      return;
+    }
+
+    const requestID = ++hydrationRequestRef.current;
 
     try {
       const response = await GetLastTaskRecord(id);
+      if (
+        requestID !== hydrationRequestRef.current ||
+        (actionRef.current !== "idle" && !allowDuringAction)
+      ) {
+        pendingHydrationRef.current = true;
+        return;
+      }
       const record = response?.record;
 
       if (!record || !record.started_at) {
@@ -501,16 +531,39 @@ const Task = () => {
               {titleLower.includes("break") ||
               titleLower.includes("training") ? (
                 isStarted ? (
-                  <StopButton onClick={stopTime} />
+                  <StopButton
+                    onClick={stopTime}
+                    disabled={
+                      trackingAction !== "idle" || !lastTaskRecord?.id
+                    }
+                    label={
+                      trackingAction === "stopping" ? "Stopping…" : "Stop"
+                    }
+                  />
                 ) : (
-                  <StartButton onClick={startTime} />
+                  <StartButton
+                    onClick={startTime}
+                    disabled={trackingAction !== "idle" || !isHydrated}
+                    label={
+                      trackingAction === "starting" ? "Starting…" : "Start"
+                    }
+                  />
                 )
               ) : isStarted ? (
-                <StopButton onClick={stopTime} />
+                <StopButton
+                  onClick={stopTime}
+                  disabled={trackingAction !== "idle" || !lastTaskRecord?.id}
+                  label={trackingAction === "stopping" ? "Stopping…" : "Stop"}
+                />
               ) : (
                 <Dialog>
                   <DialogTrigger asChild>
-                    <StartButton />
+                    <StartButton
+                      disabled={trackingAction !== "idle" || !isHydrated}
+                      label={
+                        trackingAction === "starting" ? "Starting…" : "Start"
+                      }
+                    />
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
@@ -590,8 +643,12 @@ const Task = () => {
                         <Button variant="outline">Cancel</Button>
                       </DialogClose>
                       <DialogClose asChild>
-                        <Button type="submit" onClick={startTime}>
-                          Start
+                        <Button
+                          type="submit"
+                          onClick={startTime}
+                          disabled={trackingAction !== "idle" || !isHydrated}
+                        >
+                          {trackingAction === "starting" ? "Starting…" : "Start"}
                         </Button>
                       </DialogClose>
                     </DialogFooter>
@@ -690,12 +747,18 @@ export default Task;
 
 interface ButtonProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  label?: string;
 }
+
+type StartButtonProps = React.ComponentProps<typeof Button> & {
+  label?: string;
+};
 
 const StartButton = forwardRef<
   HTMLButtonElement,
-  React.ComponentProps<typeof Button>
->((props, ref) => {
+  StartButtonProps
+>(({ label = "Start", ...props }, ref) => {
   return (
     <Button
       ref={ref}
@@ -711,15 +774,16 @@ const StartButton = forwardRef<
       "
     >
       <CirclePlay className="w-4 h-4" />
-      <span>Start</span>
+      <span>{label}</span>
     </Button>
   );
 });
 
-function StopButton({ onClick }: ButtonProps) {
+function StopButton({ onClick, disabled, label = "Stop" }: ButtonProps) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className="
         inline-flex items-center gap-1
         px-4 py-2 rounded-full
@@ -732,7 +796,7 @@ function StopButton({ onClick }: ButtonProps) {
       "
     >
       <StopCircle className="w-4 h-4" />
-      <span>Stop</span>
+      <span>{label}</span>
     </button>
   );
 }

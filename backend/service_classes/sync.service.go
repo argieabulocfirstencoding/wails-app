@@ -19,15 +19,17 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"gorm.io/gorm"
 )
 
 const (
-	syncStatePending       = "pending"
-	syncStateInProgress    = "in_progress"
-	syncStateSynced        = "synced"
-	syncStateFailed        = "failed"
-	syncStateBlocked       = "blocked"
-	syncStateRemoteMissing = "remote_missing"
+	syncStatePending          = "pending"
+	syncStateInProgress       = "in_progress"
+	syncStateSynced           = "synced"
+	syncStateFailed           = "failed"
+	syncStateBlocked          = "blocked"
+	syncStateRemoteMissing    = "remote_missing"
+	syncStateIdentityConflict = "identity_conflict"
 )
 
 var errSyncBlocked = errors.New("sync blocked")
@@ -238,6 +240,9 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 	if err := s.ensureTaskRecordOwnership(taskRecord); err != nil {
 		return err
 	}
+	if taskRecord.SyncStatus == syncStateIdentityConflict {
+		return fmt.Errorf("%w: task session identity is unresolved; review required", errSyncBlocked)
+	}
 
 	if !s.Connectivity.IsOnline() {
 		_ = s.updateTaskRecordSyncState(taskRecord, syncStateInProgress, nil)
@@ -245,8 +250,8 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 	}
 
 	remoteMissing := taskRecordNeedsRemoteRepair(taskRecord)
-	if remoteMissing && !force {
-		return fmt.Errorf("task record is missing in Bubble and requires an explicit repair")
+	if remoteMissing {
+		return fmt.Errorf("%w: task record is missing in Bubble; resolve the original session before resyncing", errSyncBlocked)
 	}
 
 	if !remoteMissing && taskRecord.EndedAt == nil && taskRecordHasRemoteProductivity(taskRecord) {
@@ -260,6 +265,12 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 	if shouldSkipCompletedTaskRecordSync(taskRecord, force) {
 		s.drainPendingScreenshotsBestEffort(taskRecord)
 		return nil
+	}
+	if !taskRecordHasRemoteProductivity(taskRecord) {
+		if err := prepareTaskSessionIdentity(taskRecord); err != nil {
+			_ = s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, err)
+			return err
+		}
 	}
 
 	if err := s.updateTaskRecordSyncState(taskRecord, syncStateInProgress, nil); err != nil {
@@ -322,6 +333,9 @@ func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *mode
 	if user == nil || strings.TrimSpace(user.EmployeeId) == "" {
 		return fmt.Errorf("cannot sync task-in without an employee ID")
 	}
+	if taskRecord.ClientSessionID == nil || strings.TrimSpace(*taskRecord.ClientSessionID) == "" {
+		return fmt.Errorf("%w: task start has no persisted session identity", errSyncBlocked)
+	}
 
 	padagan := "No"
 	if taskRecord.Padagan {
@@ -334,22 +348,29 @@ func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *mode
 		return err
 	}
 
-	s.Logger.Printlnf("Syncing TASK IN")
+	if err := recordTaskInDispatch(taskRecord); err != nil {
+		return err
+	}
+	body := map[string]any{
+		"task_in":              taskRecord.StartedAt.UnixMilli(),
+		"date":                 attendance.TimeIn.UnixMilli(),
+		"edited_by":            taskRecord.UserID,
+		"employee_ID":          strings.TrimSpace(user.EmployeeId),
+		"padaganan":            padagan,
+		"projects_projects":    taskRecord.TaskID,
+		"tracker_used":         task.Title,
+		"task_time":            taskRecord.Duration,
+		"login_logout":         attendance.LoginLogoutID,
+		"activity_description": taskRecord.Notes,
+	}
+	if taskRecord.TaskInIdempotent {
+		body["client_session_id"] = *taskRecord.ClientSessionID
+	}
+	s.Logger.Printlnf("Syncing TASK IN record_id=%d session_id=%s", taskRecord.ID, *taskRecord.ClientSessionID)
 	if resp, err := s.FesClientService.Request(types.Request{
 		Url:    "wf/task_in",
 		Method: "POST",
-		Body: map[string]any{
-			"task_in":              taskRecord.StartedAt.UnixMilli(),
-			"date":                 attendance.TimeIn.UnixMilli(),
-			"edited_by":            taskRecord.UserID,
-			"employee_ID":          strings.TrimSpace(user.EmployeeId),
-			"padaganan":            padagan,
-			"projects_projects":    taskRecord.TaskID,
-			"tracker_used":         task.Title,
-			"task_time":            taskRecord.Duration,
-			"login_logout":         attendance.LoginLogoutID,
-			"activity_description": taskRecord.Notes,
-		},
+		Body:   body,
 	}); err != nil {
 		return err
 	} else {
@@ -360,10 +381,17 @@ func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *mode
 		if !ok || strings.TrimSpace(productivity) == "" {
 			return fmt.Errorf("task-in response missing productivity identifier")
 		}
-		taskRecord.Productivity = &productivity
+		if err := persistTaskProductivity(taskRecord, productivity); err != nil {
+			return err
+		}
 
 		if err := s.reconcileTaskRecord(taskRecord, attendance); err != nil {
 			return err
+		}
+		// Task-in does not acknowledge task-out. A crash before the subsequent
+		// task-out must leave a completed record eligible for synchronization.
+		if taskRecord.EndedAt != nil {
+			return s.updateTaskRecordSyncState(taskRecord, syncStatePending, nil)
 		}
 		return s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil)
 	}
@@ -870,16 +898,12 @@ func (s *SyncService) enqueueAndWait(job *syncJob) error {
 			return nil
 		}
 		claimed = true
+		defer s.releasePending(job.key)
 	}
 
 	wrapped := *job
 	wrapped.result = make(chan error, 1)
-	wrapped.fn = func(ctx context.Context) error {
-		if claimed {
-			defer s.releasePending(job.key)
-		}
-		return job.fn(ctx)
-	}
+	wrapped.fn = job.fn
 
 	select {
 	case <-s.queueCtx.Done():
@@ -890,7 +914,12 @@ func (s *SyncService) enqueueAndWait(job *syncJob) error {
 	case s.queue <- &wrapped:
 	}
 
-	return <-wrapped.result
+	select {
+	case result := <-wrapped.result:
+		return result
+	case <-s.queueCtx.Done():
+		return s.queueCtx.Err()
+	}
 }
 
 func (s *SyncService) executeQueuedJob(job *syncJob) (err error) {
@@ -944,6 +973,12 @@ func (s *SyncService) executeWithRetry(jobName string, fn func(context.Context) 
 func isRetryableSyncError(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, errSyncBlocked) {
+		return false
+	}
+	if errors.Is(err, errTaskStateChanged) {
+		return true
 	}
 
 	if errors.Is(err, context.Canceled) {
@@ -1018,10 +1053,41 @@ func (s *SyncService) updateTaskRecordSyncState(taskRecord *models.TaskRecord, s
 		taskRecord.LastError = ""
 	}
 
-	if err := db.DB.Save(taskRecord).Error; err != nil {
-		return err
+	updates := map[string]any{
+		"sync_status": state,
+		"last_error":  taskRecord.LastError,
 	}
-	return nil
+	if state == syncStateInProgress {
+		updates["last_attempt_at"] = now
+		updates["attempt_count"] = gorm.Expr("attempt_count + 1")
+	}
+	if state == syncStateSynced {
+		updates["synced_at"] = now
+	}
+	// Never save the stale lifecycle snapshot or associations. Also do not
+	// acknowledge a newer stop/notes edit that this network request did not send.
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		var current models.TaskRecord
+		if err := tx.First(&current, taskRecord.ID).Error; err != nil {
+			return err
+		}
+		// Compare instants in Go: SQLite may store equivalent timestamps using
+		// different timezone text, so SQL string equality is not sufficient.
+		if current.UserID != taskRecord.UserID || current.AttendanceID != taskRecord.AttendanceID ||
+			current.TaskID != taskRecord.TaskID || !current.StartedAt.Equal(taskRecord.StartedAt) ||
+			current.Duration != taskRecord.Duration || current.Notes != taskRecord.Notes || current.Padagan != taskRecord.Padagan ||
+			!sameOptionalTime(current.EndedAt, taskRecord.EndedAt) {
+			return errTaskStateChanged
+		}
+		return tx.Model(&models.TaskRecord{}).Where("id = ?", taskRecord.ID).Updates(updates).Error
+	})
+}
+
+func sameOptionalTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Equal(*b)
 }
 
 func (s *SyncService) updateAttendanceSyncState(attendance *models.Attendance, state string, opErr error) error {

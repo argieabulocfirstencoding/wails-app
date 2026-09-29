@@ -108,6 +108,12 @@ func migrationCatalog() []catalogMigration {
 			Plan:        planRemoteSyncMetadataMigration,
 			Migrate:     ensureRemoteSyncMetadata,
 		},
+		{
+			ID:          "20260929_009_task_session_identity",
+			Description: "add durable task session identities and task-in dispatch metadata",
+			Plan:        planTaskSessionIdentityMigration,
+			Migrate:     ensureTaskSessionIdentity,
+		},
 	}
 }
 
