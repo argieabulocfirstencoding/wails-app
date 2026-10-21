@@ -18,7 +18,7 @@ require (
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/sjuhan/w32uiautomation v0.0.0-20231219053614-6e4c2572112c
 	github.com/stretchr/testify v1.11.1
-	github.com/wailsapp/wails/v2 v2.13.0
+	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/sys v0.44.0
 	gorm.io/gorm v1.31.1

@@ -9,6 +9,7 @@ import (
 	"fesapp/backend/repository"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
+	"fesapp/internal/buildinfo"
 	"fmt"
 	"io"
 	"log"
@@ -136,6 +137,9 @@ type chromeProfileInfo struct {
 }
 
 const (
+	productionFESAPIBaseURL  = "https://firstencoding.app/api/1.1/"
+	developmentFESAPIBaseURL = "https://firstencoding.app/version-test/api/1.1/"
+
 	upworkClientAccountInitialFocusDelay = 4 * time.Second
 	upworkClientAccountPasswordDelay     = 2500 * time.Millisecond
 	upworkClientAccountSubmitDelay       = 500 * time.Millisecond
@@ -181,14 +185,18 @@ func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientSe
 		connectivityState = NewConnectivityStateService()
 	}
 
+<<<<<<< HEAD
 	baseUrl := "https://firstencoding.app/api/1.1/"
 	_, localDevelopmentOverride := os.LookupEnv("DEVELOPMENT")
 	if localDevelopmentOverride {
 		baseUrl = "https://firstencoding.app/version-test/api/1.1/"
 	}
+=======
+	_, localDevelopmentOverride := os.LookupEnv("DEVELOPMENT")
+	baseUrl := fesAPIBaseURL(buildinfo.Current().Environment, localDevelopmentOverride)
+>>>>>>> fb3bf877a39702d9118454b7d277ec0886d1a5eb
 
 	return &FesClientService{
-		// baseUrl: "https://firstencoding.app/version-test/api/1.1/",
 		baseUrl:        baseUrl,
 		client:         &http.Client{Timeout: 30 * time.Second},
 		logger:         utils.NewLoggerService(),
@@ -197,7 +205,16 @@ func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientSe
 		sessionStore:   systemBubbleSessionStore{},
 		sessionScope:   bubbleSessionScope(localDevelopmentOverride),
 	}
+}
 
+// fesAPIBaseURL keeps development installers on Bubble's version-test app.
+// DEVELOPMENT remains a local-development override for wails dev sessions.
+func fesAPIBaseURL(environment string, localDevelopmentOverride bool) string {
+	if localDevelopmentOverride || strings.EqualFold(strings.TrimSpace(environment), "development") {
+		return developmentFESAPIBaseURL
+	}
+
+	return productionFESAPIBaseURL
 }
 
 // ============== GENERAL METHODS =======================
