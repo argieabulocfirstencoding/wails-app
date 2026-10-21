@@ -23,6 +23,7 @@ func main() {
 	_, exists := os.LookupEnv("DEVELOPMENT")
 	// 2. Determine the unique ID based on the environment using build tags
 	uniqueID := "com.firstencodingservices.myapp"
+	title := "FES App Tracker"
 
 	title := "FES App Tracker"
 	if exists {

@@ -32,6 +32,7 @@ type diagnosticAttendanceState struct {
 }
 
 type diagnosticTaskRecordState struct {
+<<<<<<< HEAD
 	ID            uint    `json:"id"`
 	UserID        string  `json:"user_id"`
 	AttendanceID  uint    `json:"attendance_id"`
@@ -40,6 +41,20 @@ type diagnosticTaskRecordState struct {
 	AttemptCount  int32   `json:"attempt_count"`
 	LastError     string  `json:"last_error"`
 	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
+=======
+	ClientSessionID   *string `json:"client_session_id,omitempty"`
+	Productivity      *string `json:"productivity,omitempty"`
+	TaskInAttemptedAt *string `json:"task_in_attempted_at,omitempty"`
+	TaskInIdempotent  bool    `json:"task_in_idempotent"`
+	ID                uint    `json:"id"`
+	UserID            string  `json:"user_id"`
+	AttendanceID      uint    `json:"attendance_id"`
+	TaskID            string  `json:"task_id"`
+	SyncStatus        string  `json:"sync_status"`
+	AttemptCount      int32   `json:"attempt_count"`
+	LastError         string  `json:"last_error"`
+	LastAttemptAt     *string `json:"last_attempt_at,omitempty"`
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 }
 
 type diagnosticSyncStates struct {
@@ -123,6 +138,7 @@ func loadDiagnosticSyncStates() (*diagnosticSyncStates, error) {
 
 	for i := range taskRecords {
 		out.TaskRecord = append(out.TaskRecord, diagnosticTaskRecordState{
+<<<<<<< HEAD
 			ID:            taskRecords[i].ID,
 			UserID:        taskRecords[i].UserID,
 			AttendanceID:  taskRecords[i].AttendanceID,
@@ -131,6 +147,20 @@ func loadDiagnosticSyncStates() (*diagnosticSyncStates, error) {
 			AttemptCount:  taskRecords[i].AttemptCount,
 			LastError:     sanitizeDiagnosticError(taskRecords[i].LastError),
 			LastAttemptAt: formatOptionalTime(taskRecords[i].LastAttemptAt),
+=======
+			ClientSessionID:   taskRecords[i].ClientSessionID,
+			Productivity:      taskRecords[i].Productivity,
+			TaskInAttemptedAt: formatOptionalTime(taskRecords[i].TaskInAttemptedAt),
+			TaskInIdempotent:  taskRecords[i].TaskInIdempotent,
+			ID:                taskRecords[i].ID,
+			UserID:            taskRecords[i].UserID,
+			AttendanceID:      taskRecords[i].AttendanceID,
+			TaskID:            taskRecords[i].TaskID,
+			SyncStatus:        taskRecords[i].SyncStatus,
+			AttemptCount:      taskRecords[i].AttemptCount,
+			LastError:         sanitizeDiagnosticError(taskRecords[i].LastError),
+			LastAttemptAt:     formatOptionalTime(taskRecords[i].LastAttemptAt),
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 		})
 	}
 

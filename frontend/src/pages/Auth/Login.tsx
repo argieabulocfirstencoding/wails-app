@@ -131,7 +131,7 @@ const Login = () => {
                 </Label>
                 <Input
                   id="email"
-                  type="email"
+                  type="text"
                   placeholder="name.firstencoding@gmail.com"
                   required
                   value={email}

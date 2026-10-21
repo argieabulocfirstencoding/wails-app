@@ -24,6 +24,27 @@ func TestGetActiveTaskRecordReturnsNilWithoutAuthentication(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD
+=======
+func TestGetClientAccountsRequiresAuthentication(t *testing.T) {
+	a := NewApp()
+
+	_, err := a.GetClientAccounts()
+	if err == nil || err.Error() != "Login required." {
+		t.Fatalf("expected auth-required error, got %v", err)
+	}
+}
+
+func TestOpenClientAccountRequiresAuthentication(t *testing.T) {
+	a := NewApp()
+
+	err := a.OpenClientAccount("client-account-1")
+	if err == nil || err.Error() != "Login required." {
+		t.Fatalf("expected auth-required error, got %v", err)
+	}
+}
+
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 func TestShutdownStopsActiveTaskLocally(t *testing.T) {
 	_, user, _, task, attendance, taskRecord := setupActiveTaskCacheTestDB(t)
 

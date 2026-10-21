@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Settings } from "lucide-react";
+import { RefreshCw, Settings } from "lucide-react";
 import Drawer from "@/components/custom/Drawer";
 import {
   Dialog,
@@ -22,6 +22,7 @@ import {
   LoginUserOnline,
   LogoutUser,
   SyncUnsyncedRecords,
+  SyncBrowserRecords,
   OpenFesWebApp,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
@@ -30,6 +31,31 @@ interface SyncUser {
   email: string | null | undefined;
   password: string | null | undefined;
 }
+
+function getSyncErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "Sync failed. Please sign in again and retry.";
+}
+
+const hiddenClientAccountPositions = new Set([
+  "ojt",
+  "employee",
+  "office staff",
+  "data analyst",
+  "web developer",
+  "call center agent",
+  "graphic designer - web dev",
+  "graphic designer",
+  "seo",
+  "maintenance staff",
+  "office staff - web dev",
+  "office staff - va",
+]);
 
 const ProfileBar = () => {
   const [open, setOpen] = useState(false);
@@ -41,6 +67,8 @@ const ProfileBar = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [browserSyncLoading, setBrowserSyncLoading] = useState(false);
+  const [browserSyncMessage, setBrowserSyncMessage] = useState("");
   const [openSyncDialog, setOpenSyncDialog] = useState(false);
   const [syncErrorMsg, setSyncErrorMsg] = useState("");
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -49,6 +77,10 @@ const ProfileBar = () => {
 
   const { online, synced, setSynced, reset } = useAuthStore();
   const navigate = useNavigate();
+  const normalizedPosition = user?.position?.trim().toLowerCase() ?? "";
+  const canViewClientAccounts = !hiddenClientAccountPositions.has(
+    normalizedPosition,
+  );
 
   // THEME TOGGLE STATE
   const [dark, setDark] = useState<boolean>(() => {
@@ -201,7 +233,9 @@ const ProfileBar = () => {
       );
       console.log("Auth Response: ", attendance);
 
+      const currentUser = useAuthStore.getState().user;
       useAuthStore.getState().setUser({
+        ...currentUser,
         uid: attendance.UserID,
         email: syncUser.email || "",
         offline: !online,
@@ -216,10 +250,10 @@ const ProfileBar = () => {
 
       const fetchedTasks: any = await GetTasks(false);
       if (fetchedTasks) setTasks(fetchedTasks);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       setOpenSyncDialog(true);
-      setSyncErrorMsg(error);
+      setSyncErrorMsg(getSyncErrorMessage(error));
     } finally {
       setSyncLoading(false);
     }
@@ -228,6 +262,98 @@ const ProfileBar = () => {
   useEffect(() => {
     console.log("user updated", user);
   }, [user]);
+
+  async function checkBrowserUpdates() {
+    if (!online || browserSyncLoading) return;
+
+    setBrowserSyncLoading(true);
+    setBrowserSyncMessage("");
+    try {
+      const result: any = await SyncBrowserRecords();
+      const changed =
+        (result?.attendancesCreated || 0) +
+        (result?.attendancesUpdated || 0) +
+        (result?.recordsCreated || 0) +
+        (result?.recordsUpdated || 0);
+      const conflicts = result?.conflicts || 0;
+      const skipped = result?.skipped || 0;
+      const details: string[] = [];
+
+      if (result?.recoveredAttendanceLinks) {
+        details.push(
+          `${result.recoveredAttendanceLinks} legacy attendance link${
+            result.recoveredAttendanceLinks === 1 ? "" : "s"
+          } recovered`,
+        );
+      }
+      if (result?.fallbackTasksCreated) {
+        details.push(
+          `${result.fallbackTasksCreated} project fallback${
+            result.fallbackTasksCreated === 1 ? "" : "s"
+          } created`,
+        );
+      }
+      if (result?.skippedMissingAttendance) {
+        details.push(
+          `${result.skippedMissingAttendance} missing attendance link${
+            result.skippedMissingAttendance === 1 ? "" : "s"
+          }`,
+        );
+      }
+      if (result?.skippedMalformed) {
+        details.push(
+          `${result.skippedMalformed} incomplete Bubble row${
+            result.skippedMalformed === 1 ? "" : "s"
+          }`,
+        );
+      }
+      if (result?.recordsVerified) {
+        details.push(
+          `${result.recordsVerified} local productivity record${
+            result.recordsVerified === 1 ? "" : "s"
+          } verified`,
+        );
+      }
+      if (result?.recordsMissingInBubble) {
+        details.push(
+          `${result.recordsMissingInBubble} local productivity record${
+            result.recordsMissingInBubble === 1 ? " is" : "s are"
+          } missing in Bubble`,
+        );
+      }
+      if (result?.recordsMissingId) {
+        details.push(
+          `${result.recordsMissingId} synced local record${
+            result.recordsMissingId === 1 ? " has" : "s have"
+          } no productivity ID`,
+        );
+      }
+      if (result?.verificationSkipped) {
+        details.push(
+          result?.verificationWarning || "Bubble verification skipped",
+        );
+      }
+      if (result?.catalogRefreshWarning) {
+        details.push("project catalog refresh warning");
+      }
+
+      const baseMessage =
+        changed === 0 && conflicts === 0 && skipped === 0
+          ? "Browser records are up to date."
+          : `Browser check: ${changed} update${changed === 1 ? "" : "s"}, ${conflicts} conflict${conflicts === 1 ? "" : "s"}, ${skipped} skipped.`;
+      setBrowserSyncMessage(
+        details.length > 0 ? `${baseMessage} ${details.join("; ")}.` : baseMessage,
+      );
+
+      const fetchedTasks: any = await GetTasks(false);
+      if (fetchedTasks) setTasks(fetchedTasks);
+    } catch (error) {
+      console.error("Browser sync failed:", error);
+      setBrowserSyncMessage("Could not check browser updates.");
+    } finally {
+      setBrowserSyncLoading(false);
+    }
+  }
 
   return (
     <div className="sticky bottom-0 z-20">
@@ -453,16 +579,43 @@ const ProfileBar = () => {
                     Account
                   </button>
                 </Link>
-                <Link to="/notifications">
+                {canViewClientAccounts && (
+                  <Link to="/client-accounts">
+                    <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
+                      Client Accounts
+                    </button>
+                  </Link>
+                )}
+                {/* <Link to="/notifications">
                   <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
                     Notifications
                   </button>
-                </Link>
+                </Link> */}
                 <Link to="/activity-logs">
                   <button className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
                     Activity Logs
                   </button>
                 </Link>
+                <button
+                  onClick={checkBrowserUpdates}
+                  disabled={!online || browserSyncLoading}
+                  className="w-full p-3 rounded-lg border border-gray-300 dark:border-neutral-700 hover:bg-emerald-50 dark:hover:bg-neutral-800 transition cursor-pointer text-center font-semibold text-emerald-600 dark:text-emerald-400 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Check Bubble updates and verify local productivity records"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <RefreshCw
+                      className={`w-4 h-4 ${browserSyncLoading ? "animate-spin" : ""}`}
+                    />
+                    {browserSyncLoading
+                      ? "Verifying Bubble records..."
+                      : "Verify Bubble records"}
+                  </span>
+                </button>
+                {browserSyncMessage && (
+                  <p className="text-center text-xs text-neutral-500 dark:text-neutral-400">
+                    {browserSyncMessage}
+                  </p>
+                )}
 
                 <button
                   onClick={() => setLogoutDialog(true)}

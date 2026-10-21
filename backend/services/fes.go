@@ -8,16 +8,9 @@ import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/utils"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
-	"time"
 
-	// alias to avoid conflict with Wails runtime
-	// alias to avoid conflict with Wails runtime
-
-	"github.com/go-vgo/robotgo/clipboard"
-	"github.com/micmonay/keybd_event"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 )
@@ -396,67 +389,6 @@ func FetchEmployeeDetails(ctx context.Context, user *models.User) error {
 		return nil
 	}
 
-}
-
-func FetchUpworkCreds(ctx context.Context, taskID string) {
-	fmt.Print("Fetching Upwork Credentials Please wait")
-	time.Sleep(1000 * time.Millisecond)
-	fmt.Print("Opening upwork..")
-	openFESApp(ctx)
-
-	runtime.EventsEmit(ctx, "upwork-button", true)
-
-	task, err := GetTaskFromID(taskID)
-	if err != nil {
-		log.Printf("error on getting task: %v", err)
-	}
-
-	url := "https://firstencoding.app/api/1.1/wf/fetch-credentials/"
-	body := map[string]interface{}{
-		"account": task.Title,
-	}
-	response, _ := FetchBubble(url, "POST", body)
-
-	copyToClipboard := func(key string) {
-		if valueInterface, ok := response[key]; ok {
-			if value, ok := valueInterface.(string); ok {
-				clipboard.WriteAll(value)
-			} else {
-				// Handle the case where the value is not a string
-				fmt.Println(key + " is not a string")
-				clipboard.WriteAll("")
-				return
-			}
-		} else {
-			fmt.Println(key + " key not found")
-			clipboard.WriteAll("")
-			return
-		}
-	}
-
-	go func() {
-		kb, _ := keybd_event.NewKeyBonding()
-
-		// Copy email
-		copyToClipboard("password")
-		time.Sleep(1000 * time.Millisecond)
-
-		// Press Ctrl + V
-		kb.SetKeys(keybd_event.VK_V)
-		kb.HasCTRL(true)
-		// Copy password
-		copyToClipboard("username")
-		kb.HasCTRL(false)
-
-		time.Sleep(1000 * time.Millisecond)
-
-		openFESApp(ctx)
-		runtime.EventsEmit(ctx, "upwork-button", true)
-	}()
-}
-
-func openFESApp(ctx context.Context) {
-	runtime.EventsEmit(ctx, "open_fesapp")
 }
 
 func FetchBubble(url, reqType string, bodyData map[string]interface{}) (map[string]interface{}, error) {

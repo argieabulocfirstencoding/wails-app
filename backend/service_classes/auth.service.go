@@ -7,7 +7,12 @@ import (
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
+<<<<<<< HEAD
+=======
+	"strconv"
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	"strings"
+	"time"
 )
 
 type AuthService struct {
@@ -20,6 +25,15 @@ type AuthService struct {
 	ctx               context.Context
 }
 
+<<<<<<< HEAD
+=======
+type authenticatedLogin struct {
+	UserID     string
+	Email      string
+	EmployeeID string
+}
+
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 func NewAuthService(connectivity ...*ConnectivityStateService) *AuthService {
 	var connectivityState *ConnectivityStateService
 	if len(connectivity) > 0 {
@@ -44,12 +58,12 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	a.ctx = ctx
 	a.TaskService.Connect(ctx)
 
-	userId, err := a.AttemptLogin(email, password)
+	login, err := a.AttemptLogin(email, password)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	attendance, err := a.AttendanceService.LoginAttendance(*userId)
+	attendance, err := a.AttendanceService.LoginAttendance(login.UserID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,8 +72,8 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	}
 
 	authUser := &models.AuthUser{
-		LocalID: *userId,
-		Email:   email,
+		LocalID: login.UserID,
+		Email:   login.Email,
 	}
 
 	// NOTE INITIALIZATIONS
@@ -73,12 +87,25 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
 	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
 
+<<<<<<< HEAD
 	attendance.User.ID = *userId
 	attendance.User.Email = email
+=======
+	attendance.User.ID = login.UserID
+	attendance.User.Email = login.Email
+	if err := a.UserService.SaveLoginEmployeeID(login.UserID, login.EmployeeID); err != nil {
+		return nil, nil, fmt.Errorf("save login employee ID: %w", err)
+	}
+	attendance.User.EmployeeId = login.EmployeeID
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 	if err := a.UserService.FetchEmployeeDetails(ctx, &attendance.User); err != nil {
 		return nil, nil, err
 	}
+
+	// The login identifier may be an FES ID. Use only a validated employee
+	// email for the authenticated session and downstream Chrome profile match.
+	authUser.Email = resolvedAuthenticatedEmployeeEmail(&attendance.User)
 
 	// go func() {
 	// 	a.SyncService.Connect(a.ctx)
@@ -117,7 +144,7 @@ func (a *AuthService) Logout() error {
 
 //  ======================= PRIVATE METHODS ===========================
 
-func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
+func (a *AuthService) AttemptLogin(identifier, password string) (*authenticatedLogin, error) {
 
 	// a.logger.Printlnf("Login Attempt Email: ", email)
 	// a.logger.Printlnf("Login Attempt Password: ", a.maskPassword(password))
@@ -127,7 +154,7 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 		Url:    "wf/login",
 		Method: "POST",
 		Body: map[string]any{
-			"email":    email,
+			"email":    identifier,
 			"password": password,
 			// "timestamp": now.UnixMilli(), // TODO find way to add this
 		},
@@ -146,6 +173,18 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 	if !ok || strings.TrimSpace(userId) == "" {
 		return nil, a.Logger.Error("login response user_id has invalid format")
 	}
+<<<<<<< HEAD
+
+	tokenRaw, ok := resp["token"]
+	if !ok {
+		return nil, a.Logger.Error("login response missing token")
+	}
+	token, ok := tokenRaw.(string)
+	if !ok || strings.TrimSpace(token) == "" {
+		return nil, a.Logger.Error("login response token has invalid format")
+	}
+=======
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 	tokenRaw, ok := resp["token"]
 	if !ok {
@@ -156,14 +195,77 @@ func (a *AuthService) AttemptLogin(email, password string) (*string, error) {
 		return nil, a.Logger.Error("login response token has invalid format")
 	}
 
-	a.TaskService.SyncService.FesClientService.SetApiToken(token)
+	expiresIn, err := bubbleSessionDuration(resp["expires"])
+	if err != nil {
+		return nil, err
+	}
+	if err := a.TaskService.SyncService.FesClientService.SetBubbleSession(userId, token, expiresIn); err != nil {
+		return nil, err
+	}
+	a.UserService.SetActiveBubbleSessionUser(userId)
 
-	_, create_user_err := a.UserService.CreateUser(userId, email)
+	authenticatedEmail := authenticatedEmailFromLoginResponse(resp, identifier)
+	_, create_user_err := a.UserService.CreateUser(userId, authenticatedEmail)
 	if create_user_err != nil {
 		a.Logger.Printlnf("Error creating user: %v", create_user_err)
 	}
 
-	return &userId, nil
+	return &authenticatedLogin{
+		UserID:     userId,
+		Email:      authenticatedEmail,
+		EmployeeID: loginEmployeeIDFromResponse(resp),
+	}, nil
+}
+
+func bubbleSessionDuration(value any) (time.Duration, error) {
+	var seconds int64
+	switch v := value.(type) {
+	case float64:
+		seconds = int64(v)
+		if v != float64(seconds) {
+			return 0, fmt.Errorf("login response expires has invalid format")
+		}
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("login response expires has invalid format")
+		}
+		seconds = parsed
+	default:
+		return 0, fmt.Errorf("login response missing expires")
+	}
+
+	if seconds <= 0 || seconds > int64((366*24*time.Hour)/time.Second) {
+		return 0, fmt.Errorf("login response expires is outside the allowed range")
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+// loginEmployeeIDFromResponse extracts the Employee thing ID returned by the
+// authenticated login workflow. Unlike the profile lookup, this value is
+// available even when wf/employee_details returns an empty employee object.
+func loginEmployeeIDFromResponse(response map[string]any) string {
+	if response == nil {
+		return ""
+	}
+
+	employeeID, ok := response["employee_id"].(string)
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(employeeID)
+}
+
+// authenticatedEmailFromLoginResponse prefers the identity confirmed by the
+// FES login endpoint. Falling back to the supplied identifier preserves normal
+// email login while preventing an FES ID from being treated as an email.
+func authenticatedEmailFromLoginResponse(response map[string]any, identifier string) string {
+	if email := extractEmployeeEmail(response, nil); email != "" {
+		return email
+	}
+
+	return normalizedEmployeeEmail(identifier)
 }
 
 func (a *AuthService) maskPassword(p string) string {

@@ -13,9 +13,18 @@ import {
   Moon,
   Sun,
   Folder,
+  GitBranch,
+  RefreshCw,
+  PackageCheck,
 } from "lucide-react";
+<<<<<<< HEAD
 import { GetFolderSize, ClearScreenshots } from "@/../wailsjs/go/app/App";
 import { releaseFlags } from "@/config/release";
+=======
+import { GetFolderSize, ClearScreenshots, GetBuildInfo, CheckForUpdates } from "@/../wailsjs/go/app/App";
+import { releaseFlags } from "@/config/release";
+import { updateErrorMessage, useUpdateStore } from "@/store/updateStore";
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 type AccountUser = {
   fullName: string;
@@ -28,10 +37,26 @@ type AccountUser = {
   avatar: string;
 };
 
+type BuildInfo = {
+  version: string;
+  environment: string;
+  updateChannel: string;
+  updateBranch: string;
+  commitSha: string;
+  buildNumber: number;
+  updatesEnabled: boolean;
+};
+
 const AccountSettings = () => {
   const { user } = useAuthStore();
 
   const [size, setSize] = useState<number>(0);
+  const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
+  const [updateCheckMessage, setUpdateCheckMessage] = useState<string | null>(null);
+  const checkingForUpdate = useUpdateStore((state) => state.checking);
+  const setCheckingForUpdate = useUpdateStore((state) => state.setChecking);
+  const setAvailableUpdate = useUpdateStore((state) => state.setUpdate);
+  const setUpdateError = useUpdateStore((state) => state.setError);
 
   // const [user, setUser] = useState<AccountUser>(DEFAULT_USER);
 
@@ -41,6 +66,7 @@ const AccountSettings = () => {
 
   useEffect(() => {
     fetchScreenshotSize();
+    void fetchBuildInfo();
   }, []);
 
   // Apply theme on mount
@@ -58,6 +84,33 @@ const AccountSettings = () => {
       }
     } catch (error) {
       console.error("error on fetching screenshot size: ", error);
+    }
+  }
+
+  async function fetchBuildInfo() {
+    try {
+      setBuildInfo(await GetBuildInfo());
+    } catch (error) {
+      console.error("error on fetching build information: ", error);
+    }
+  }
+
+  async function checkForUpdates() {
+    setCheckingForUpdate(true);
+    setUpdateError(null);
+    setUpdateCheckMessage(null);
+    try {
+      const update = await CheckForUpdates();
+      setAvailableUpdate(update.available ? update : null);
+      if (!update.available) {
+        setUpdateCheckMessage("No newer development build is available.");
+      }
+    } catch (error) {
+      const message = updateErrorMessage(error, "Unable to check for updates.");
+      setUpdateError(message);
+      setUpdateCheckMessage(message);
+    } finally {
+      setCheckingForUpdate(false);
     }
   }
 
@@ -125,7 +178,7 @@ const AccountSettings = () => {
           <div className="px-6 pt-5 pb-4 flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
               <img
-                src={user?.photo || "/assets/images/default-avatar.png"}
+                src={user?.photo || "https://www.shutterstock.com/image-vector/profile-default-avatar-icon-user-600nw-2463844171.jpg"}
                 alt="Profile avatar"
                 className="w-full h-full object-cover"
               />
@@ -266,6 +319,53 @@ const AccountSettings = () => {
             >
               Clear
             </Button>
+          </div>
+        </section>
+
+        <section
+          className="rounded-2xl border border-neutral-200 bg-white overflow-hidden dark:border-neutral-800 dark:bg-neutral-900"
+        >
+          <div className="flex items-center justify-between border-b border-neutral-200 px-6 py-3 dark:border-neutral-800">
+            <span className="text-[11px] font-semibold tracking-[0.14em] uppercase text-neutral-500 dark:text-neutral-500">
+              Build & updates
+            </span>
+            <PackageCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+
+          <div className="space-y-4 px-6 py-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+              <div>
+                <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">Version</p>
+                <p className="mt-1 font-medium text-neutral-900 dark:text-neutral-50">{buildInfo?.version ?? "Loading…"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">Channel</p>
+                <p className="mt-1 font-medium capitalize text-neutral-900 dark:text-neutral-50">{buildInfo?.updateChannel ?? "Loading…"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">Branch</p>
+                <p className="mt-1 flex items-center gap-1 font-mono text-[11px] text-neutral-700 dark:text-neutral-300"><GitBranch className="size-3" />{buildInfo?.updateBranch ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold tracking-wide text-neutral-500 uppercase">Commit</p>
+                <p className="mt-1 font-mono text-[11px] text-neutral-700 dark:text-neutral-300">{buildInfo?.commitSha?.slice(0, 7) ?? "—"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+              <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                {buildInfo?.updatesEnabled ? "Development update checking is enabled." : "Updates are disabled for this build."}
+              </p>
+              <Button variant="outline" className="shrink-0 gap-2" onClick={checkForUpdates} disabled={!buildInfo?.updatesEnabled || checkingForUpdate}>
+                <RefreshCw className={`size-3.5 ${checkingForUpdate ? "animate-spin" : ""}`} />
+                {checkingForUpdate ? "Checking" : "Check for updates"}
+              </Button>
+            </div>
+            {updateCheckMessage && (
+              <p className="rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:bg-neutral-800/70 dark:text-neutral-300">
+                {updateCheckMessage}
+              </p>
+            )}
           </div>
         </section>
 

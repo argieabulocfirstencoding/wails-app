@@ -12,7 +12,11 @@
   },
   "info": {
     "productName": "FESApp Tracker",
+<<<<<<< HEAD
     "productVersion": "2.4.4",
+=======
+    "productVersion": "2.5",
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
     "description": "An application with installer and updater enabled.",
     "companyName": "First Encoding Services",
     "copyright": "Copyright 2025 First Encoding Services",

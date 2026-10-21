@@ -6,14 +6,14 @@ import {
   CirclePlay,
   StopCircle,
 } from "lucide-react";
-import React, { forwardRef, useEffect, useState } from "react";
+import React, { forwardRef, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { intervalToDuration, formatDistance } from "date-fns";
 import upworkLogo from "@/assets/images/upwork_logo.png";
 import {
   GetMonitorCount,
   StartTracking,
-  StopTracking,
+  StopTrackingRecord,
   GetLastTaskRecord,
   AddMemo,
   OpenUpwork,
@@ -51,6 +51,8 @@ interface ScreenshotProps {
   pictures: string[];
 }
 
+type TrackingAction = "idle" | "starting" | "stopping";
+
 const Task = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -61,8 +63,7 @@ const Task = () => {
   const [monitor, setMonitor] = useState<number>(0);
   const [screenshots, setScreenshots] = useState<ScreenshotProps | null>(null);
   const [screenshotDate, setScreenshotDate] = useState<string>("");
-  const [memo, setMemo] = useState("");
-  const [tag, setTag] = useState("");
+  const [notes, setNotes] = useState("");
   const [taskDetails, setTaskDetails] = useState<models.ExpTask>();
   const [isSynced, setSynced] = useState(false);
   const [lastTaskRecord, setLastTaskRecord] = useState<models.ExpTaskRecord>();
@@ -70,11 +71,33 @@ const Task = () => {
   const [isSyncing, setSyncing] = useState(false);
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
+  const [syncNotice, setSyncNotice] = useState("");
+  const [trackingAction, setTrackingAction] =
+    useState<TrackingAction>("idle");
+  const actionRef = useRef<TrackingAction>("idle");
+  const hydrationRequestRef = useRef(0);
+  const pendingHydrationRef = useRef(false);
 
   const { setTaskID, tasks, online, synced } = useAuthStore();
 
+  function beginTrackingAction(action: Exclude<TrackingAction, "idle">) {
+    if (actionRef.current !== "idle") return false;
+    actionRef.current = action;
+    setTrackingAction(action);
+    return true;
+  }
+
+  async function finishTrackingAction() {
+    actionRef.current = "idle";
+    setTrackingAction("idle");
+    if (pendingHydrationRef.current) {
+      pendingHydrationRef.current = false;
+      await hydrateTaskRecord();
+    }
+  }
+
   async function startTime() {
-    if (!id) return;
+    if (!id || !isHydrated || !beginTrackingAction("starting")) return;
 
     try {
       setSyncing(true);
@@ -82,6 +105,7 @@ const Task = () => {
       const timeStart = Date.now();
       await StartTracking(id, JSON.stringify(timeStart), isPadagan);
 
+<<<<<<< HEAD
       resetTimer();
       if (lastTaskRecord) {
         lastTaskRecord.padagan = isPadagan;
@@ -89,10 +113,14 @@ const Task = () => {
 
       setStart(true);
       setStartTime(timeStart);
+=======
+      await hydrateTaskRecord(true);
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
     } catch (error) {
       console.error("StartTracking failed:", error);
     } finally {
       setSyncing(false);
+      await finishTrackingAction();
     }
   }
 
@@ -102,6 +130,7 @@ const Task = () => {
     setElapsedTime(0);
   }
 
+<<<<<<< HEAD
   function getMemoTagFromNotes(note: string) {
     if (!note) {
       setMemo("");
@@ -114,17 +143,41 @@ const Task = () => {
     setTag(notes[1] || "");
   }
 
+=======
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
   async function stopTime() {
+    const taskRecordID = lastTaskRecord?.id;
+    if (!taskRecordID || !beginTrackingAction("stopping")) return;
+
     setSyncing(true);
-    if (id) {
-      await StopTracking(id);
+    setSyncNotice("");
+    try {
+      const result = await StopTrackingRecord(taskRecordID);
+      setSynced(result.syncStatus === "synced");
+
+      if (result.syncFailureCode === "session_expired") {
+        setSyncNotice(
+          "Time was saved locally. Your Bubble session expired—use Sync to sign in again and upload it.",
+        );
+      } else if (result.syncFailureCode === "offline") {
+        setSyncNotice(
+          "Time was saved locally. Connect to the internet and use Sync to upload it.",
+        );
+      } else if (result.syncFailureCode === "sync_failed") {
+        setSyncNotice(
+          "Time was saved locally, but Bubble could not be updated. Use Sync to retry it.",
+        );
+      }
+
+      setTaskID(null);
+      await hydrateTaskRecord(true);
+    } catch (error) {
+      console.error("StopTracking failed:", error);
+      setSyncNotice("The task could not be stopped locally. Please try again.");
+    } finally {
+      setSyncing(false);
+      await finishTrackingAction();
     }
-
-    setTaskID(null);
-    const timeStop = Date.now();
-    setStart(false);
-
-    setEndTime(timeStop);
   }
 
   function getFormattedTime() {
@@ -151,11 +204,32 @@ const Task = () => {
     setMonitor(monitorCount);
   }
 
+<<<<<<< HEAD
   async function hydrateTaskRecord() {
     if (!id) return;
 
     try {
       const response = await GetLastTaskRecord(id);
+=======
+  async function hydrateTaskRecord(allowDuringAction = false) {
+    if (!id) return;
+    if (actionRef.current !== "idle" && !allowDuringAction) {
+      pendingHydrationRef.current = true;
+      return;
+    }
+
+    const requestID = ++hydrationRequestRef.current;
+
+    try {
+      const response = await GetLastTaskRecord(id);
+      if (
+        requestID !== hydrationRequestRef.current ||
+        (actionRef.current !== "idle" && !allowDuringAction)
+      ) {
+        pendingHydrationRef.current = true;
+        return;
+      }
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
       const record = response?.record;
 
       if (!record || !record.started_at) {
@@ -165,8 +239,12 @@ const Task = () => {
         setStartTime(0);
         setEndTime(undefined);
         setScreenshots(null);
+<<<<<<< HEAD
         setMemo("");
         setTag("");
+=======
+        setNotes("");
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
         setTaskID(null);
         return;
       }
@@ -180,7 +258,11 @@ const Task = () => {
       setStartTime(started);
       setEndTime(ended ?? undefined);
       setSynced(record.sync_status === "synced");
+<<<<<<< HEAD
       getMemoTagFromNotes(record.notes ?? "");
+=======
+      setNotes(record.notes ?? "");
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
       const isActive = !record.ended_at;
       setStart(isActive);
@@ -223,7 +305,13 @@ const Task = () => {
 
     if (taskDetails?.taskId) {
       setLaunching(true);
-      await OpenUpwork(taskDetails.taskId);
+      try {
+        await OpenUpwork(taskDetails.taskId);
+      } catch (error) {
+        console.error("Failed to launch Upwork automation:", error);
+      } finally {
+        setLaunching(false);
+      }
     }
   }
 
@@ -277,12 +365,10 @@ const Task = () => {
   }, [lastTaskRecord?.sync_status]);
 
   useEffect(() => {
-    const memoRecord = localStorage.getItem("memo");
-    const tagRecord = localStorage.getItem("tag");
-    if (memoRecord) setMemo(memoRecord);
-    if (tagRecord) setTag(tagRecord);
+    const noteRecord = localStorage.getItem("tag");
+    if (noteRecord) setNotes(noteRecord);
 
-    AddMemo(memoRecord || "", tagRecord || "");
+    AddMemo(noteRecord || ""); // FIX make the AddMemo to only 1 params
     countMonitor();
   }, []);
 
@@ -311,10 +397,10 @@ const Task = () => {
   useEffect(() => {
     (async function () {
       if (lastTaskRecord && isStarted) {
-        await SetTaskRecordNotes(lastTaskRecord.id, memo + " || " + tag);
+        await SetTaskRecordNotes(lastTaskRecord.id, notes);
       }
     })();
-  }, [memo, tag]);
+  }, [notes]);
 
   useEffect(() => {
     if (!releaseFlags.screenshotsEnabled || !EventsOn) return;
@@ -338,6 +424,14 @@ const Task = () => {
     return () => off();
   }, [id]);
 
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("browser-records-synced", async () => {
+      await hydrateTaskRecord();
+    });
+
+    return () => off();
+  }, [id]);
   const titleLower = taskDetails?.title?.toLowerCase() ?? "";
 
   return (
@@ -369,11 +463,15 @@ const Task = () => {
           {synced &&
             titleLower.includes("upwork") &&
             !titleLower.includes("training") && (
-              <img
-                onClick={LaunchUpwork}
-                src={upworkLogo}
-                alt="Open in Upwork"
-                className={`h-9 w-9 rounded-full cursor-pointer flex-shrink-0
+              <div className="flex items-center gap-2">
+                <span className="max-w-36 text-right text-xs text-neutral-500 dark:text-neutral-400">
+                  Press Esc to stop login automation
+                </span>
+                <img
+                  onClick={LaunchUpwork}
+                  src={upworkLogo}
+                  alt="Open in Upwork"
+                  className={`h-9 w-9 rounded-full cursor-pointer flex-shrink-0
                 border-2 border-transparent dark:border-emerald-500
                 shadow-sm transition-all
                 hover:shadow-[0_0_12px_1px_rgba(16,185,129,0.7)]
@@ -383,7 +481,8 @@ const Task = () => {
                     ? "opacity-50 pointer-events-none cursor-not-allowed"
                     : ""
                 }`}
-              />
+                />
+              </div>
             )}
         </div>
       </div>
@@ -470,19 +569,48 @@ const Task = () => {
                 )}
               </div>
 
+              {syncNotice && (
+                <p className="max-w-56 text-right text-[11px] leading-4 text-amber-600 dark:text-amber-400">
+                  {syncNotice}
+                </p>
+              )}
+
               {titleLower.includes("break") ||
               titleLower.includes("training") ? (
                 isStarted ? (
-                  <StopButton onClick={stopTime} />
+                  <StopButton
+                    onClick={stopTime}
+                    disabled={
+                      trackingAction !== "idle" || !lastTaskRecord?.id
+                    }
+                    label={
+                      trackingAction === "stopping" ? "Stopping…" : "Stop"
+                    }
+                  />
                 ) : (
-                  <StartButton onClick={startTime} />
+                  <StartButton
+                    onClick={startTime}
+                    disabled={trackingAction !== "idle" || !isHydrated}
+                    label={
+                      trackingAction === "starting" ? "Starting…" : "Start"
+                    }
+                  />
                 )
               ) : isStarted ? (
-                <StopButton onClick={stopTime} />
+                <StopButton
+                  onClick={stopTime}
+                  disabled={trackingAction !== "idle" || !lastTaskRecord?.id}
+                  label={trackingAction === "stopping" ? "Stopping…" : "Stop"}
+                />
               ) : (
                 <Dialog>
                   <DialogTrigger asChild>
-                    <StartButton />
+                    <StartButton
+                      disabled={trackingAction !== "idle" || !isHydrated}
+                      label={
+                        trackingAction === "starting" ? "Starting…" : "Start"
+                      }
+                    />
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
@@ -562,8 +690,12 @@ const Task = () => {
                         <Button variant="outline">Cancel</Button>
                       </DialogClose>
                       <DialogClose asChild>
-                        <Button type="submit" onClick={startTime}>
-                          Start
+                        <Button
+                          type="submit"
+                          onClick={startTime}
+                          disabled={trackingAction !== "idle" || !isHydrated}
+                        >
+                          {trackingAction === "starting" ? "Starting…" : "Start"}
                         </Button>
                       </DialogClose>
                     </DialogFooter>
@@ -584,14 +716,12 @@ const Task = () => {
                   What are you working on?
                 </h3>
                 <EditWorkDialog
-                  initialMemo={memo}
-                  initialTag={tag}
-                  onSave={(newMemo, newTag) => {
+                  initialNotes={notes}
+                  onSave={(newNotes) => {
                     async function updateMemo() {
-                      setMemo(newMemo);
-                      setTag(newTag);
+                      setNotes(newNotes);
 
-                      await AddMemo(newMemo || "", newTag || "");
+                      await AddMemo(newNotes || "");
                     }
 
                     updateMemo();
@@ -600,6 +730,7 @@ const Task = () => {
               </div>
 
               <div className="space-y-1 text-xs sm:text-sm">
+<<<<<<< HEAD
                 <p className="flex gap-1.5">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
                     Memo:
@@ -611,9 +742,14 @@ const Task = () => {
                 <p className="flex gap-1.5 line-clamp-3">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
                     Activity tag:
+=======
+                <p className="flex gap-1.5 line-clamp-3">
+                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                    Activity notes:
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
                   </span>
                   <span className="text-neutral-800 dark:text-neutral-50">
-                    {tag || "No tag set."}
+                    {notes || "No notes set."}
                   </span>
                 </p>
               </div>
@@ -672,12 +808,18 @@ export default Task;
 
 interface ButtonProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  label?: string;
 }
+
+type StartButtonProps = React.ComponentProps<typeof Button> & {
+  label?: string;
+};
 
 const StartButton = forwardRef<
   HTMLButtonElement,
-  React.ComponentProps<typeof Button>
->((props, ref) => {
+  StartButtonProps
+>(({ label = "Start", ...props }, ref) => {
   return (
     <Button
       ref={ref}
@@ -693,15 +835,16 @@ const StartButton = forwardRef<
       "
     >
       <CirclePlay className="w-4 h-4" />
-      <span>Start</span>
+      <span>{label}</span>
     </Button>
   );
 });
 
-function StopButton({ onClick }: ButtonProps) {
+function StopButton({ onClick, disabled, label = "Stop" }: ButtonProps) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className="
         inline-flex items-center gap-1
         px-4 py-2 rounded-full
@@ -714,7 +857,7 @@ function StopButton({ onClick }: ButtonProps) {
       "
     >
       <StopCircle className="w-4 h-4" />
-      <span>Stop</span>
+      <span>{label}</span>
     </button>
   );
 }

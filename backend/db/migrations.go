@@ -102,6 +102,21 @@ func migrationCatalog() []catalogMigration {
 			Plan:        planIndexesMigration,
 			Migrate:     ensureSchemaIndexes,
 		},
+<<<<<<< HEAD
+=======
+		{
+			ID:          "20260715_008_remote_sync_metadata",
+			Description: "add Bubble reconciliation metadata",
+			Plan:        planRemoteSyncMetadataMigration,
+			Migrate:     ensureRemoteSyncMetadata,
+		},
+		{
+			ID:          "20260929_009_task_session_identity",
+			Description: "add durable task session identities and task-in dispatch metadata",
+			Plan:        planTaskSessionIdentityMigration,
+			Migrate:     ensureTaskSessionIdentity,
+		},
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	}
 }
 

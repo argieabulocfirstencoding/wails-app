@@ -89,6 +89,24 @@ const Home = () => {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
+<<<<<<< HEAD
+  }, []);
+
+  useEffect(() => {
+    refreshTaskRecords();
+    refreshActiveRecord(true);
+  }, []);
+
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("record-synced", () => {
+      refreshTaskRecords();
+      refreshActiveRecord(true);
+    });
+
+    return () => off();
+=======
+>>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
   }, []);
 
   useEffect(() => {
@@ -106,6 +124,17 @@ const Home = () => {
     return () => off();
   }, []);
 
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("browser-records-synced", async () => {
+      await refreshTaskRecords();
+      const fetchedTasks: any = await GetTasks(false);
+      if (fetchedTasks) setTasks(fetchedTasks);
+      await fetchTodayClientSummary();
+    });
+
+    return () => off();
+  }, []);
   useEffect(() => {
     const off = EventsOn("attendance-synced", (synced: boolean) => {
       setAttendanceSynced(synced);
