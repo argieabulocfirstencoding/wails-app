@@ -196,6 +196,10 @@ const ClientAccounts = () => {
           </div>
         </section>
 
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          Press Esc to stop login automation
+        </p>
+
         <AppFooterInfo className="mt-4" />
       </div>
     </SettingsLayout>

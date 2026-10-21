@@ -421,11 +421,15 @@ const Task = () => {
           {synced &&
             titleLower.includes("upwork") &&
             !titleLower.includes("training") && (
-              <img
-                onClick={LaunchUpwork}
-                src={upworkLogo}
-                alt="Open in Upwork"
-                className={`h-9 w-9 rounded-full cursor-pointer flex-shrink-0
+              <div className="flex items-center gap-2">
+                <span className="max-w-36 text-right text-xs text-neutral-500 dark:text-neutral-400">
+                  Press Esc to stop login automation
+                </span>
+                <img
+                  onClick={LaunchUpwork}
+                  src={upworkLogo}
+                  alt="Open in Upwork"
+                  className={`h-9 w-9 rounded-full cursor-pointer flex-shrink-0
                 border-2 border-transparent dark:border-emerald-500
                 shadow-sm transition-all
                 hover:shadow-[0_0_12px_1px_rgba(16,185,129,0.7)]
@@ -435,7 +439,8 @@ const Task = () => {
                     ? "opacity-50 pointer-events-none cursor-not-allowed"
                     : ""
                 }`}
-              />
+                />
+              </div>
             )}
         </div>
       </div>

@@ -181,6 +181,9 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) Shutdown(ctx context.Context) {
 	a.ctx = ctx
 	a.stopBrowserTaskEventPolling()
+	if a.SyncService != nil && a.SyncService.FesClientService != nil {
+		a.SyncService.FesClientService.StopUpworkAutomations()
+	}
 
 	if a.ScreenshotService != nil {
 		a.ScreenshotService.Stop()

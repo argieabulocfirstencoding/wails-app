@@ -13,6 +13,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -37,12 +38,13 @@ import (
 )
 
 type FesClientService struct {
-	baseUrl        string
-	client         *http.Client
-	logger         *utils.LoggerService
-	TaskRepository *repository.TaskRepository
-	Connectivity   *ConnectivityStateService
-	ctx            context.Context
+	baseUrl            string
+	client             *http.Client
+	logger             *utils.LoggerService
+	TaskRepository     *repository.TaskRepository
+	Connectivity       *ConnectivityStateService
+	ctx                context.Context
+	upworkCancellation upworkCancellation
 
 	sessionMu     sync.Mutex
 	sessionStore  bubbleSessionStore
@@ -114,8 +116,10 @@ type upworkReadyField struct {
 }
 
 type chromeDevToolsClient struct {
-	conn   *websocket.Conn
-	nextID int
+	conn             *websocket.Conn
+	nextID           int
+	ctx              context.Context
+	stopCancellation func() bool
 }
 
 type chromeLocalState struct {
@@ -902,11 +906,20 @@ func (f *FesClientService) launchClientAccountUpworkNativeAutomation(ctx context
 		return f.logger.Error(err.Error())
 	}
 
+	runCtx, finish, err := f.upworkCancellation.begin(ctx)
+	if err != nil {
+		return err
+	}
 	f.logger.Printf("Opening Upwork login form for account: %s", strings.TrimSpace(accountLabel))
 	go func() {
-		if err := performLegacyClientAccountUpworkLogin(ctx, username, password, func(stage string, err error) {
+		defer finish()
+		if err := performLegacyClientAccountUpworkLogin(runCtx, username, password, func(stage string, err error) {
 			f.logger.Infof("op=client_account_upwork_native_automation_waiting account=%q stage=%q err=%v", strings.TrimSpace(accountLabel), stage, err)
 		}); err != nil {
+			if errors.Is(err, context.Canceled) {
+				f.logger.Infof("op=client_account_upwork_native_automation_stopped account=%q", strings.TrimSpace(accountLabel))
+				return
+			}
 			f.logger.Warnf("op=client_account_upwork_native_automation_failed account=%q err=%v", strings.TrimSpace(accountLabel), err)
 			return
 		}
@@ -943,7 +956,13 @@ func performLegacyClientAccountUpworkLogin(ctx context.Context, username, passwo
 		return err
 	}
 	if err := waitForUpworkClientControl(ctx, "username input", uia.UIA_EditControlTypeId, []string{"Email or username", "Email or Username", "Username or email", "Username or Email", "Email", "Username"}, func(element *uia.IUIAutomationElement) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := element.SetFocus(); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		return sendNativeUnicodeText(username)
@@ -962,7 +981,13 @@ func performLegacyClientAccountUpworkLogin(ctx context.Context, username, passwo
 		return err
 	}
 	if err := waitForUpworkClientControl(ctx, "password input", uia.UIA_EditControlTypeId, []string{"Password"}, func(element *uia.IUIAutomationElement) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := element.SetFocus(); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		return sendNativeUnicodeText(password)
@@ -984,13 +1009,16 @@ func waitForUpworkClientDelay(ctx context.Context, delay time.Duration) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("Upwork client account automation cancelled: %w", ctx.Err())
+		return fmt.Errorf("Upwork automation cancelled: %w", ctx.Err())
 	case <-timer.C:
-		return nil
+		return ctx.Err()
 	}
 }
 
@@ -1003,7 +1031,7 @@ func waitForUpworkClientControl(ctx context.Context, stage string, controlType i
 	}
 
 	return retryUpworkClientControl(ctx, stage, upworkFieldReadyPollInterval, func() error {
-		return actOnForegroundUpworkClientControl(controlType, names, action)
+		return actOnForegroundUpworkClientControl(ctx, controlType, names, action)
 	}, onRetry)
 }
 
@@ -1024,7 +1052,11 @@ func retryUpworkClientControl(ctx context.Context, stage string, pollInterval ti
 			return fmt.Errorf("waiting for Upwork %s was cancelled: %w", strings.TrimSpace(stage), err)
 		}
 		if err := attempt(); err == nil {
-			return nil
+			return ctx.Err()
+		} else if ctx.Err() != nil {
+			return ctx.Err()
+		} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
 		} else if onRetry != nil && (lastRetryLog.IsZero() || time.Since(lastRetryLog) >= upworkClientControlRetryLogInterval) {
 			onRetry(strings.TrimSpace(stage), err)
 			lastRetryLog = time.Now()
@@ -1040,7 +1072,10 @@ func retryUpworkClientControl(ctx context.Context, stage string, pollInterval ti
 	}
 }
 
-func actOnForegroundUpworkClientControl(controlType int, names []string, action upworkClientControlAction) error {
+func actOnForegroundUpworkClientControl(ctx context.Context, controlType int, names []string, action upworkClientControlAction) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	native_runtime.LockOSThread()
 	defer native_runtime.UnlockOSThread()
 	if err := ole.CoInitialize(0); err != nil {
@@ -1058,13 +1093,22 @@ func actOnForegroundUpworkClientControl(controlType int, names []string, action 
 		return err
 	}
 	defer window.Release()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if win.GetForegroundWindow() != hwnd {
 		win.ShowWindow(hwnd, win.SW_RESTORE)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if !win.SetForegroundWindow(hwnd) || win.GetForegroundWindow() != hwnd {
 			return fmt.Errorf("could not activate the Upwork Chrome window")
 		}
 	}
 	for _, name := range names {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		condition, err := upworkClientControlCondition(auto, controlType, name)
 		if err != nil {
 			continue
@@ -1081,7 +1125,7 @@ func actOnForegroundUpworkClientControl(controlType int, names []string, action 
 			element.Release()
 			continue
 		}
-		actionErr := action(element)
+		actionErr := performUpworkAction(ctx, func() error { return action(element) })
 		element.Release()
 		if actionErr != nil {
 			return fmt.Errorf("activate Upwork %s control %q: %w", upworkClientControlTypeName(controlType), name, actionErr)
@@ -1313,14 +1357,23 @@ func (f *FesClientService) launchUpworkLoginAutomation(ctx context.Context, acco
 		return f.logger.Error(err.Error())
 	}
 
+	runCtx, finish, err := f.upworkCancellation.begin(ctx)
+	if err != nil {
+		return err
+	}
 	f.logger.Printf("Opening Upwork login form for account: %s", strings.TrimSpace(accountLabel))
 
 	go func() {
+		defer finish()
 		if emitCompletionEvent && ctx != nil {
 			defer runtime.EventsEmit(ctx, "upwork-button", true)
 		}
 
-		if err := f.performUpworkLoginAutomation(username, password); err != nil {
+		if err := f.performUpworkLoginAutomation(runCtx, username, password); err != nil {
+			if errors.Is(err, context.Canceled) {
+				f.logger.Infof("op=upwork_login_automation_stopped account=%q", strings.TrimSpace(accountLabel))
+				return
+			}
 			f.logger.Warnf("op=upwork_login_automation_failed account=%q err=%v", strings.TrimSpace(accountLabel), err)
 		}
 	}()
@@ -1328,37 +1381,46 @@ func (f *FesClientService) launchUpworkLoginAutomation(ctx context.Context, acco
 	return nil
 }
 
-func (f *FesClientService) performUpworkLoginAutomation(username, password string) error {
-	if _, err := f.waitForUpworkLoginTarget(upworkDevToolsTargetTimeout); err != nil {
+func (f *FesClientService) performUpworkLoginAutomation(ctx context.Context, username, password string) error {
+	if _, err := f.waitForUpworkLoginTarget(ctx, upworkDevToolsTargetTimeout); err != nil {
 		return fmt.Errorf("secure Upwork form entry requires Chrome DevTools access: %w", err)
 	}
-	usernameSelector, target, err := f.waitForUpworkFieldEntry("username", upworkUsernameFieldSelectors, username, upworkFieldReadyTimeout)
+	usernameSelector, target, err := f.waitForUpworkFieldEntry(ctx, "username", upworkUsernameFieldSelectors, username, upworkFieldReadyTimeout)
 	if err != nil {
 		return err
 	}
 	f.logger.Infof("op=upwork_username_field_ready selector=%q", usernameSelector)
-	time.Sleep(upworkFieldTransitionDelay)
-	if err := pressEnterInUpworkTarget(target); err != nil {
+	if err := waitForUpworkClientDelay(ctx, upworkFieldTransitionDelay); err != nil {
 		return err
 	}
-	passwordSelector, target, err := f.waitForUpworkFieldEntry("password", upworkPasswordFieldSelectors, password, upworkFieldReadyTimeout)
+	if err := pressEnterInUpworkTarget(ctx, target); err != nil {
+		return err
+	}
+	passwordSelector, target, err := f.waitForUpworkFieldEntry(ctx, "password", upworkPasswordFieldSelectors, password, upworkFieldReadyTimeout)
 	if err != nil {
 		return err
 	}
 	f.logger.Infof("op=upwork_password_field_ready selector=%q", passwordSelector)
-	time.Sleep(upworkClientAccountSubmitDelay)
-	return pressEnterInUpworkTarget(target)
+	if err := waitForUpworkClientDelay(ctx, upworkClientAccountSubmitDelay); err != nil {
+		return err
+	}
+	return pressEnterInUpworkTarget(ctx, target)
 }
 
-func (f *FesClientService) waitForUpworkLoginTarget(timeout time.Duration) (*chromeDevToolsTarget, error) {
+func (f *FesClientService) waitForUpworkLoginTarget(ctx context.Context, timeout time.Duration) (*chromeDevToolsTarget, error) {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 
 	for time.Now().Before(deadline) {
-		targets, err := fetchChromeDevToolsTargets()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		targets, err := fetchChromeDevToolsTargets(ctx)
 		if err != nil {
 			lastErr = err
-			time.Sleep(upworkFieldReadyPollInterval)
+			if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
+				return nil, err
+			}
 			continue
 		}
 
@@ -1367,9 +1429,14 @@ func (f *FesClientService) waitForUpworkLoginTarget(timeout time.Duration) (*chr
 		}
 
 		lastErr = fmt.Errorf("Upwork login tab not found in Chrome targets")
-		time.Sleep(upworkFieldReadyPollInterval)
+		if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
+			return nil, err
+		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if lastErr != nil {
 		return nil, fmt.Errorf("timed out waiting for Upwork browser target: %w", lastErr)
 	}
@@ -1377,35 +1444,44 @@ func (f *FesClientService) waitForUpworkLoginTarget(timeout time.Duration) (*chr
 	return nil, fmt.Errorf("timed out waiting for Upwork browser target")
 }
 
-func (f *FesClientService) waitForUpworkFieldEntry(stage string, selectors []string, value string, timeout time.Duration) (string, *chromeDevToolsTarget, error) {
+func (f *FesClientService) waitForUpworkFieldEntry(ctx context.Context, stage string, selectors []string, value string, timeout time.Duration) (string, *chromeDevToolsTarget, error) {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	var previousTargetID string
 	var previousField *upworkReadyField
 
 	for time.Now().Before(deadline) {
-		target, err := f.waitForUpworkLoginTarget(upworkFieldReadyPollInterval)
+		if err := ctx.Err(); err != nil {
+			return "", nil, err
+		}
+		target, err := f.waitForUpworkLoginTarget(ctx, upworkFieldReadyPollInterval)
 		if err != nil {
 			lastErr = err
 			previousTargetID = ""
 			previousField = nil
-			time.Sleep(upworkFieldReadyPollInterval)
+			if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
+				return "", nil, err
+			}
 			continue
 		}
 
-		field, err := findReadyUpworkField(target, selectors)
+		field, err := findReadyUpworkField(ctx, target, selectors)
 		if err != nil {
 			lastErr = err
 			previousTargetID = ""
 			previousField = nil
-			time.Sleep(upworkFieldReadyPollInterval)
+			if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
+				return "", nil, err
+			}
 			continue
 		}
 		if field == nil {
 			lastErr = fmt.Errorf("%s field is not interactable yet", stage)
 			previousTargetID = ""
 			previousField = nil
-			time.Sleep(upworkFieldReadyPollInterval)
+			if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
+				return "", nil, err
+			}
 			continue
 		}
 
@@ -1413,11 +1489,13 @@ func (f *FesClientService) waitForUpworkFieldEntry(stage string, selectors []str
 		if previousField == nil || previousTargetID != targetID || !upworkFieldPositionIsStable(previousField, field) {
 			previousTargetID = targetID
 			previousField = field
-			time.Sleep(upworkFieldReadyPollInterval)
+			if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
+				return "", nil, err
+			}
 			continue
 		}
 
-		selector, method, err := enterTextInReadyUpworkField(target, field, value)
+		selector, method, err := enterTextInReadyUpworkField(ctx, target, field, value)
 		if err == nil && strings.TrimSpace(selector) != "" {
 			if f.logger != nil {
 				f.logger.Infof("op=upwork_field_value_set stage=%s selector=%q method=%s", stage, selector, method)
@@ -1428,9 +1506,14 @@ func (f *FesClientService) waitForUpworkFieldEntry(stage string, selectors []str
 		previousTargetID = ""
 		previousField = nil
 
-		time.Sleep(upworkFieldReadyPollInterval)
+		if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
+			return "", nil, err
+		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return "", nil, err
+	}
 	if lastErr != nil {
 		return "", nil, fmt.Errorf("timed out waiting for Upwork %s field: %w", stage, lastErr)
 	}
@@ -1438,9 +1521,13 @@ func (f *FesClientService) waitForUpworkFieldEntry(stage string, selectors []str
 	return "", nil, fmt.Errorf("timed out waiting for Upwork %s field", stage)
 }
 
-func fetchChromeDevToolsTargets() ([]chromeDevToolsTarget, error) {
+func fetchChromeDevToolsTargets(ctx context.Context) ([]chromeDevToolsTarget, error) {
 	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(chromeDevToolsListURL())
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, chromeDevToolsListURL(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -1493,12 +1580,12 @@ func isUpworkLoginPageURL(rawURL string) bool {
 		strings.Contains(trimmedURL, "/login")
 }
 
-func findReadyUpworkField(target *chromeDevToolsTarget, selectors []string) (*upworkReadyField, error) {
+func findReadyUpworkField(ctx context.Context, target *chromeDevToolsTarget, selectors []string) (*upworkReadyField, error) {
 	if target == nil {
 		return nil, fmt.Errorf("chrome devtools target is required")
 	}
 
-	client, err := newChromeDevToolsClient(strings.TrimSpace(target.WebSocketDebuggerURL))
+	client, err := newChromeDevToolsClient(ctx, strings.TrimSpace(target.WebSocketDebuggerURL))
 	if err != nil {
 		return nil, err
 	}
@@ -1511,7 +1598,7 @@ func findReadyUpworkField(target *chromeDevToolsTarget, selectors []string) (*up
 	return client.readyUpworkField(selectors)
 }
 
-func enterTextInReadyUpworkField(target *chromeDevToolsTarget, field *upworkReadyField, value string) (string, string, error) {
+func enterTextInReadyUpworkField(ctx context.Context, target *chromeDevToolsTarget, field *upworkReadyField, value string) (string, string, error) {
 	if target == nil {
 		return "", "", fmt.Errorf("chrome devtools target is required")
 	}
@@ -1519,7 +1606,7 @@ func enterTextInReadyUpworkField(target *chromeDevToolsTarget, field *upworkRead
 		return "", "", fmt.Errorf("ready Upwork field is required")
 	}
 
-	client, err := newChromeDevToolsClient(strings.TrimSpace(target.WebSocketDebuggerURL))
+	client, err := newChromeDevToolsClient(ctx, strings.TrimSpace(target.WebSocketDebuggerURL))
 	if err != nil {
 		return "", "", err
 	}
@@ -1546,12 +1633,12 @@ func enterTextInReadyUpworkField(target *chromeDevToolsTarget, field *upworkRead
 	return field.Selector, method, nil
 }
 
-func pressEnterInUpworkTarget(target *chromeDevToolsTarget) error {
+func pressEnterInUpworkTarget(ctx context.Context, target *chromeDevToolsTarget) error {
 	if target == nil {
 		return fmt.Errorf("chrome devtools target is required")
 	}
 
-	client, err := newChromeDevToolsClient(strings.TrimSpace(target.WebSocketDebuggerURL))
+	client, err := newChromeDevToolsClient(ctx, strings.TrimSpace(target.WebSocketDebuggerURL))
 	if err != nil {
 		return err
 	}
@@ -1564,23 +1651,44 @@ func pressEnterInUpworkTarget(target *chromeDevToolsTarget) error {
 	return client.pressEnter()
 }
 
-func newChromeDevToolsClient(wsURL string) (*chromeDevToolsClient, error) {
+func newChromeDevToolsClient(ctx context.Context, wsURL string) (*chromeDevToolsClient, error) {
 	trimmedURL := strings.TrimSpace(wsURL)
 	if trimmedURL == "" {
 		return nil, fmt.Errorf("chrome devtools websocket URL is required")
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(trimmedURL, nil)
+	// DialContext handles connecting, but the WebSocket HTTP handshake can
+	// still be waiting after cancellation. Close the underlying socket too.
+	dialer := *websocket.DefaultDialer
+	var stopCancellation func() bool
+	dialer.NetDialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {
+		conn, err := (&net.Dialer{}).DialContext(dialCtx, network, address)
+		if err == nil {
+			stopCancellation = context.AfterFunc(ctx, func() { _ = conn.Close() })
+		}
+		return conn, err
+	}
+	conn, _, err := dialer.DialContext(ctx, trimmedURL, nil)
 	if err != nil {
+		if stopCancellation != nil {
+			stopCancellation()
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return nil, fmt.Errorf("connect chrome devtools websocket: %w", err)
 	}
 
-	return &chromeDevToolsClient{conn: conn}, nil
+	client := &chromeDevToolsClient{conn: conn, ctx: ctx, stopCancellation: stopCancellation}
+	return client, nil
 }
 
 func (c *chromeDevToolsClient) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
+	}
+	if c.stopCancellation != nil {
+		c.stopCancellation()
 	}
 	return c.conn.Close()
 }
@@ -1667,6 +1775,9 @@ func (c *chromeDevToolsClient) setFocusedFieldValue(selector, value string) (str
 		}
 	}
 
+	if err := c.contextError(); err != nil {
+		return "", err
+	}
 	set, err := c.setNativeFocusedFieldValue(selector, value)
 	if err != nil {
 		return "", fmt.Errorf("set Upwork field value through native fallback: %w", err)
@@ -1899,6 +2010,9 @@ func (c *chromeDevToolsClient) evaluateValue(expression string) (any, error) {
 }
 
 func (c *chromeDevToolsClient) call(method string, params map[string]any) (json.RawMessage, error) {
+	if err := c.contextError(); err != nil {
+		return nil, err
+	}
 	if c == nil || c.conn == nil {
 		return nil, fmt.Errorf("chrome devtools connection is required")
 	}
@@ -1910,12 +2024,18 @@ func (c *chromeDevToolsClient) call(method string, params map[string]any) (json.
 		Method: method,
 		Params: params,
 	}); err != nil {
+		if ctxErr := c.contextError(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, fmt.Errorf("write chrome devtools command %s: %w", method, err)
 	}
 
 	for {
 		var response chromeDevToolsMessage
 		if err := c.conn.ReadJSON(&response); err != nil {
+			if ctxErr := c.contextError(); ctxErr != nil {
+				return nil, ctxErr
+			}
 			return nil, fmt.Errorf("read chrome devtools command %s: %w", method, err)
 		}
 		if response.ID != requestID {
@@ -1923,6 +2043,9 @@ func (c *chromeDevToolsClient) call(method string, params map[string]any) (json.
 		}
 		if response.Error != nil {
 			return nil, fmt.Errorf("chrome devtools command %s failed: %s", method, strings.TrimSpace(response.Error.Message))
+		}
+		if err := c.contextError(); err != nil {
+			return nil, err
 		}
 		return response.Result, nil
 	}
@@ -2226,4 +2349,11 @@ func chromeExecutablePath() (string, error) {
 	}
 
 	return "", fmt.Errorf("Google Chrome executable was not found")
+}
+
+func (c *chromeDevToolsClient) contextError() error {
+	if c != nil && c.ctx != nil {
+		return c.ctx.Err()
+	}
+	return nil
 }
