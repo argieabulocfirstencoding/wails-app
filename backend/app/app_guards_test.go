@@ -24,8 +24,6 @@ func TestGetActiveTaskRecordReturnsNilWithoutAuthentication(t *testing.T) {
 	}
 }
 
-<<<<<<< HEAD
-=======
 func TestGetClientAccountsRequiresAuthentication(t *testing.T) {
 	a := NewApp()
 
@@ -44,7 +42,6 @@ func TestOpenClientAccountRequiresAuthentication(t *testing.T) {
 	}
 }
 
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 func TestShutdownStopsActiveTaskLocally(t *testing.T) {
 	_, user, _, task, attendance, taskRecord := setupActiveTaskCacheTestDB(t)
 

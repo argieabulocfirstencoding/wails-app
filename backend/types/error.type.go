@@ -2,8 +2,6 @@ package types
 
 import "fmt"
 
-<<<<<<< HEAD
-=======
 // RemoteAPIError preserves the HTTP status from a remote service without
 // exposing request credentials or response bodies to the UI.
 type RemoteAPIError struct {
@@ -27,7 +25,6 @@ func NewRemoteAPIError(service string, statusCode int, message string) error {
 	}
 }
 
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 type OperationError struct {
 	Op       string
 	RecordID uint

@@ -17,14 +17,9 @@ import {
   RefreshCw,
   PackageCheck,
 } from "lucide-react";
-<<<<<<< HEAD
-import { GetFolderSize, ClearScreenshots } from "@/../wailsjs/go/app/App";
-import { releaseFlags } from "@/config/release";
-=======
 import { GetFolderSize, ClearScreenshots, GetBuildInfo, CheckForUpdates } from "@/../wailsjs/go/app/App";
 import { releaseFlags } from "@/config/release";
 import { updateErrorMessage, useUpdateStore } from "@/store/updateStore";
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 type AccountUser = {
   fullName: string;
@@ -103,7 +98,7 @@ const AccountSettings = () => {
       const update = await CheckForUpdates();
       setAvailableUpdate(update.available ? update : null);
       if (!update.available) {
-        setUpdateCheckMessage("No newer development build is available.");
+        setUpdateCheckMessage("No newer update is available.");
       }
     } catch (error) {
       const message = updateErrorMessage(error, "Unable to check for updates.");
@@ -354,7 +349,7 @@ const AccountSettings = () => {
 
             <div className="flex items-center justify-between gap-3 border-t border-neutral-100 pt-4 dark:border-neutral-800">
               <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                {buildInfo?.updatesEnabled ? "Development update checking is enabled." : "Updates are disabled for this build."}
+                {buildInfo?.updatesEnabled ? "Update checking is enabled." : "Updates are disabled for this build."}
               </p>
               <Button variant="outline" className="shrink-0 gap-2" onClick={checkForUpdates} disabled={!buildInfo?.updatesEnabled || checkingForUpdate}>
                 <RefreshCw className={`size-3.5 ${checkingForUpdate ? "animate-spin" : ""}`} />

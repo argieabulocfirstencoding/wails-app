@@ -6,6 +6,7 @@ import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import { Button } from "@/components/ui/button";
 import { GetClientAccounts, OpenClientAccount } from "@/../wailsjs/go/app/App";
+import { EventsOn } from "@/../wailsjs/runtime";
 import { useAuthStore } from "@/store/AuthContext";
 
 type ClientAccount = {
@@ -16,6 +17,12 @@ type ClientAccount = {
   hasCredentials: boolean;
   googleProfile: string;
   hasGoogleProfile: boolean;
+};
+
+type UpworkLoginStatus = {
+  mode?: string;
+  state?: string;
+  message?: string;
 };
 
 const getErrorMessage = (error: unknown): string => {
@@ -37,6 +44,7 @@ const ClientAccounts = () => {
   const [launchingAccountId, setLaunchingAccountId] = useState<string | null>(
     null,
   );
+  const [launchNotice, setLaunchNotice] = useState("");
 
   const visibleAccounts = useMemo(
     () => accounts.filter((account) => account.display.trim() !== ""),
@@ -69,15 +77,14 @@ const ClientAccounts = () => {
     async (account: ClientAccount) => {
       if (launchingAccountId) return;
 
-      setErrorMsg("");
+      setLaunchNotice("");
       setLaunchingAccountId(account.id);
 
       try {
         await OpenClientAccount(account.id);
       } catch (error) {
         console.error("Failed to launch client account:", error);
-        setErrorMsg(getErrorMessage(error));
-      } finally {
+        setLaunchNotice(getErrorMessage(error));
         setLaunchingAccountId(null);
       }
     },
@@ -87,6 +94,24 @@ const ClientAccounts = () => {
   useEffect(() => {
     fetchAccounts();
   }, [fetchAccounts]);
+
+  useEffect(() => {
+    if (!EventsOn) return;
+    const off = EventsOn("upwork-login-status", (payload: UpworkLoginStatus) => {
+      if (payload?.mode !== "client_account") return;
+      if (payload.state === "succeeded") {
+        setLaunchNotice("");
+      }
+      if (payload.state === "failed" || payload.state === "cancelled") {
+        setLaunchNotice(payload.message || "Upwork sign-in did not complete.");
+      }
+      if (payload.state === "succeeded" || payload.state === "failed" || payload.state === "cancelled") {
+        setLaunchingAccountId(null);
+      }
+    });
+
+    return () => off();
+  }, []);
 
   return (
     <SettingsLayout>
@@ -99,6 +124,11 @@ const ClientAccounts = () => {
             Open the matching Google Chrome profile for a Bubble-managed
             Upwork client account.
           </p>
+          {launchNotice && (
+            <p className="text-sm text-amber-700 dark:text-amber-400" role="alert">
+              {launchNotice}
+            </p>
+          )}
         </header>
 
         <section className="rounded-[28px] border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden">

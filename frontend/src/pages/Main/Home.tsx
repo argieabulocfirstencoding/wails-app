@@ -89,24 +89,6 @@ const Home = () => {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-<<<<<<< HEAD
-  }, []);
-
-  useEffect(() => {
-    refreshTaskRecords();
-    refreshActiveRecord(true);
-  }, []);
-
-  useEffect(() => {
-    if (!EventsOn) return;
-    const off = EventsOn("record-synced", () => {
-      refreshTaskRecords();
-      refreshActiveRecord(true);
-    });
-
-    return () => off();
-=======
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
   }, []);
 
   useEffect(() => {

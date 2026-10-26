@@ -33,7 +33,10 @@ func sessionSyncFixture(t *testing.T) (*SyncService, *models.Attendance, *models
 	s := NewSyncService(connectivity)
 	s.AuthUser = &models.AuthUser{LocalID: user.ID}
 	// Avoid reading workstation credentials in mocked API tests.
-	s.FesClientService.apiToken = "test-token"
+	s.FesClientService.sessionStore = &memoryBubbleSessionStore{values: map[string]string{}}
+	if err := s.FesClientService.SetBubbleSession(user.ID, "test-token", time.Hour); err != nil {
+		t.Fatalf("set test session: %v", err)
+	}
 	return s, attendance, user, record
 }
 
@@ -91,7 +94,8 @@ func TestSessionTaskInLostResponseReusesKeyAfterRestart(t *testing.T) {
 	// Fresh service, same persisted database; no cached request identity.
 	restarted := NewSyncService(s.Connectivity)
 	restarted.AuthUser = s.AuthUser
-	restarted.FesClientService.apiToken = "test-token"
+	restarted.FesClientService.sessionStore = s.FesClientService.sessionStore
+	restarted.FesClientService.SetActiveSessionUser(s.AuthUser.LocalID)
 	restarted.FesClientService.baseUrl = server.URL + "/"
 	if err := restarted.syncTaskRecordNow(context.Background(), record.ID, true); err != nil {
 		t.Fatal(err)

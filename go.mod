@@ -8,10 +8,7 @@ require (
 	github.com/chai2010/webp v1.4.0
 	github.com/getlantern/systray v1.2.2
 	github.com/go-gormigrate/gormigrate/v2 v2.1.6
-<<<<<<< HEAD
-=======
 	github.com/go-ole/go-ole v1.3.0
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -21,13 +18,9 @@ require (
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/sjuhan/w32uiautomation v0.0.0-20231219053614-6e4c2572112c
 	github.com/stretchr/testify v1.11.1
-	github.com/wailsapp/wails/v2 v2.12.0
+	github.com/wailsapp/wails/v2 v2.13.0
 	github.com/zalando/go-keyring v0.2.6
-<<<<<<< HEAD
-	golang.org/x/sys v0.43.0
-=======
 	golang.org/x/sys v0.44.0
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	gorm.io/gorm v1.31.1
 )
 

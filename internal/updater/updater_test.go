@@ -73,8 +73,8 @@ func TestIsNewerDevelopmentBuildRequiresBothNewRunAndCommit(t *testing.T) {
 }
 
 func TestValidateReleaseAssetURL(t *testing.T) {
-	valid := "https://github.com/" + Repository + "/releases/download/development-latest/development-manifest.json"
-	if err := validateReleaseAssetURL(valid); err != nil {
+	valid := "https://github.com/" + developmentRepository + "/releases/download/development-latest/development-manifest.json"
+	if err := validateReleaseAssetURL(valid, developmentRepository, developmentReleaseTag, developmentManifest); err != nil {
 		t.Fatalf("expected valid URL, got %v", err)
 	}
 
@@ -83,7 +83,7 @@ func TestValidateReleaseAssetURL(t *testing.T) {
 		"https://github.com/" + Repository + "/releases/download/v1.0.0/file.exe",
 		"https://example.com/file.exe",
 	} {
-		if err := validateReleaseAssetURL(raw); err == nil {
+		if err := validateReleaseAssetURL(raw, developmentRepository, developmentReleaseTag, developmentManifest); err == nil {
 			t.Fatalf("expected URL %q to be rejected", raw)
 		}
 	}

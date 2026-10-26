@@ -16,16 +16,13 @@ import (
 	"net"
 	"net/http"
 	"os"
-<<<<<<< HEAD
-	"strings"
-=======
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 	"os/exec"
 	"time"
@@ -42,17 +39,6 @@ import (
 )
 
 type FesClientService struct {
-<<<<<<< HEAD
-	baseUrl        string
-	client         *http.Client
-	logger         *utils.LoggerService
-	TaskRepository *repository.TaskRepository
-	Connectivity   *ConnectivityStateService
-	ctx            context.Context
-	apiToken       string
-}
-
-=======
 	baseUrl            string
 	client             *http.Client
 	logger             *utils.LoggerService
@@ -130,6 +116,19 @@ type upworkReadyField struct {
 	Y        float64
 }
 
+// upworkBrowserSession describes one isolated Chrome instance used by the task
+// page automation. Chrome chooses its DevTools port and records it in the
+// profile, preventing concurrent launches from sharing a fixed endpoint.
+type upworkBrowserSession struct {
+	userDataDir string
+}
+
+type upworkLoginStatus struct {
+	Mode    string `json:"mode"`
+	State   string `json:"state"`
+	Message string `json:"message"`
+}
+
 type chromeDevToolsClient struct {
 	conn             *websocket.Conn
 	nextID           int
@@ -162,11 +161,11 @@ const (
 	upworkFieldReadyTimeout              = 20 * time.Second
 	upworkDevToolsTargetTimeout          = 8 * time.Second
 	upworkFieldReadyPollInterval         = 250 * time.Millisecond
-	upworkChromeRemoteDebuggingPort      = 9333
+	chromeDefaultRemoteDebuggingPort     = 9333
 	upworkChromeLoginURL                 = "https://www.upwork.com/ab/account-security/login?redir=%2Fab%2Faccount-security%2Foauth2%2Fauthorize%3Fresponse_type%3Dcode%26redirect_uri%3Dupwork%253A%252F%252Fwww.upwork.com%252Foauth2redir%26client_id%3D522767a70366bdd00e95cd6e8756940c"
 	upworkChromeUserDataDirPrefix        = "fes-upwork-chrome-"
-	upworkChromeProfileCleanupDelay      = time.Second
-	upworkChromeProfileCleanupTries      = 5
+	upworkChromeStaleProfileAge          = 24 * time.Hour
+	upworkClientAutomationTimeout        = 45 * time.Second
 	upworkFieldPositionTolerance         = 2.0
 )
 
@@ -190,7 +189,6 @@ var (
 	}
 )
 
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientService {
 	var connectivityState *ConnectivityStateService
 	if len(connectivity) > 0 {
@@ -212,11 +210,8 @@ func NewFesClientService(connectivity ...*ConnectivityStateService) *FesClientSe
 		logger:         utils.NewLoggerService(),
 		TaskRepository: repository.NewTaskRepository(),
 		Connectivity:   connectivityState,
-<<<<<<< HEAD
-=======
 		sessionStore:   systemBubbleSessionStore{},
 		sessionScope:   bubbleSessionScope(localDevelopmentOverride),
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	}
 
 }
@@ -337,13 +332,10 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 	}
 
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
-<<<<<<< HEAD
-=======
 		if res.StatusCode == http.StatusUnauthorized {
 			f.ClearActiveBubbleSession(true)
 			return nil, newSessionReauthenticationError()
 		}
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 		errMsg := http.StatusText(res.StatusCode)
 
 		var parsed map[string]any
@@ -355,11 +347,7 @@ func (f *FesClientService) Request(request types.Request) (map[string]interface{
 			errMsg = trimmed
 		}
 
-<<<<<<< HEAD
-		return nil, fmt.Errorf("fes api request failed (%d): %s", res.StatusCode, errMsg)
-=======
 		return nil, types.NewRemoteAPIError("FES API", res.StatusCode, errMsg)
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	}
 
 	var result map[string]any
@@ -419,11 +407,7 @@ func (f *FesClientService) GetBucketKeys() error {
 
 // ========================== UTILITY ===============================
 
-<<<<<<< HEAD
-func (f *FesClientService) OpenFesWebApp() error {
-=======
 func (f *FesClientService) OpenFesWebApp(employeeEmail string) error {
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	if !f.Connectivity.IsOnline() {
 		return f.logger.Error("you are offline")
 	}
@@ -769,15 +753,9 @@ func (f *FesClientService) fetchProjects() error {
 	return nil
 }
 
-<<<<<<< HEAD
-func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) {
-	if !f.Connectivity.IsOnline() {
-		return
-=======
 func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) error {
 	if !f.Connectivity.IsOnline() {
 		return f.logger.Error("you are offline")
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	}
 
 	task, err := f.TaskRepository.GetTaskFromTaskID(taskID)
@@ -793,11 +771,12 @@ func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) 
 
 	f.logCredentialResolution(task.Title, "workflow", creds)
 
-	if err := f.openIsolatedUpworkBrowserURL(upworkChromeLoginURL); err != nil {
+	session, err := f.openIsolatedUpworkBrowserURL(upworkChromeLoginURL)
+	if err != nil {
 		return err
 	}
 
-	return f.launchUpworkAutomation(ctx, task.Title, creds)
+	return f.launchUpworkAutomation(ctx, task.Title, creds, session)
 }
 
 func (f *FesClientService) fetchClientAccountRecords() ([]clientAccountRecord, error) {
@@ -931,14 +910,15 @@ func (f *FesClientService) launchUpworkAccountRecord(ctx context.Context, select
 
 	f.logCredentialResolution(selected.Display, source, creds)
 
+	windowTarget := newUpworkClientWindowTarget()
 	if err := openChromeProfileForUpworkClientAccount(profileDirectory, upworkChromeLoginURL); err != nil {
 		return f.logger.Errorf("failed to open Chrome profile for %q: %w", selected.Display, err)
 	}
 
-	return f.launchClientAccountUpworkNativeAutomation(ctx, selected.Display, creds)
+	return f.launchClientAccountUpworkNativeAutomation(ctx, selected.Display, creds, windowTarget)
 }
 
-func (f *FesClientService) launchClientAccountUpworkNativeAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials) error {
+func (f *FesClientService) launchClientAccountUpworkNativeAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials, target *upworkClientWindowTarget) error {
 	username, password, err := upworkLoginFormValues(creds)
 	if err != nil {
 		return f.logger.Error(err.Error())
@@ -949,27 +929,31 @@ func (f *FesClientService) launchClientAccountUpworkNativeAutomation(ctx context
 		return err
 	}
 	f.logger.Printf("Opening Upwork login form for account: %s", strings.TrimSpace(accountLabel))
+	f.emitUpworkLoginStatus(ctx, "client_account", "started", "Signing in to the selected client account.")
 	go func() {
 		defer finish()
-		if err := performLegacyClientAccountUpworkLogin(runCtx, username, password, func(stage string, err error) {
+		if err := performLegacyClientAccountUpworkLogin(runCtx, target, username, password, func(stage string, err error) {
 			f.logger.Infof("op=client_account_upwork_native_automation_waiting account=%q stage=%q err=%v", strings.TrimSpace(accountLabel), stage, err)
 		}); err != nil {
 			if errors.Is(err, context.Canceled) {
 				f.logger.Infof("op=client_account_upwork_native_automation_stopped account=%q", strings.TrimSpace(accountLabel))
+				f.emitUpworkLoginStatus(ctx, "client_account", "cancelled", "Upwork sign-in was cancelled.")
 				return
 			}
 			f.logger.Warnf("op=client_account_upwork_native_automation_failed account=%q err=%v", strings.TrimSpace(accountLabel), err)
+			f.emitUpworkLoginStatus(ctx, "client_account", "failed", "Upwork sign-in could not be completed. Check the selected Chrome profile and try again.")
 			return
 		}
 		f.logger.Infof("op=client_account_upwork_native_automation_complete account=%q method=windows_send_input", strings.TrimSpace(accountLabel))
+		f.emitUpworkLoginStatus(ctx, "client_account", "succeeded", "Upwork sign-in completed.")
 	}()
 
 	return nil
 }
 
-func (f *FesClientService) launchUpworkAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials) error {
+func (f *FesClientService) launchUpworkAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials, session *upworkBrowserSession) error {
 	fmt.Print("Fetching Upwork Credentials Please wait")
-	return f.launchUpworkLoginAutomation(ctx, accountLabel, creds, true)
+	return f.launchUpworkLoginAutomation(ctx, accountLabel, creds, session, true)
 }
 
 func upworkLoginFormValues(creds *upworkCredentials) (string, string, error) {
@@ -989,11 +973,33 @@ func upworkLoginFormValues(creds *upworkCredentials) (string, string, error) {
 type upworkClientControlAction func(*uia.IUIAutomationElement) error
 type upworkClientControlRetry func(stage string, err error)
 
-func performLegacyClientAccountUpworkLogin(ctx context.Context, username, password string, onRetry upworkClientControlRetry) error {
+// upworkClientWindowTarget restricts native automation to the Upwork Chrome
+// window launched for one Client Accounts request. It prevents a second open
+// Upwork account from receiving credentials intended for this one.
+type upworkClientWindowTarget struct {
+	existing map[win.HWND]struct{}
+	hwnd     win.HWND
+}
+
+func newUpworkClientWindowTarget() *upworkClientWindowTarget {
+	existing := make(map[win.HWND]struct{})
+	for _, hwnd := range upworkClientWindowHandles() {
+		existing[hwnd] = struct{}{}
+	}
+	return &upworkClientWindowTarget{existing: existing}
+}
+
+func performLegacyClientAccountUpworkLogin(ctx context.Context, target *upworkClientWindowTarget, username, password string, onRetry upworkClientControlRetry) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, upworkClientAutomationTimeout)
+	defer cancel()
+
 	if err := waitForUpworkClientDelay(ctx, upworkClientAccountInitialFocusDelay); err != nil {
 		return err
 	}
-	if err := waitForUpworkClientControl(ctx, "username input", uia.UIA_EditControlTypeId, []string{"Email or username", "Email or Username", "Username or email", "Username or Email", "Email", "Username"}, func(element *uia.IUIAutomationElement) error {
+	if err := waitForUpworkClientControl(ctx, target, "username input", uia.UIA_EditControlTypeId, []string{"Email or username", "Email or Username", "Username or email", "Username or Email", "Email", "Username"}, func(element *uia.IUIAutomationElement) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -1011,14 +1017,14 @@ func performLegacyClientAccountUpworkLogin(ctx context.Context, username, passwo
 	if err := waitForUpworkClientDelay(ctx, upworkFieldTransitionDelay); err != nil {
 		return err
 	}
-	if err := waitForUpworkClientControl(ctx, "username submit button", uia.UIA_ButtonControlTypeId, []string{"Continue", "Next", "Log in", "Log In", "Sign in", "Sign In"}, uia.Invoke, onRetry); err != nil {
+	if err := waitForUpworkClientControl(ctx, target, "username submit button", uia.UIA_ButtonControlTypeId, []string{"Continue", "Next", "Log in", "Log In", "Sign in", "Sign In"}, uia.Invoke, onRetry); err != nil {
 		return fmt.Errorf("find and invoke Upwork username submit button: %w", err)
 	}
 
 	if err := waitForUpworkClientDelay(ctx, upworkClientAccountPasswordDelay); err != nil {
 		return err
 	}
-	if err := waitForUpworkClientControl(ctx, "password input", uia.UIA_EditControlTypeId, []string{"Password"}, func(element *uia.IUIAutomationElement) error {
+	if err := waitForUpworkClientControl(ctx, target, "password input", uia.UIA_EditControlTypeId, []string{"Password"}, func(element *uia.IUIAutomationElement) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -1036,7 +1042,7 @@ func performLegacyClientAccountUpworkLogin(ctx context.Context, username, passwo
 	if err := waitForUpworkClientDelay(ctx, upworkClientAccountSubmitDelay); err != nil {
 		return err
 	}
-	if err := waitForUpworkClientControl(ctx, "password submit button", uia.UIA_ButtonControlTypeId, []string{"Log in", "Log In", "Sign in", "Sign In", "Continue"}, uia.Invoke, onRetry); err != nil {
+	if err := waitForUpworkClientControl(ctx, target, "password submit button", uia.UIA_ButtonControlTypeId, []string{"Log in", "Log In", "Sign in", "Sign In", "Continue"}, uia.Invoke, onRetry); err != nil {
 		return fmt.Errorf("find and invoke Upwork password submit button: %w", err)
 	}
 
@@ -1060,7 +1066,7 @@ func waitForUpworkClientDelay(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func waitForUpworkClientControl(ctx context.Context, stage string, controlType int, names []string, action upworkClientControlAction, onRetry upworkClientControlRetry) error {
+func waitForUpworkClientControl(ctx context.Context, target *upworkClientWindowTarget, stage string, controlType int, names []string, action upworkClientControlAction, onRetry upworkClientControlRetry) error {
 	if len(names) == 0 {
 		return fmt.Errorf("at least one expected Upwork control name is required")
 	}
@@ -1069,7 +1075,7 @@ func waitForUpworkClientControl(ctx context.Context, stage string, controlType i
 	}
 
 	return retryUpworkClientControl(ctx, stage, upworkFieldReadyPollInterval, func() error {
-		return actOnForegroundUpworkClientControl(ctx, controlType, names, action)
+		return actOnForegroundUpworkClientControl(ctx, target, controlType, names, action)
 	}, onRetry)
 }
 
@@ -1110,7 +1116,7 @@ func retryUpworkClientControl(ctx context.Context, stage string, pollInterval ti
 	}
 }
 
-func actOnForegroundUpworkClientControl(ctx context.Context, controlType int, names []string, action upworkClientControlAction) error {
+func actOnForegroundUpworkClientControl(ctx context.Context, target *upworkClientWindowTarget, controlType int, names []string, action upworkClientControlAction) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -1126,7 +1132,7 @@ func actOnForegroundUpworkClientControl(ctx context.Context, controlType int, na
 		return err
 	}
 	defer auto.Release()
-	hwnd, window, err := findUpworkClientChromeWindow(auto)
+	hwnd, window, err := findUpworkClientChromeWindow(auto, target)
 	if err != nil {
 		return err
 	}
@@ -1173,12 +1179,22 @@ func actOnForegroundUpworkClientControl(ctx context.Context, controlType int, na
 	return fmt.Errorf("expected Upwork %s control was not found", upworkClientControlTypeName(controlType))
 }
 
-func findUpworkClientChromeWindow(auto *uia.IUIAutomation) (win.HWND, *uia.IUIAutomationElement, error) {
+func findUpworkClientChromeWindow(auto *uia.IUIAutomation, target *upworkClientWindowTarget) (win.HWND, *uia.IUIAutomationElement, error) {
 	if auto == nil {
 		return 0, nil, fmt.Errorf("Windows UI Automation is required")
 	}
 
 	for _, hwnd := range upworkClientWindowHandles() {
+		if target != nil {
+			if target.hwnd != 0 && hwnd != target.hwnd {
+				continue
+			}
+			if target.hwnd == 0 {
+				if _, wasOpen := target.existing[hwnd]; wasOpen {
+					continue
+				}
+			}
+		}
 		window, err := uiAutomationElementFromHandle(auto, hwnd)
 		if err != nil {
 			continue
@@ -1186,6 +1202,9 @@ func findUpworkClientChromeWindow(auto *uia.IUIAutomation) (win.HWND, *uia.IUIAu
 		className, classNameErr := window.Get_CurrentCurrentClassName()
 		title, titleErr := window.Get_CurrentName()
 		if classNameErr == nil && titleErr == nil && className == "Chrome_WidgetWin_1" && strings.Contains(strings.ToLower(title), "upwork") {
+			if target != nil {
+				target.hwnd = hwnd
+			}
 			return hwnd, window, nil
 		}
 		window.Release()
@@ -1389,10 +1408,24 @@ func (f *FesClientService) logCredentialResolution(accountLabel, source string, 
 	)
 }
 
-func (f *FesClientService) launchUpworkLoginAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials, emitCompletionEvent bool) error {
+func (f *FesClientService) emitUpworkLoginStatus(ctx context.Context, mode, state, message string) {
+	if ctx == nil {
+		return
+	}
+	runtime.EventsEmit(ctx, "upwork-login-status", upworkLoginStatus{
+		Mode:    mode,
+		State:   state,
+		Message: message,
+	})
+}
+
+func (f *FesClientService) launchUpworkLoginAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials, session *upworkBrowserSession, emitCompletionEvent bool) error {
 	username, password, err := upworkLoginFormValues(creds)
 	if err != nil {
 		return f.logger.Error(err.Error())
+	}
+	if session == nil {
+		return f.logger.Error("isolated Upwork browser session is required")
 	}
 
 	runCtx, finish, err := f.upworkCancellation.begin(ctx)
@@ -1400,6 +1433,7 @@ func (f *FesClientService) launchUpworkLoginAutomation(ctx context.Context, acco
 		return err
 	}
 	f.logger.Printf("Opening Upwork login form for account: %s", strings.TrimSpace(accountLabel))
+	f.emitUpworkLoginStatus(ctx, "task", "started", "Signing in to Upwork.")
 
 	go func() {
 		defer finish()
@@ -1407,23 +1441,27 @@ func (f *FesClientService) launchUpworkLoginAutomation(ctx context.Context, acco
 			defer runtime.EventsEmit(ctx, "upwork-button", true)
 		}
 
-		if err := f.performUpworkLoginAutomation(runCtx, username, password); err != nil {
+		if err := f.performUpworkLoginAutomation(runCtx, session, username, password); err != nil {
 			if errors.Is(err, context.Canceled) {
 				f.logger.Infof("op=upwork_login_automation_stopped account=%q", strings.TrimSpace(accountLabel))
+				f.emitUpworkLoginStatus(ctx, "task", "cancelled", "Upwork sign-in was cancelled.")
 				return
 			}
 			f.logger.Warnf("op=upwork_login_automation_failed account=%q err=%v", strings.TrimSpace(accountLabel), err)
+			f.emitUpworkLoginStatus(ctx, "task", "failed", "Upwork sign-in could not be completed. Check Chrome and try again.")
+			return
 		}
+		f.emitUpworkLoginStatus(ctx, "task", "succeeded", "Upwork sign-in completed.")
 	}()
 
 	return nil
 }
 
-func (f *FesClientService) performUpworkLoginAutomation(ctx context.Context, username, password string) error {
-	if _, err := f.waitForUpworkLoginTarget(ctx, upworkDevToolsTargetTimeout); err != nil {
+func (f *FesClientService) performUpworkLoginAutomation(ctx context.Context, session *upworkBrowserSession, username, password string) error {
+	if _, err := f.waitForUpworkLoginTarget(ctx, session, upworkDevToolsTargetTimeout); err != nil {
 		return fmt.Errorf("secure Upwork form entry requires Chrome DevTools access: %w", err)
 	}
-	usernameSelector, target, err := f.waitForUpworkFieldEntry(ctx, "username", upworkUsernameFieldSelectors, username, upworkFieldReadyTimeout)
+	usernameSelector, target, err := f.waitForUpworkFieldEntry(ctx, session, "username", upworkUsernameFieldSelectors, username, upworkFieldReadyTimeout)
 	if err != nil {
 		return err
 	}
@@ -1434,7 +1472,7 @@ func (f *FesClientService) performUpworkLoginAutomation(ctx context.Context, use
 	if err := pressEnterInUpworkTarget(ctx, target); err != nil {
 		return err
 	}
-	passwordSelector, target, err := f.waitForUpworkFieldEntry(ctx, "password", upworkPasswordFieldSelectors, password, upworkFieldReadyTimeout)
+	passwordSelector, target, err := f.waitForUpworkFieldEntry(ctx, session, "password", upworkPasswordFieldSelectors, password, upworkFieldReadyTimeout)
 	if err != nil {
 		return err
 	}
@@ -1445,7 +1483,7 @@ func (f *FesClientService) performUpworkLoginAutomation(ctx context.Context, use
 	return pressEnterInUpworkTarget(ctx, target)
 }
 
-func (f *FesClientService) waitForUpworkLoginTarget(ctx context.Context, timeout time.Duration) (*chromeDevToolsTarget, error) {
+func (f *FesClientService) waitForUpworkLoginTarget(ctx context.Context, session *upworkBrowserSession, timeout time.Duration) (*chromeDevToolsTarget, error) {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 
@@ -1453,7 +1491,7 @@ func (f *FesClientService) waitForUpworkLoginTarget(ctx context.Context, timeout
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		targets, err := fetchChromeDevToolsTargets(ctx)
+		targets, err := fetchChromeDevToolsTargets(ctx, session)
 		if err != nil {
 			lastErr = err
 			if err := waitForUpworkClientDelay(ctx, upworkFieldReadyPollInterval); err != nil {
@@ -1482,7 +1520,7 @@ func (f *FesClientService) waitForUpworkLoginTarget(ctx context.Context, timeout
 	return nil, fmt.Errorf("timed out waiting for Upwork browser target")
 }
 
-func (f *FesClientService) waitForUpworkFieldEntry(ctx context.Context, stage string, selectors []string, value string, timeout time.Duration) (string, *chromeDevToolsTarget, error) {
+func (f *FesClientService) waitForUpworkFieldEntry(ctx context.Context, session *upworkBrowserSession, stage string, selectors []string, value string, timeout time.Duration) (string, *chromeDevToolsTarget, error) {
 	deadline := time.Now().Add(timeout)
 	var lastErr error
 	var previousTargetID string
@@ -1492,7 +1530,7 @@ func (f *FesClientService) waitForUpworkFieldEntry(ctx context.Context, stage st
 		if err := ctx.Err(); err != nil {
 			return "", nil, err
 		}
-		target, err := f.waitForUpworkLoginTarget(ctx, upworkFieldReadyPollInterval)
+		target, err := f.waitForUpworkLoginTarget(ctx, session, upworkFieldReadyPollInterval)
 		if err != nil {
 			lastErr = err
 			previousTargetID = ""
@@ -1559,9 +1597,17 @@ func (f *FesClientService) waitForUpworkFieldEntry(ctx context.Context, stage st
 	return "", nil, fmt.Errorf("timed out waiting for Upwork %s field", stage)
 }
 
-func fetchChromeDevToolsTargets(ctx context.Context) ([]chromeDevToolsTarget, error) {
+func fetchChromeDevToolsTargets(ctx context.Context, session *upworkBrowserSession) ([]chromeDevToolsTarget, error) {
+	if session == nil {
+		return nil, fmt.Errorf("isolated Upwork browser session is required")
+	}
+	port, err := session.devToolsPort()
+	if err != nil {
+		return nil, err
+	}
+
 	client := &http.Client{Timeout: 2 * time.Second}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, chromeDevToolsListURL(), nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, chromeDevToolsListURL(port), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2089,12 +2135,12 @@ func (c *chromeDevToolsClient) call(method string, params map[string]any) (json.
 	}
 }
 
-func chromeDevToolsListURL() string {
-	return fmt.Sprintf("http://127.0.0.1:%d/json/list", upworkChromeRemoteDebuggingPort)
+func chromeDevToolsListURL(port int) string {
+	return fmt.Sprintf("http://127.0.0.1:%d/json/list", port)
 }
 
-func chromeRemoteDebuggingFlag() string {
-	return fmt.Sprintf("--remote-debugging-port=%d", upworkChromeRemoteDebuggingPort)
+func chromeRemoteDebuggingFlag(port int) string {
+	return fmt.Sprintf("--remote-debugging-port=%d", port)
 }
 
 // ============================ PRIVATES ========================
@@ -2125,7 +2171,7 @@ func (f *FesClientService) openIncognitoBrowserUrl(url string) error {
 		return err
 	}
 
-	args := []string{"--incognito", "--new-window", chromeRemoteDebuggingFlag()}
+	args := []string{"--incognito", "--new-window", chromeRemoteDebuggingFlag(chromeDefaultRemoteDebuggingPort)}
 	if trimmedURL := strings.TrimSpace(url); trimmedURL != "" {
 		args = append(args, trimmedURL)
 	}
@@ -2138,32 +2184,34 @@ func (f *FesClientService) openIncognitoBrowserUrl(url string) error {
 	return nil
 }
 
-func (f *FesClientService) openIsolatedUpworkBrowserURL(url string) error {
+func (f *FesClientService) openIsolatedUpworkBrowserURL(url string) (*upworkBrowserSession, error) {
 	chromeBinary, err := chromeExecutablePath()
 	if err != nil {
-		return err
+		return nil, err
 	}
+	f.cleanupStaleUpworkChromeUserDataDirs()
 
 	userDataDir, err := os.MkdirTemp("", upworkChromeUserDataDirPrefix)
 	if err != nil {
-		return fmt.Errorf("create isolated Upwork Chrome profile: %w", err)
+		return nil, fmt.Errorf("create isolated Upwork Chrome profile: %w", err)
 	}
 
 	args, err := upworkChromeLaunchArgs(userDataDir, url)
 	if err != nil {
 		_ = removeManagedUpworkChromeUserDataDir(userDataDir)
-		return err
+		return nil, err
 	}
 
 	cmd := exec.Command(chromeBinary, args...)
 	if err := cmd.Start(); err != nil {
 		_ = removeManagedUpworkChromeUserDataDir(userDataDir)
-		return f.logger.Errorf("Error opening Chrome: %s", err.Error())
+		return nil, f.logger.Errorf("Error opening Chrome: %s", err.Error())
 	}
 
-	go f.cleanupUpworkChromeUserDataDir(cmd, userDataDir)
-
-	return nil
+	// Chrome may hand work to child processes and exit this launcher almost
+	// immediately. Do not use cmd.Wait or remove this profile while its window
+	// can still be open; stale profiles are reclaimed safely on later launches.
+	return &upworkBrowserSession{userDataDir: userDataDir}, nil
 }
 
 func upworkChromeLaunchArgs(userDataDir, url string) ([]string, error) {
@@ -2178,7 +2226,7 @@ func upworkChromeLaunchArgs(userDataDir, url string) ([]string, error) {
 		"--new-window",
 		"--user-data-dir=" + trimmedUserDataDir,
 		"--remote-debugging-address=127.0.0.1",
-		chromeRemoteDebuggingFlag(),
+		chromeRemoteDebuggingFlag(0),
 	}
 	if trimmedURL := strings.TrimSpace(url); trimmedURL != "" {
 		args = append(args, trimmedURL)
@@ -2187,24 +2235,49 @@ func upworkChromeLaunchArgs(userDataDir, url string) ([]string, error) {
 	return args, nil
 }
 
-func (f *FesClientService) cleanupUpworkChromeUserDataDir(cmd *exec.Cmd, userDataDir string) {
-	if cmd != nil {
-		if err := cmd.Wait(); err != nil && f != nil && f.logger != nil {
-			f.logger.Warnf("op=upwork_chrome_process_exit err=%v", err)
-		}
+func (s *upworkBrowserSession) devToolsPort() (int, error) {
+	if s == nil || strings.TrimSpace(s.userDataDir) == "" {
+		return 0, fmt.Errorf("isolated Upwork browser session is required")
 	}
-
-	var cleanupErr error
-	for attempt := 0; attempt < upworkChromeProfileCleanupTries; attempt++ {
-		cleanupErr = removeManagedUpworkChromeUserDataDir(userDataDir)
-		if cleanupErr == nil {
-			return
-		}
-		time.Sleep(upworkChromeProfileCleanupDelay)
+	raw, err := os.ReadFile(filepath.Join(s.userDataDir, "DevToolsActivePort"))
+	if err != nil {
+		return 0, fmt.Errorf("read Chrome DevTools endpoint: %w", err)
 	}
+	fields := strings.Fields(string(raw))
+	if len(fields) == 0 {
+		return 0, fmt.Errorf("Chrome DevTools endpoint is empty")
+	}
+	port, err := strconv.Atoi(fields[0])
+	if err != nil || port < 1 || port > 65535 {
+		return 0, fmt.Errorf("Chrome DevTools endpoint has invalid port")
+	}
+	return port, nil
+}
 
-	if f != nil && f.logger != nil {
-		f.logger.Warnf("op=upwork_chrome_profile_cleanup_failed path=%q err=%v", userDataDir, cleanupErr)
+func (f *FesClientService) cleanupStaleUpworkChromeUserDataDirs() {
+	tempDir := os.TempDir()
+	entries, err := os.ReadDir(tempDir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-upworkChromeStaleProfileAge)
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), upworkChromeUserDataDirPrefix) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || info.ModTime().After(cutoff) {
+			continue
+		}
+		path := filepath.Join(tempDir, entry.Name())
+		// Chrome retains SingletonLock while the profile is active. A stale lock
+		// is deliberately left in place rather than risking an active profile.
+		if _, err := os.Lstat(filepath.Join(path, "SingletonLock")); err == nil {
+			continue
+		}
+		if err := removeManagedUpworkChromeUserDataDir(path); err != nil && f != nil && f.logger != nil {
+			f.logger.Warnf("op=upwork_chrome_profile_stale_cleanup_failed path=%q err=%v", path, err)
+		}
 	}
 }
 
@@ -2315,7 +2388,7 @@ func openChromeProfile(profileDirectory, targetURL string) error {
 	args := []string{
 		"--profile-directory=" + trimmedProfileDirectory,
 		"--new-window",
-		chromeRemoteDebuggingFlag(),
+		chromeRemoteDebuggingFlag(chromeDefaultRemoteDebuggingPort),
 	}
 	if trimmedTargetURL := strings.TrimSpace(targetURL); trimmedTargetURL != "" {
 		args = append(args, trimmedTargetURL)

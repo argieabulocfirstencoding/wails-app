@@ -1,5 +1,9 @@
 # Private Source Repository with a Public Update Repository
 
+This guide applies to the **development channel**. For production updates from
+`main` using `FES-Paul/FES-APP-TRACKER`, follow
+[`stable-release-workflow.md`](./stable-release-workflow.md).
+
 This guide keeps the application source repository private while allowing the
 desktop app to download development updates without a GitHub login.
 
@@ -115,21 +119,18 @@ main` accordingly.
 
 ## 5. Point the desktop updater at the public repository
 
-In `internal/updater/updater.go`, change:
+In `internal/updater/updater.go`, the development channel uses:
 
 ```go
-Repository = "FESTrainee01/wails-app"
-```
-
-to:
-
-```go
-Repository = "argieabulocfirstencoding/fesapp-updates"
+developmentRepository = "argieabulocfirstencoding/fesapp-updates"
 ```
 
 The updater already validates that downloaded assets come from the configured
 repository and from the `development-latest` release, so no URL-validation
 weakening is required.
+
+Keep the separate stable `Repository` constant pointed to
+`FES-Paul/FES-APP-TRACKER`.
 
 ## 6. Commit and publish the configuration
 
@@ -176,8 +177,7 @@ Do not commit the token. It must exist only in the GitHub Actions secret.
 Expected results:
 
 - A newer published build displays the update dialog.
-- The same or a newer installed build displays **No newer development build is
-  available**.
+- The same or a newer installed build displays **No newer update is available**.
 - A missing or private update release displays the actionable release-access
   error, rather than a generic error.
 

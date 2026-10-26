@@ -177,8 +177,6 @@ func TestStopTrackingClearsCacheOnMissingActiveRow(t *testing.T) {
 		t.Fatalf("expected ScreenshotService.TaskRecordID to be cleared after failed stop")
 	}
 }
-<<<<<<< HEAD
-=======
 
 func TestStopTrackingOfflineKeepsARecoverableLocalRecord(t *testing.T) {
 	_, user, _, task, attendance, taskRecord := setupActiveTaskCacheTestDB(t)
@@ -341,4 +339,3 @@ func TestGetLastTaskRecordPrefersActiveCurrentAttendanceRecord(t *testing.T) {
 		t.Fatalf("expected active record %d, got %#v", activeRecord.ID, response.Record)
 	}
 }
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef

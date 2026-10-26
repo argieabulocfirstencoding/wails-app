@@ -298,7 +298,7 @@ func TestUpworkChromeLaunchArgsUseIsolatedLocalDevToolsProfile(t *testing.T) {
 		"--new-window",
 		"--user-data-dir=" + userDataDir,
 		"--remote-debugging-address=127.0.0.1",
-		chromeRemoteDebuggingFlag(),
+		chromeRemoteDebuggingFlag(0),
 		"https://www.upwork.com/nx/login",
 	}
 	if !reflect.DeepEqual(args, want) {
@@ -309,6 +309,31 @@ func TestUpworkChromeLaunchArgsUseIsolatedLocalDevToolsProfile(t *testing.T) {
 func TestUpworkChromeLaunchArgsRejectMissingProfileDirectory(t *testing.T) {
 	if _, err := upworkChromeLaunchArgs(" ", upworkChromeLoginURL); err == nil {
 		t.Fatal("expected missing isolated profile directory to be rejected")
+	}
+}
+
+func TestUpworkBrowserSessionReadsChromeSelectedDevToolsPort(t *testing.T) {
+	userDataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDataDir, "DevToolsActivePort"), []byte("45123\n/devtools/browser/test\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	port, err := (&upworkBrowserSession{userDataDir: userDataDir}).devToolsPort()
+	if err != nil {
+		t.Fatalf("read DevTools port: %v", err)
+	}
+	if port != 45123 {
+		t.Fatalf("port = %d, want 45123", port)
+	}
+}
+
+func TestUpworkBrowserSessionRejectsInvalidDevToolsPort(t *testing.T) {
+	userDataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userDataDir, "DevToolsActivePort"), []byte("not-a-port\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (&upworkBrowserSession{userDataDir: userDataDir}).devToolsPort(); err == nil {
+		t.Fatal("expected invalid DevTools port to fail")
 	}
 }
 

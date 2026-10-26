@@ -1,48 +1,190 @@
 name: Build and Release
+
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing source tag from main, for example v2.5.1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Serialize production publication; never interrupt an upload halfway through.
+concurrency:
+  group: stable-desktop-release
+  cancel-in-progress: false
+
+env:
+  RELEASE_REPOSITORY: FES-Paul/FES-APP-TRACKER
 
 jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Validate requested version
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          $tag = $env:REQUESTED_TAG
+          if ($tag -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+            throw 'Use a stable version tag such as v2.5.1.'
+          }
+          $version = $tag.Substring(1)
+          foreach ($part in $version.Split('.')) {
+            if ([long]$part -gt 65535) { throw 'Windows version components must be at most 65535.' }
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Setup Go
+      - name: Check out the source tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ steps.version.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Require a commit merged into main
+        id: source
+        shell: pwsh
+        run: |
+          git fetch origin main
+          if ($LASTEXITCODE -ne 0) { throw 'Could not fetch main.' }
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Merge this commit into main before releasing it.' }
+          $commit = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve the source commit.' }
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
-          check-latest: true
+          go-version-file: go.mod
+          cache: true
 
-      - name: Setup Node
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22 # Updated to 22 as we discussed for stability
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
-      - name: Build NSIS Installer
+      - name: Run backend and updater tests
+        run: go test ./backend/... ./internal/...
+
+      - name: Install pinned Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+
+      - name: Install NSIS
         shell: pwsh
         run: |
-          $VERSION = "${{ github.ref_name }}"
-          wails build -nsis -clean -ldflags "-H=windowsgui -X main.App.CurrentVersion=$VERSION"
+          choco install nsis --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS installation failed.' }
+          $makensis = @(
+            'C:\Program Files (x86)\NSIS\makensis.exe'
+            'C:\Program Files\NSIS\makensis.exe'
+          ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $makensis) { throw 'makensis.exe was not found.' }
+          Split-Path -Parent $makensis | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Upload to Release Repo
+      - name: Build stable installer and manifest
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+        run: |
+          $version = $env:RELEASE_VERSION
+          $installer = 'FESApp-Setup.exe'
+          # Use the tag for both Windows metadata and the updater's build identity.
+          $config = Get-Content wails.json -Raw | ConvertFrom-Json
+          $config.info.productVersion = $version
+          $config | ConvertTo-Json -Depth 30 | Set-Content wails.json -Encoding utf8NoBOM
+          $ldflags = @(
+            "-X fesapp/internal/buildinfo.Version=$version"
+            '-X fesapp/internal/buildinfo.Environment=production'
+            '-X fesapp/internal/buildinfo.UpdateChannel=stable'
+            '-X fesapp/internal/buildinfo.UpdateBranch=main'
+            "-X fesapp/internal/buildinfo.CommitSHA=$env:SOURCE_COMMIT"
+            "-X fesapp/internal/buildinfo.BuildNumber=$env:GITHUB_RUN_NUMBER"
+            "-X fesapp/backend/app.CurrentVersion=$version"
+          ) -join ' '
+          # Wails generates bindings before the frontend TypeScript/Vite build.
+          wails build -clean -nsis -platform windows/amd64 -ldflags "$ldflags"
+          if ($LASTEXITCODE -ne 0) { throw 'Wails build failed.' }
+          $built = @(Get-ChildItem build/bin -Filter '*installer.exe')
+          if ($built.Count -ne 1) { throw 'Expected exactly one generated installer.' }
+          Copy-Item -LiteralPath $built[0].FullName -Destination $installer
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $installer" | Set-Content "$installer.sha256" -Encoding utf8NoBOM
+          [ordered]@{
+            channel = 'stable'
+            branch = 'main'
+            version = $version
+            runNumber = [int]$env:GITHUB_RUN_NUMBER
+            commitSha = $env:SOURCE_COMMIT
+            publishedAt = (Get-Date).ToUniversalTime().ToString('o')
+            mandatory = $false
+            installerAsset = $installer
+            sha256Asset = "$installer.sha256"
+          } | ConvertTo-Json | Set-Content stable-manifest.json -Encoding utf8NoBOM
+
+      - name: Stage assets and publish the stable release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        shell: pwsh
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
         run: |
-          $VERSION = "${{ github.ref_name }}"
-          $REPO = "FES-Paul/FES-APP-TRACKER"
-          $FILE = "build/bin/fesapp-amd64-installer.exe"
+          if (-not $env:GH_TOKEN) { throw 'Add the RELEASE_TOKEN secret to the source repository.' }
+          $repo = $env:RELEASE_REPOSITORY
+          $tag = $env:RELEASE_TAG
+          $repoInfo = gh repo view $repo --json isPrivate,defaultBranchRef | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot access the release repository.' }
+          if ($repoInfo.isPrivate) { throw 'The release repository must be public for desktop downloads.' }
+          $target = $repoInfo.defaultBranchRef.name
+          if (-not $target) { throw 'Initialize the release repository with a README first.' }
 
-          # 1. Try to create the release. If it exists, '|| echo' prevents the script from crashing.
-          gh release create $VERSION --repo $REPO --title "FESAPP TRACKER $VERSION" --generate-notes --verify-tag || echo "Release already exists, moving to upload..."
+          # Keep published versions immutable. A failed draft can be retried.
+          $existing = gh release view $tag --repo $repo --json isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if (-not ($existing | ConvertFrom-Json).isDraft) {
+              throw 'This version is already published. Create a higher version tag for changes.'
+            }
+          } else {
+            @(
+              "FES App Tracker $tag"
+              ''
+              "Built from $env:GITHUB_REPOSITORY, branch main, source commit $env:SOURCE_COMMIT."
+              'Download FESApp-Setup.exe to install. Existing compatible installations can use Check for updates.'
+            ) | Set-Content release-notes.md -Encoding utf8NoBOM
+            # The target tag belongs to the asset repository, not the source repo.
+            gh release create $tag --repo $repo --target $target --draft --title "FES App Tracker $tag" --notes-file release-notes.md
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create the draft release.' }
+          }
+          gh release upload $tag --repo $repo FESApp-Setup.exe FESApp-Setup.exe.sha256 stable-manifest.json --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed; the release remains a draft.' }
 
-          # 2. Upload the file. '--clobber' works here to overwrite old versions.
-          gh release upload $VERSION "$FILE" --repo $REPO --clobber
+          # A delayed older build must not replace a newer version as Latest.
+          $latestJSON = gh api "repos/$repo/releases/latest" 2>$null
+          $latestFlag = '--latest'
+          if ($LASTEXITCODE -eq 0) {
+            $latestTag = ($latestJSON | ConvertFrom-Json).tag_name
+            $latestVersion = $null
+            if (-not [version]::TryParse(($latestTag -replace '^v', ''), [ref]$latestVersion)) {
+              throw 'Cannot compare the existing latest tag. Review it before publishing.'
+            }
+            if ([version]($tag.Substring(1)) -le $latestVersion) { $latestFlag = '--latest=false' }
+          } elseif ($latestJSON -notmatch '"status"\s*:\s*"404"') {
+            throw 'Could not determine the latest release; leaving this release as a draft.'
+          }
+          gh release edit $tag --repo $repo --draft=false --prerelease=false $latestFlag
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish the completed release.' }

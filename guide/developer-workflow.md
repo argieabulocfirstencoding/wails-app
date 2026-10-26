@@ -221,15 +221,12 @@ When something breaks:
 
 ## 9. Current mismatches and caution areas
 
-### Version values are split
+### Production versions come from the release tag
 
-At the moment:
-
-- `backend/app/app.go` reports `2.4.5`
-- `wails.json` reports `2.4.4`
-- `frontend/src/components/custom/AppFooterInfo.tsx` has a fallback of `2.1.0`
-
-Before a release, update all version sources in one pass.
+The production workflow stamps the `vMAJOR.MINOR.PATCH` tag into the build
+identity, legacy backend version, and Windows installer metadata. Local builds
+use the defaults in the source files. Follow
+[`stable-release-workflow.md`](./stable-release-workflow.md) when publishing.
 
 ### Auth has more than one visible source
 
@@ -269,9 +266,15 @@ Inspect them for debugging, but do not treat them like source files.
 
 ## 11. Release checklist
 
+For the current production publishing process, follow
+[`stable-release-workflow.md`](./stable-release-workflow.md). Code is merged into
+`main` in `FES-Paul/wails-app`; a version tag triggers publication of the installer,
+checksum, and manifest to `FES-Paul/FES-APP-TRACKER`. Stable apps check that public
+release repository. Merging alone does not publish an update.
+
 Before a release, verify all of these:
 
-1. version values are aligned
+1. the release tag is an unused version greater than the current production release
 2. `wails.json` metadata is correct
 3. screenshot-related flags and constants match intended release behavior
 4. update-check behavior points to the right GitHub release source

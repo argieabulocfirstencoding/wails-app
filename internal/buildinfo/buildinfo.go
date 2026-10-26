@@ -29,8 +29,8 @@ type Info struct {
 	UpdatesEnabled bool   `json:"updatesEnabled"`
 }
 
-// Current returns the compiled build identity. A local wails dev session must
-// explicitly opt into remote development checks with ENABLE_DEV_UPDATE_CHECK=true.
+// Current returns the compiled build identity. Builds default to stable updates;
+// local development checks can opt in with ENABLE_DEV_UPDATE_CHECK=true.
 func Current() Info {
 	info := Info{
 		Version:       strings.TrimSpace(Version),
@@ -47,7 +47,8 @@ func Current() Info {
 		info.UpdateBranch = envOrDefault("UPDATE_BRANCH", "developer/jomary")
 	}
 
-	info.UpdatesEnabled = info.UpdateChannel == "development" && info.UpdateBranch == "developer/jomary"
+	info.UpdatesEnabled = (info.UpdateChannel == "stable" && info.UpdateBranch == "main") ||
+		(info.UpdateChannel == "development" && info.UpdateBranch == "developer/jomary")
 	return info
 }
 

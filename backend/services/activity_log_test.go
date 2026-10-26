@@ -43,7 +43,8 @@ func TestGetAttendanceAndRecordsIncludesPendingScreenshotCountsForCurrentUser(t 
 		t.Fatal(err)
 	}
 
-	now := time.Now().In(time.FixedZone("PHT", 8*60*60))
+	// Keep every fixture on the queried date, including runs just after midnight.
+	now := time.Date(2026, time.July, 1, 12, 0, 0, 0, time.FixedZone("PHT", 8*60*60))
 	attendance := &models.Attendance{
 		UserID:     user.ID,
 		TimeIn:     now.Add(-time.Hour),

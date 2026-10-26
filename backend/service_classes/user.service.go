@@ -163,8 +163,6 @@ func (u *UserService) FetchEmployeeDetails(ctx context.Context, user *models.Use
 	return nil
 }
 
-<<<<<<< HEAD
-=======
 func employeeDetailsString(values map[string]any, key string) string {
 	if values == nil {
 		return ""
@@ -271,7 +269,6 @@ func resolvedAuthenticatedEmployeeEmail(user *models.User) string {
 	return normalizedEmployeeEmail(user.Email)
 }
 
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 func extractBirthdate(employee map[string]any) string {
 	raw, exists := employee["BirthDate txt"]
 	if !exists || raw == nil {

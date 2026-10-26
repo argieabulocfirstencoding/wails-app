@@ -102,8 +102,6 @@ func migrationCatalog() []catalogMigration {
 			Plan:        planIndexesMigration,
 			Migrate:     ensureSchemaIndexes,
 		},
-<<<<<<< HEAD
-=======
 		{
 			ID:          "20260715_008_remote_sync_metadata",
 			Description: "add Bubble reconciliation metadata",
@@ -116,7 +114,6 @@ func migrationCatalog() []catalogMigration {
 			Plan:        planTaskSessionIdentityMigration,
 			Migrate:     ensureTaskSessionIdentity,
 		},
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	}
 }
 

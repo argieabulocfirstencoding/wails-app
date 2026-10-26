@@ -1,4 +1,4 @@
-// Package updater implements the development-channel update flow. It intentionally
+// Package updater implements stable and development update flows. It intentionally
 // keeps all state in memory and never accesses the application's database.
 package updater
 
@@ -22,13 +22,18 @@ import (
 	"time"
 
 	"fesapp/internal/buildinfo"
+
+	"github.com/blang/semver"
 )
 
 const (
-	Repository            = "argieabulocfirstencoding/fesapp-updates"
+	Repository            = "FES-Paul/FES-APP-TRACKER"
+	developmentRepository = "argieabulocfirstencoding/fesapp-updates"
 	developmentReleaseTag = "development-latest"
 	developmentManifest   = "development-manifest.json"
 	expectedInstallerName = "FESApp-Development-Setup.exe"
+	stableManifest        = "stable-manifest.json"
+	stableInstallerName   = "FESApp-Setup.exe"
 	maxManifestSize       = 128 * 1024
 	maxChecksumSize       = 16 * 1024
 )
@@ -39,12 +44,14 @@ type releaseAsset struct {
 }
 
 type release struct {
-	TagName string         `json:"tag_name"`
-	Assets  []releaseAsset `json:"assets"`
+	TagName    string         `json:"tag_name"`
+	Assets     []releaseAsset `json:"assets"`
+	Draft      bool           `json:"draft"`
+	Prerelease bool           `json:"prerelease"`
 }
 
-// Manifest is the small, signed-by-release-process document that describes a
-// development build. Its asset URLs are resolved from the trusted release API.
+// Manifest describes a build published by the release workflow. It is not a
+// digital signature; its asset URLs are resolved from the trusted release API.
 type Manifest struct {
 	Channel        string    `json:"channel"`
 	Branch         string    `json:"branch"`
@@ -68,6 +75,26 @@ type UpdateInfo struct {
 	LatestCommit   string `json:"latestCommit"`
 	InstallerURL   string `json:"installerUrl"`
 	ChecksumURL    string `json:"checksumUrl"`
+	releaseTag     string
+}
+
+type channelConfig struct {
+	repository  string
+	branch      string
+	manifest    string
+	installer   string
+	releasePath string
+}
+
+func configFor(build buildinfo.Info) (channelConfig, error) {
+	switch {
+	case build.UpdateChannel == "stable" && build.UpdateBranch == "main":
+		return channelConfig{Repository, "main", stableManifest, stableInstallerName, "latest"}, nil
+	case build.UpdateChannel == "development" && build.UpdateBranch == "developer/jomary":
+		return channelConfig{developmentRepository, "developer/jomary", developmentManifest, expectedInstallerName, "tags/" + developmentReleaseTag}, nil
+	default:
+		return channelConfig{}, errors.New("unsupported update channel or branch")
+	}
 }
 
 type Service struct {
@@ -93,17 +120,21 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 		return result, nil
 	}
 
-	release, err := s.fetchDevelopmentRelease(ctx)
+	config, err := configFor(s.build)
+	if err != nil {
+		return result, err
+	}
+	release, err := s.fetchRelease(ctx, config)
 	if err != nil {
 		return result, err
 	}
 
-	manifestAsset, ok := release.asset(developmentManifest)
+	manifestAsset, ok := release.asset(config.manifest)
 	if !ok {
-		return result, errors.New("development manifest is missing from the release")
+		return result, fmt.Errorf("%s is missing from the release; publish it with the installer and checksum", config.manifest)
 	}
-	if err := validateReleaseAssetURL(manifestAsset.BrowserDownloadURL); err != nil {
-		return result, fmt.Errorf("development manifest URL rejected: %w", err)
+	if err := validateReleaseAssetURL(manifestAsset.BrowserDownloadURL, config.repository, release.TagName, config.manifest); err != nil {
+		return result, fmt.Errorf("manifest URL rejected: %w", err)
 	}
 
 	manifest, err := s.fetchManifest(ctx, manifestAsset.BrowserDownloadURL)
@@ -113,23 +144,30 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 	if err := validateManifest(s.build, manifest); err != nil {
 		return result, err
 	}
-	if !isNewerDevelopmentBuild(s.build, manifest) {
+	if s.build.UpdateChannel == "stable" && release.TagName != "v"+manifest.Version {
+		return result, errors.New("stable manifest version does not match the release tag")
+	}
+	newer, err := isNewerBuild(s.build, manifest)
+	if err != nil {
+		return result, err
+	}
+	if !newer {
 		s.clearLatest()
 		return result, nil
 	}
 
 	installer, ok := release.asset(manifest.InstallerAsset)
 	if !ok {
-		return result, errors.New("development installer is missing from the release")
+		return result, errors.New("installer is missing from the release")
 	}
 	checksum, ok := release.asset(manifest.SHA256Asset)
 	if !ok {
-		return result, errors.New("development checksum is missing from the release")
+		return result, errors.New("checksum is missing from the release")
 	}
-	if err := validateReleaseAssetURL(installer.BrowserDownloadURL); err != nil {
+	if err := validateReleaseAssetURL(installer.BrowserDownloadURL, config.repository, release.TagName, config.installer); err != nil {
 		return result, fmt.Errorf("installer URL rejected: %w", err)
 	}
-	if err := validateReleaseAssetURL(checksum.BrowserDownloadURL); err != nil {
+	if err := validateReleaseAssetURL(checksum.BrowserDownloadURL, config.repository, release.TagName, config.installer+".sha256"); err != nil {
 		return result, fmt.Errorf("checksum URL rejected: %w", err)
 	}
 
@@ -138,6 +176,7 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 	result.LatestCommit = manifest.CommitSHA
 	result.InstallerURL = installer.BrowserDownloadURL
 	result.ChecksumURL = checksum.BrowserDownloadURL
+	result.releaseTag = release.TagName
 	s.setLatest(result)
 	return result, nil
 }
@@ -154,11 +193,15 @@ func (s *Service) Install(ctx context.Context, progress func(int)) error {
 	if !ok || !update.Available {
 		return errors.New("check for an update before installing")
 	}
-	installerName := filepath.Base(expectedInstallerName)
-	if err := validateReleaseAssetURL(update.InstallerURL); err != nil {
+	config, err := configFor(s.build)
+	if err != nil {
+		return err
+	}
+	installerName := config.installer
+	if err := validateReleaseAssetURL(update.InstallerURL, config.repository, update.releaseTag, installerName); err != nil {
 		return fmt.Errorf("installer URL rejected: %w", err)
 	}
-	if err := validateReleaseAssetURL(update.ChecksumURL); err != nil {
+	if err := validateReleaseAssetURL(update.ChecksumURL, config.repository, update.releaseTag, installerName+".sha256"); err != nil {
 		return fmt.Errorf("checksum URL rejected: %w", err)
 	}
 
@@ -205,8 +248,8 @@ func (s *Service) currentUpdateInfo() UpdateInfo {
 	}
 }
 
-func (s *Service) fetchDevelopmentRelease(ctx context.Context) (*release, error) {
-	releaseURL := "https://api.github.com/repos/" + Repository + "/releases/tags/" + developmentReleaseTag
+func (s *Service) fetchRelease(ctx context.Context, config channelConfig) (*release, error) {
+	releaseURL := "https://api.github.com/repos/" + config.repository + "/releases/" + config.releasePath
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, releaseURL, nil)
 	if err != nil {
 		return nil, err
@@ -218,17 +261,36 @@ func (s *Service) fetchDevelopmentRelease(ctx context.Context) (*release, error)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, developmentReleaseLookupError(response.StatusCode)
+		if s.build.UpdateChannel == "development" {
+			return nil, developmentReleaseLookupError(response.StatusCode)
+		}
+		if response.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("stable update release is not published or is not publicly readable (GitHub returned 404); publish a stable release and its assets in %s", config.repository)
+		}
+		return nil, fmt.Errorf("release lookup failed with status %d", response.StatusCode)
 	}
 	if !strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "application/json") {
-		return nil, errors.New("development release returned an unexpected content type")
+		return nil, errors.New("release returned an unexpected content type")
 	}
 
 	var value release
 	if err := json.NewDecoder(io.LimitReader(response.Body, maxManifestSize)).Decode(&value); err != nil {
-		return nil, fmt.Errorf("decode development release: %w", err)
+		return nil, fmt.Errorf("decode release: %w", err)
 	}
-	if value.TagName != developmentReleaseTag {
+	if value.Draft {
+		return nil, errors.New("draft releases cannot be installed")
+	}
+	if s.build.UpdateChannel == "stable" {
+		if value.Prerelease {
+			return nil, errors.New("prereleases cannot be installed on the stable channel")
+		}
+		if !strings.HasPrefix(value.TagName, "v") {
+			return nil, errors.New("stable release tag must be vMAJOR.MINOR.PATCH")
+		}
+		if _, err := parseStableVersion(strings.TrimPrefix(value.TagName, "v")); err != nil {
+			return nil, err
+		}
+	} else if value.TagName != developmentReleaseTag {
 		return nil, errors.New("development release tag did not match")
 	}
 	return &value, nil
@@ -263,7 +325,7 @@ func (s *Service) fetchManifest(ctx context.Context, manifestURL string) (Manife
 	decoder := json.NewDecoder(io.LimitReader(response.Body, maxManifestSize))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&manifest); err != nil {
-		return Manifest{}, fmt.Errorf("decode development manifest: %w", err)
+		return Manifest{}, fmt.Errorf("decode update manifest: %w", err)
 	}
 	return manifest, nil
 }
@@ -362,11 +424,15 @@ func (s *Service) downloadInstaller(ctx context.Context, installerURL, destinati
 }
 
 func validateManifest(build buildinfo.Info, manifest Manifest) error {
-	if manifest.Channel != "development" || build.UpdateChannel != "development" {
-		return errors.New("manifest channel did not match the development build")
+	config, err := configFor(build)
+	if err != nil {
+		return err
 	}
-	if manifest.Branch != build.UpdateBranch || manifest.Branch != "developer/jomary" {
-		return errors.New("manifest branch did not match the development build")
+	if manifest.Channel != build.UpdateChannel {
+		return errors.New("manifest channel did not match the installed build")
+	}
+	if manifest.Branch != config.branch {
+		return errors.New("manifest branch did not match the installed build")
 	}
 	if strings.TrimSpace(manifest.Version) == "" || manifest.RunNumber < 1 || strings.TrimSpace(manifest.CommitSHA) == "" {
 		return errors.New("manifest has incomplete build identity")
@@ -374,10 +440,42 @@ func validateManifest(build buildinfo.Info, manifest Manifest) error {
 	if manifest.PublishedAt.IsZero() {
 		return errors.New("manifest does not contain a publication time")
 	}
-	if manifest.InstallerAsset != expectedInstallerName || manifest.SHA256Asset != expectedInstallerName+".sha256" {
+	if manifest.InstallerAsset != config.installer || manifest.SHA256Asset != config.installer+".sha256" {
 		return errors.New("manifest contains an unexpected installer asset")
 	}
+	if build.UpdateChannel == "stable" {
+		_, err := parseStableVersion(manifest.Version)
+		return err
+	}
 	return nil
+}
+
+func parseStableVersion(value string) (semver.Version, error) {
+	version, err := semver.Parse(value)
+	if err != nil || len(version.Pre) != 0 || len(version.Build) != 0 {
+		return semver.Version{}, fmt.Errorf("invalid stable version %q; expected MAJOR.MINOR.PATCH", value)
+	}
+	return version, nil
+}
+
+func isNewerBuild(build buildinfo.Info, manifest Manifest) (bool, error) {
+	if build.UpdateChannel == "development" {
+		return isNewerDevelopmentBuild(build, manifest), nil
+	}
+	// Existing installations used two-part versions such as 2.5.
+	currentVersion := strings.TrimPrefix(strings.TrimSpace(build.Version), "v")
+	if strings.Count(currentVersion, ".") == 1 {
+		currentVersion += ".0"
+	}
+	current, err := semver.Parse(currentVersion)
+	if err != nil {
+		return false, fmt.Errorf("invalid installed version: %w", err)
+	}
+	latest, err := parseStableVersion(manifest.Version)
+	if err != nil {
+		return false, err
+	}
+	return latest.GT(current), nil
 }
 
 func isNewerDevelopmentBuild(build buildinfo.Info, manifest Manifest) bool {
@@ -423,19 +521,17 @@ func trustedHTTPClient(timeout time.Duration) *http.Client {
 	}
 }
 
-func validateReleaseAssetURL(raw string) error {
+func validateReleaseAssetURL(raw, repository, tag, asset string) error {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return err
 	}
-	if !strings.EqualFold(parsed.Scheme, "https") || !isTrustedReleaseHost(parsed.Hostname()) {
+	if parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return errors.New("URL is not an HTTPS GitHub release asset")
 	}
-	if strings.EqualFold(parsed.Hostname(), "github.com") {
-		expectedPath := "/" + Repository + "/releases/download/" + developmentReleaseTag + "/"
-		if !strings.HasPrefix(path.Clean(parsed.Path)+"/", expectedPath) {
-			return errors.New("URL is not in the expected development release")
-		}
+	expectedPath := "/" + repository + "/releases/download/" + tag + "/" + asset
+	if tag == "" || parsed.Path != expectedPath || path.Clean(parsed.Path) != expectedPath {
+		return errors.New("URL is not the expected asset in the selected release")
 	}
 	return nil
 }

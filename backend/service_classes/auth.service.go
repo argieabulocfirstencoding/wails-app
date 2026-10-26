@@ -7,10 +7,7 @@ import (
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
-<<<<<<< HEAD
-=======
 	"strconv"
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	"strings"
 	"time"
 )
@@ -25,15 +22,12 @@ type AuthService struct {
 	ctx               context.Context
 }
 
-<<<<<<< HEAD
-=======
 type authenticatedLogin struct {
 	UserID     string
 	Email      string
 	EmployeeID string
 }
 
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 func NewAuthService(connectivity ...*ConnectivityStateService) *AuthService {
 	var connectivityState *ConnectivityStateService
 	if len(connectivity) > 0 {
@@ -87,17 +81,12 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
 	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
 
-<<<<<<< HEAD
-	attendance.User.ID = *userId
-	attendance.User.Email = email
-=======
 	attendance.User.ID = login.UserID
 	attendance.User.Email = login.Email
 	if err := a.UserService.SaveLoginEmployeeID(login.UserID, login.EmployeeID); err != nil {
 		return nil, nil, fmt.Errorf("save login employee ID: %w", err)
 	}
 	attendance.User.EmployeeId = login.EmployeeID
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 	if err := a.UserService.FetchEmployeeDetails(ctx, &attendance.User); err != nil {
 		return nil, nil, err
@@ -173,18 +162,6 @@ func (a *AuthService) AttemptLogin(identifier, password string) (*authenticatedL
 	if !ok || strings.TrimSpace(userId) == "" {
 		return nil, a.Logger.Error("login response user_id has invalid format")
 	}
-<<<<<<< HEAD
-
-	tokenRaw, ok := resp["token"]
-	if !ok {
-		return nil, a.Logger.Error("login response missing token")
-	}
-	token, ok := tokenRaw.(string)
-	if !ok || strings.TrimSpace(token) == "" {
-		return nil, a.Logger.Error("login response token has invalid format")
-	}
-=======
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 	tokenRaw, ok := resp["token"]
 	if !ok {

@@ -41,9 +41,11 @@ const DesktopUpdateDialog = () => {
             <Sparkles className="size-5" aria-hidden="true" />
           </div>
           <DialogHeader className="text-left">
-            <DialogTitle>New development build ready</DialogTitle>
+            <DialogTitle>{update?.channel === "development" ? "New development build ready" : "App update available"}</DialogTitle>
             <DialogDescription>
-              A verified build from {update?.branch} is available to install.
+              {update?.channel === "development"
+                ? `A new build from ${update.branch} is available to install.`
+                : "A new version of FES App Tracker is available. The app will close to install the update."}
             </DialogDescription>
           </DialogHeader>
         </div>

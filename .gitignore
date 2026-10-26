@@ -16,10 +16,6 @@ log.txt
 __debug_bin.*
 *.test
 *.out
-<<<<<<< HEAD
-*.go.[0-9]*
-=======
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 # Wails and platform build artifacts
 fesapp-res.syso
@@ -49,9 +45,6 @@ Thumbs.db
 
 frontend/wailsjs/go/
 frontend/wailsjs/runtime/
-<<<<<<< HEAD
-=======
 .tmp-go-cache/README
 .tmp-go-cache/trim.txt
 .tmp-go-cache/
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef

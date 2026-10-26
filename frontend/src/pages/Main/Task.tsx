@@ -51,6 +51,12 @@ interface ScreenshotProps {
   pictures: string[];
 }
 
+type UpworkLoginStatus = {
+  mode?: string;
+  state?: string;
+  message?: string;
+};
+
 type TrackingAction = "idle" | "starting" | "stopping";
 
 const Task = () => {
@@ -68,6 +74,7 @@ const Task = () => {
   const [isSynced, setSynced] = useState(false);
   const [lastTaskRecord, setLastTaskRecord] = useState<models.ExpTaskRecord>();
   const [isLaunching, setLaunching] = useState(false);
+  const [upworkNotice, setUpworkNotice] = useState("");
   const [isSyncing, setSyncing] = useState(false);
   const [isPadagan, setPadagan] = useState(false);
   const [isHydrated, setHydrated] = useState(false);
@@ -105,17 +112,7 @@ const Task = () => {
       const timeStart = Date.now();
       await StartTracking(id, JSON.stringify(timeStart), isPadagan);
 
-<<<<<<< HEAD
-      resetTimer();
-      if (lastTaskRecord) {
-        lastTaskRecord.padagan = isPadagan;
-      }
-
-      setStart(true);
-      setStartTime(timeStart);
-=======
       await hydrateTaskRecord(true);
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
     } catch (error) {
       console.error("StartTracking failed:", error);
     } finally {
@@ -130,21 +127,6 @@ const Task = () => {
     setElapsedTime(0);
   }
 
-<<<<<<< HEAD
-  function getMemoTagFromNotes(note: string) {
-    if (!note) {
-      setMemo("");
-      setTag("");
-      return;
-    }
-
-    const notes = note.split("||").map((part) => part.trim());
-    setMemo(notes[0] || "");
-    setTag(notes[1] || "");
-  }
-
-=======
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
   async function stopTime() {
     const taskRecordID = lastTaskRecord?.id;
     if (!taskRecordID || !beginTrackingAction("stopping")) return;
@@ -204,13 +186,6 @@ const Task = () => {
     setMonitor(monitorCount);
   }
 
-<<<<<<< HEAD
-  async function hydrateTaskRecord() {
-    if (!id) return;
-
-    try {
-      const response = await GetLastTaskRecord(id);
-=======
   async function hydrateTaskRecord(allowDuringAction = false) {
     if (!id) return;
     if (actionRef.current !== "idle" && !allowDuringAction) {
@@ -229,7 +204,6 @@ const Task = () => {
         pendingHydrationRef.current = true;
         return;
       }
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
       const record = response?.record;
 
       if (!record || !record.started_at) {
@@ -239,12 +213,7 @@ const Task = () => {
         setStartTime(0);
         setEndTime(undefined);
         setScreenshots(null);
-<<<<<<< HEAD
-        setMemo("");
-        setTag("");
-=======
         setNotes("");
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
         setTaskID(null);
         return;
       }
@@ -258,11 +227,7 @@ const Task = () => {
       setStartTime(started);
       setEndTime(ended ?? undefined);
       setSynced(record.sync_status === "synced");
-<<<<<<< HEAD
-      getMemoTagFromNotes(record.notes ?? "");
-=======
       setNotes(record.notes ?? "");
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
       const isActive = !record.ended_at;
       setStart(isActive);
@@ -305,12 +270,13 @@ const Task = () => {
 
     if (taskDetails?.taskId) {
       setLaunching(true);
+      setUpworkNotice("");
       try {
         await OpenUpwork(taskDetails.taskId);
       } catch (error) {
         console.error("Failed to launch Upwork automation:", error);
-      } finally {
         setLaunching(false);
+        setUpworkNotice("Unable to start Upwork sign-in. Please try again.");
       }
     }
   }
@@ -387,8 +353,17 @@ const Task = () => {
 
   useEffect(() => {
     if (!EventsOn) return;
-    const off = EventsOn("upwork-button", () => {
-      setLaunching(false);
+    const off = EventsOn("upwork-login-status", (payload: UpworkLoginStatus) => {
+      if (payload?.mode !== "task") return;
+      if (payload.state === "succeeded") {
+        setUpworkNotice("");
+      }
+      if (payload.state === "failed" || payload.state === "cancelled") {
+        setUpworkNotice(payload.message || "Upwork sign-in did not complete.");
+      }
+      if (payload.state === "succeeded" || payload.state === "failed" || payload.state === "cancelled") {
+        setLaunching(false);
+      }
     });
 
     return () => off();
@@ -464,8 +439,10 @@ const Task = () => {
             titleLower.includes("upwork") &&
             !titleLower.includes("training") && (
               <div className="flex items-center gap-2">
-                <span className="max-w-36 text-right text-xs text-neutral-500 dark:text-neutral-400">
-                  Press Esc to stop login automation
+                <span
+                  className={`max-w-44 text-right text-xs ${upworkNotice ? "text-amber-600 dark:text-amber-400" : "text-neutral-500 dark:text-neutral-400"}`}
+                >
+                  {upworkNotice || "Press Esc to stop login automation"}
                 </span>
                 <img
                   onClick={LaunchUpwork}
@@ -730,23 +707,9 @@ const Task = () => {
               </div>
 
               <div className="space-y-1 text-xs sm:text-sm">
-<<<<<<< HEAD
-                <p className="flex gap-1.5">
-                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    Memo:
-                  </span>
-                  <span className="truncate text-neutral-800 dark:text-neutral-50">
-                    {memo || "No memo set."}
-                  </span>
-                </p>
-                <p className="flex gap-1.5 line-clamp-3">
-                  <span className="font-medium text-neutral-700 dark:text-neutral-300">
-                    Activity tag:
-=======
                 <p className="flex gap-1.5 line-clamp-3">
                   <span className="font-medium text-neutral-700 dark:text-neutral-300">
                     Activity notes:
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
                   </span>
                   <span className="text-neutral-800 dark:text-neutral-50">
                     {notes || "No notes set."}
@@ -861,4 +824,3 @@ function StopButton({ onClick, disabled, label = "Stop" }: ButtonProps) {
     </button>
   );
 }
-

@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -42,6 +44,15 @@ func fakeUpworkListener() (*upworkEscapeListener, chan struct{}) {
 	done := make(chan struct{})
 	var once sync.Once
 	return &upworkEscapeListener{escape: escape, done: done, stop: func() { once.Do(func() { close(done) }) }}, escape
+}
+
+func testUpworkBrowserSession(t *testing.T) *upworkBrowserSession {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "DevToolsActivePort"), []byte("9333\n/devtools/browser/test\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return &upworkBrowserSession{userDataDir: dir}
 }
 
 func TestUpworkEscapeCancelsAllRunsAndAllowsRestart(t *testing.T) {
@@ -157,10 +168,10 @@ func TestUpworkLaunchFailsBeforeInputWhenListenerCannotStart(t *testing.T) {
 	f := &FesClientService{upworkCancellation: upworkCancellation{start: func() (*upworkEscapeListener, error) { return nil, want }}}
 	creds := &upworkCredentials{Username: "test-user", Password: "test-password"}
 	// No logger/browser is needed: neither worker may start after hook failure.
-	if err := f.launchClientAccountUpworkNativeAutomation(context.Background(), "test", creds); !errors.Is(err, want) {
+	if err := f.launchClientAccountUpworkNativeAutomation(context.Background(), "test", creds, nil); !errors.Is(err, want) {
 		t.Fatalf("native launch: %v", err)
 	}
-	if err := f.launchUpworkLoginAutomation(context.Background(), "test", creds, false); !errors.Is(err, want) {
+	if err := f.launchUpworkLoginAutomation(context.Background(), "test", creds, testUpworkBrowserSession(t), false); !errors.Is(err, want) {
 		t.Fatalf("DevTools launch: %v", err)
 	}
 }
@@ -168,13 +179,13 @@ func TestUpworkLaunchFailsBeforeInputWhenListenerCannotStart(t *testing.T) {
 func TestUpworkCancellationStopsNativeDelayAndFurtherActions(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
-	go func() { result <- performLegacyClientAccountUpworkLogin(ctx, "test-user", "test-password", nil) }()
+	go func() { result <- performLegacyClientAccountUpworkLogin(ctx, nil, "test-user", "test-password", nil) }()
 	cancel()
 	awaitUpworkCancellation(t, result)
 	if err := performUpworkAction(ctx, func() error { t.Fatal("action executed after cancellation"); return nil }); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if err := actOnForegroundUpworkClientControl(ctx, 0, nil, nil); !errors.Is(err, context.Canceled) {
+	if err := actOnForegroundUpworkClientControl(ctx, nil, 0, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	ctx, cancel = context.WithCancel(context.Background())
@@ -204,8 +215,12 @@ func TestUpworkCancellationInterruptsTargetDiscovery(t *testing.T) {
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	session := testUpworkBrowserSession(t)
 	result := make(chan error, 1)
-	go func() { _, err := (&FesClientService{}).waitForUpworkLoginTarget(ctx, time.Hour); result <- err }()
+	go func() {
+		_, err := (&FesClientService{}).waitForUpworkLoginTarget(ctx, session, time.Hour)
+		result <- err
+	}()
 	awaitUpworkSignal(t, started)
 	cancel()
 	awaitUpworkCancellation(t, result)
@@ -241,6 +256,7 @@ func TestUpworkCancellationInterruptsDevToolsAndPreventsFollowupCommands(t *test
 			defer server.Close()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+			session := testUpworkBrowserSession(t)
 			url := "ws" + strings.TrimPrefix(server.URL, "http")
 			result := make(chan error, 1)
 			if operation == "field discovery" {
@@ -251,7 +267,7 @@ func TestUpworkCancellationInterruptsDevToolsAndPreventsFollowupCommands(t *test
 					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(body))), Header: make(http.Header)}, nil
 				})
 				go func() {
-					_, _, err := (&FesClientService{}).waitForUpworkFieldEntry(ctx, "username", upworkUsernameFieldSelectors, "test-user", time.Hour)
+					_, _, err := (&FesClientService{}).waitForUpworkFieldEntry(ctx, session, "username", upworkUsernameFieldSelectors, "test-user", time.Hour)
 					result <- err
 				}()
 			} else {

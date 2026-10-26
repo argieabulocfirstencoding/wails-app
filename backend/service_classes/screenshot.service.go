@@ -41,11 +41,7 @@ type ScreenshotService struct {
 	workerDone chan struct{}
 }
 
-<<<<<<< HEAD
-const screenshotsEnabled = true
-=======
 const screenshotsEnabled = false
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 const PRODUCTION_SCREENSHOT_INTERVAL = 10
 const DEVELOPMENT_SCREENSHOT_INTERVAL = 1
 
@@ -73,10 +69,6 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	folderName := fmt.Sprintf("%d", *s.TaskRecordID)
 	taskRecordID := s.TaskRecordID
 	taskID := s.TaskID
-<<<<<<< HEAD
-	memo := s.Memo
-=======
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	notes := s.Notes
 	s.mu.Unlock()
 
@@ -148,10 +140,6 @@ func (s *ScreenshotService) Screenshot() ([]string, error) {
 	taskScreenshot := &models.Screenshot{
 		TaskRecordID: *taskRecordID,
 		TaskID:       *taskID,
-<<<<<<< HEAD
-		Memo:         memo,
-=======
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 		Notes:        notes,
 		FilePath:     string(jsonPaths),
 		TakenAt:      time.Now().Local(),
@@ -271,14 +259,8 @@ func (s *ScreenshotService) Stop() {
 	}
 }
 
-<<<<<<< HEAD
-func (s *ScreenshotService) AddMemo(memo, notes string) {
-	s.mu.Lock()
-	s.Memo = memo
-=======
 func (s *ScreenshotService) AddMemo(notes string) {
 	s.mu.Lock()
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	s.Notes = notes
 	s.mu.Unlock()
 }

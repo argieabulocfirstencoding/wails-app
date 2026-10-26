@@ -128,8 +128,6 @@ func TestSyncAttendanceByIDGuards(t *testing.T) {
 		}
 	})
 }
-<<<<<<< HEAD
-=======
 
 func TestForceSyncAttendanceByIDStillBlocksAnotherUsersRecord(t *testing.T) {
 	original := services.GetAttendanceFromID
@@ -157,4 +155,3 @@ func TestForceSyncTaskRecordRequiresAuthenticatedUser(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef

@@ -20,6 +20,7 @@ Area-specific guides:
 - [`guide/data-and-sync.md`](guide/data-and-sync.md)
 - [`guide/troubleshooting.md`](guide/troubleshooting.md)
 - [`guide/glossary.md`](guide/glossary.md)
+- [`guide/stable-release-workflow.md`](guide/stable-release-workflow.md) — developer branches, production tags, publishing, and user updates
 
 ## What The App Does
 

@@ -1,9 +1,6 @@
 package service_classes
 
 import (
-<<<<<<< HEAD
-	"fesapp/backend/db/models"
-=======
 	"context"
 	"errors"
 	"fesapp/backend/db"
@@ -11,7 +8,6 @@ import (
 	"fesapp/backend/types"
 	"net/http"
 	"net/http/httptest"
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	"testing"
 	"time"
 )
@@ -66,8 +62,6 @@ func TestTaskRecordHasRemoteProductivity(t *testing.T) {
 		t.Fatalf("expected task record without productivity id to require task-in sync")
 	}
 }
-<<<<<<< HEAD
-=======
 
 func TestTaskInRejectsMissingEmployeeID(t *testing.T) {
 	syncService := NewSyncService()
@@ -267,4 +261,3 @@ func TestForceSyncAttendanceResendsAnAlreadySyncedLogout(t *testing.T) {
 		t.Fatalf("expected force sync to resend logout once, got %d calls", logoutCalls)
 	}
 }
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef

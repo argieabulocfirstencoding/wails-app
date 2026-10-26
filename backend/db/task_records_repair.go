@@ -147,9 +147,6 @@ func ensureTaskRecordsSchema(database *gorm.DB) error {
 		return nil
 	}
 
-<<<<<<< HEAD
-	copySQL := `
-=======
 	clientSessionID := "NULL"
 	taskInAttemptedAt := "NULL"
 	taskInIdempotent := "0"
@@ -166,7 +163,6 @@ func ensureTaskRecordsSchema(database *gorm.DB) error {
 	}
 
 	copySQL := fmt.Sprintf(`
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 INSERT INTO new_task_records (
 	id,
 	user_id,
@@ -179,12 +175,9 @@ INSERT INTO new_task_records (
 	duration,
 	synced_at,
 	productivity,
-<<<<<<< HEAD
-=======
 	client_session_id,
 	task_in_attempted_at,
 	task_in_idempotent,
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	sync_status,
 	attempt_count,
 	last_error,
@@ -203,12 +196,9 @@ SELECT
 	COALESCE(tr.duration, 0),
 	tr.synced_at,
 	tr.productivity,
-<<<<<<< HEAD
-=======
 	%s,
 	%s,
 	%s,
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	COALESCE(NULLIF(TRIM(tr.sync_status), ''), 'pending'),
 	COALESCE(tr.attempt_count, 0),
 	COALESCE(tr.last_error, ''),
@@ -217,11 +207,7 @@ SELECT
 FROM task_records AS tr
 LEFT JOIN attendances AS a ON a.id = tr.attendance_id
 INNER JOIN tasks AS t ON t.task_id = tr.task_id
-<<<<<<< HEAD
-WHERE COALESCE(NULLIF(TRIM(tr.user_id), ''), a.user_id) IS NOT NULL;`
-=======
 WHERE COALESCE(NULLIF(TRIM(tr.user_id), ''), a.user_id) IS NOT NULL;`, clientSessionID, taskInAttemptedAt, taskInIdempotent)
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 
 	if !database.Migrator().HasTable("task_records") {
 		copySQL = ""
@@ -243,12 +229,9 @@ CREATE TABLE new_task_records (
 	duration INTEGER NOT NULL DEFAULT 0,
 	synced_at DATETIME,
 	productivity TEXT,
-<<<<<<< HEAD
-=======
 	client_session_id TEXT,
 	task_in_attempted_at DATETIME,
 	task_in_idempotent INTEGER NOT NULL DEFAULT 0,
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	sync_status TEXT NOT NULL DEFAULT 'pending',
 	attempt_count INTEGER NOT NULL DEFAULT 0,
 	last_error TEXT NOT NULL DEFAULT '',
@@ -308,12 +291,9 @@ func taskRecordsSchemaNeedsRepairTx(tx *gorm.DB) (bool, error) {
 		"duration",
 		"synced_at",
 		"productivity",
-<<<<<<< HEAD
-=======
 		"client_session_id",
 		"task_in_attempted_at",
 		"task_in_idempotent",
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 		"sync_status",
 		"attempt_count",
 		"last_error",
@@ -326,11 +306,7 @@ func taskRecordsSchemaNeedsRepairTx(tx *gorm.DB) (bool, error) {
 		}
 	}
 
-<<<<<<< HEAD
-	requiredNotNull := []string{"user_id", "attendance_id", "task_id", "started_at", "sync_status", "attempt_count", "last_error", "gap"}
-=======
 	requiredNotNull := []string{"user_id", "attendance_id", "task_id", "started_at", "task_in_idempotent", "sync_status", "attempt_count", "last_error", "gap"}
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	for _, name := range requiredNotNull {
 		if columnMap[name].NotNull == 0 {
 			return true, nil
@@ -338,15 +314,6 @@ func taskRecordsSchemaNeedsRepairTx(tx *gorm.DB) (bool, error) {
 	}
 
 	expectedDefaults := map[string]string{
-<<<<<<< HEAD
-		"padagan":       "0",
-		"notes":         "",
-		"duration":      "0",
-		"sync_status":   "pending",
-		"attempt_count": "0",
-		"last_error":    "",
-		"gap":           "0",
-=======
 		"padagan":            "0",
 		"notes":              "",
 		"duration":           "0",
@@ -355,7 +322,6 @@ func taskRecordsSchemaNeedsRepairTx(tx *gorm.DB) (bool, error) {
 		"attempt_count":      "0",
 		"last_error":         "",
 		"gap":                "0",
->>>>>>> bdad11dd336beb05d8c751de525843d9cfa9deef
 	}
 	for name, expected := range expectedDefaults {
 		if normalizeSQLiteDefaultValue(columnMap[name].DefaultValue) != expected {
