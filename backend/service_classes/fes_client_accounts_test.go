@@ -513,15 +513,18 @@ func TestSelectUpworkLoginTargetFallsBackToAnyUpworkPage(t *testing.T) {
 }
 
 func TestBuildUpworkFieldReadinessExpressionIncludesReadinessChecks(t *testing.T) {
-	expression, err := buildUpworkFieldReadinessExpression([]string{`input[name="username"]`, `input[type="password"]`})
+	expression, err := buildUpworkFieldReadinessExpression([]string{`input#username_username`, `input[name="username[username]"]`, `input[type="password"]`})
 	if err != nil {
 		t.Fatalf("expected field readiness expression without error, got %v", err)
 	}
 	if expression == "" {
 		t.Fatalf("expected readiness expression to be non-empty")
 	}
-	if !strings.Contains(expression, `input[name=\"username\"]`) {
-		t.Fatalf("expected expression to contain serialized username selector, got %q", expression)
+	if !strings.Contains(expression, `input#username_username`) {
+		t.Fatalf("expected expression to contain the current username ID selector, got %q", expression)
+	}
+	if !strings.Contains(expression, `input[name=\"username[username]\"]`) {
+		t.Fatalf("expected expression to contain the current username name selector, got %q", expression)
 	}
 	if !strings.Contains(expression, `input[type=\"password\"]`) {
 		t.Fatalf("expected expression to contain serialized password selector, got %q", expression)
@@ -537,6 +540,18 @@ func TestBuildUpworkFieldReadinessExpressionIncludesReadinessChecks(t *testing.T
 	}
 	if strings.Contains(expression, `dispatchEvent(new MouseEvent`) || strings.Contains(expression, `field.click()`) {
 		t.Fatalf("expected trusted DevTools click path without synthetic DOM clicks, got %q", expression)
+	}
+}
+
+func TestUpworkUsernameFieldSelectorsSupportCurrentLoginPage(t *testing.T) {
+	want := []string{`input#username_username`, `input[name="username[username]"]`}
+	for index, selector := range want {
+		if len(upworkUsernameFieldSelectors) <= index {
+			t.Fatalf("username selectors = %#v, want at least %d entries", upworkUsernameFieldSelectors, len(want))
+		}
+		if upworkUsernameFieldSelectors[index] != selector {
+			t.Fatalf("username selector %d = %q, want %q", index, upworkUsernameFieldSelectors[index], selector)
+		}
 	}
 }
 

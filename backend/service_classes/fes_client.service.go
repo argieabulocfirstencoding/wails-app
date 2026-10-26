@@ -174,6 +174,8 @@ var (
 	enumWindowsProc = user32DLL.NewProc("EnumWindows")
 
 	upworkUsernameFieldSelectors = []string{
+		`input#username_username`,
+		`input[name="username[username]"]`,
 		`input#login_username`,
 		`input[name="login[username]"]`,
 		`input[name="username"]`,
@@ -1591,6 +1593,14 @@ func (f *FesClientService) waitForUpworkFieldEntry(ctx context.Context, session 
 		return "", nil, err
 	}
 	if lastErr != nil {
+		if strings.EqualFold(strings.TrimSpace(stage), "username") && f != nil && f.logger != nil {
+			f.logger.Warnf(
+				"op=upwork_field_timeout stage=%s selectors=%q last_error=%v",
+				stage,
+				selectors,
+				lastErr,
+			)
+		}
 		return "", nil, fmt.Errorf("timed out waiting for Upwork %s field: %w", stage, lastErr)
 	}
 
