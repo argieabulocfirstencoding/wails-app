@@ -437,6 +437,12 @@ func reconcileBrowserAttendance(tx *gorm.DB, userID string, remote bubbleAttenda
 	if err != nil {
 		return nil, false, false, false, err
 	}
+	if len(differingConflictFields(attendanceConflictValues(local), bubbleAttendanceConflictValues(remote))) > 0 {
+		if err := markAttendanceConflict(tx, userID, local, remote); err != nil {
+			return nil, false, false, false, err
+		}
+		return local, false, false, true, nil
+	}
 	if hasProtectedLocalSyncState(local.SyncStatus) {
 		return local, false, false, true, nil
 	}
@@ -553,6 +559,12 @@ func reconcileBrowserProductivity(tx *gorm.DB, userID string, attendance *models
 			return false, false, false, false, err
 		}
 		return false, true, false, false, nil
+	}
+	if len(differingConflictFields(taskConflictValues(&local), bubbleTaskConflictValues(remote))) > 0 {
+		if err := markTaskConflict(tx, userID, &local, remote); err != nil {
+			return false, false, false, false, err
+		}
+		return false, false, true, false, nil
 	}
 	if local.ClientSessionID == nil && remote.ClientSessionID != "" {
 		if err := tx.Model(&models.TaskRecord{}).Where("id = ?", local.ID).Update("client_session_id", remote.ClientSessionID).Error; err != nil {
@@ -703,7 +715,7 @@ func ensureBrowserTask(tx *gorm.DB, remote bubbleProductivityRecord) (bool, erro
 
 func hasProtectedLocalSyncState(state string) bool {
 	switch strings.ToLower(strings.TrimSpace(state)) {
-	case syncStatePending, syncStateFailed, syncStateBlocked, syncStateInProgress, syncStateIdentityConflict:
+	case syncStatePending, syncStateFailed, syncStateBlocked, syncStateInProgress, syncStateIdentityConflict, syncStateConflict:
 		return true
 	default:
 		return false

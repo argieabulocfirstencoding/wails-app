@@ -114,6 +114,12 @@ func migrationCatalog() []catalogMigration {
 			Plan:        planTaskSessionIdentityMigration,
 			Migrate:     ensureTaskSessionIdentity,
 		},
+		{
+			ID:          "20261026_010_sync_conflicts",
+			Description: "create persisted Bubble/local conflict snapshots",
+			Plan:        planSyncConflictMigration,
+			Migrate:     ensureSyncConflictSchema,
+		},
 	}
 }
 

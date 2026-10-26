@@ -30,6 +30,7 @@ const (
 	syncStateBlocked          = "blocked"
 	syncStateRemoteMissing    = "remote_missing"
 	syncStateIdentityConflict = "identity_conflict"
+	syncStateConflict         = "conflict"
 )
 
 var errSyncBlocked = errors.New("sync blocked")

@@ -14,8 +14,10 @@ import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import { models } from "@/../wailsjs/go/models";
 import {
   GetActivityLogRecord,
+  GetOpenSyncConflicts,
   GetTotalClientRecords,
   ResyncTaskRecord,
+  ResolveSyncConflict,
   SyncAttendanceByID,
 } from "@/../wailsjs/go/app/App";
 import {
@@ -34,6 +36,31 @@ import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatInManila, supportsManilaTimeZone, toManilaDateOnly } from "@/lib/timezone";
 
 const RESYNC_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+type ConflictField = { field: string; localValue: unknown; bubbleValue: unknown };
+type SyncConflict = {
+  ID: number;
+  RecordType: "attendance" | "task";
+  Status: string;
+  Differences: string;
+  UpdatedAt: unknown;
+};
+
+const conflictFields = (conflict: SyncConflict): ConflictField[] => {
+  try {
+    const parsed = JSON.parse(conflict.Differences);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const displayConflictValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number" && value > 100000000000) return `${formatTimestamp(value).date} ${formatTimestamp(value).time}`;
+  return String(value);
+};
 
 const toDateOnly = (input: Date): string => {
   return toManilaDateOnly(input);
@@ -120,6 +147,7 @@ const statusLabel = (syncStatus?: string, syncedAt?: unknown): string => {
     return "Missing in Bubble";
   }
   if (syncStatus?.toLowerCase() === "identity_conflict") return "Review required";
+  if (syncStatus?.toLowerCase() === "conflict") return "Conflict — review required";
   if (syncStatus?.toLowerCase() === "pending") return "Pending";
   return "Unsynced";
 };
@@ -196,6 +224,11 @@ const ActivityLogs = () => {
     key: string;
     label: string;
   } | null>(null);
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
+  const [activeConflict, setActiveConflict] = useState<SyncConflict | null>(null);
+  const [fieldSelections, setFieldSelections] = useState<Record<string, "bubble" | "local">>({});
+  const [resolvingConflict, setResolvingConflict] = useState(false);
+  const [conflictError, setConflictError] = useState("");
   const { summaries, setSummary, tasks, online } = useAuthStore();
 
   const loadActivityData = useCallback(
@@ -211,9 +244,10 @@ const ActivityLogs = () => {
             manilaTimezoneSupported: supportsManilaTimeZone(),
           });
 
-        const [activitiesResult, summaryResult] = await Promise.allSettled([
+        const [activitiesResult, summaryResult, conflictsResult] = await Promise.allSettled([
           GetActivityLogRecord(dateOnly),
           GetTotalClientRecords(dateOnly),
+          GetOpenSyncConflicts(),
         ]);
 
         if (activitiesResult.status === "fulfilled") {
@@ -251,10 +285,17 @@ const ActivityLogs = () => {
             raw: summaryResult.reason,
           });
         }
+        if (conflictsResult.status === "fulfilled") {
+          setConflicts((conflictsResult.value ?? []) as SyncConflict[]);
+        } else {
+          setConflicts([]);
+          setLoadWarning(`Sync conflicts could not be loaded: ${getErrorMessage(conflictsResult.reason)}`);
+        }
       } catch (error) {
         const errorMessage = getErrorMessage(error);
         setActivities([]);
         setSummary([]);
+        setConflicts([]);
         setLoadError(errorMessage);
         logActivityUI("error", "Unexpected error loading activity page", {
           error: errorMessage,
@@ -281,6 +322,29 @@ const ActivityLogs = () => {
   }, [date, loadActivityData]);
   const setSyncing = (key: string, syncing: boolean) => {
     setSyncingKeys((prev) => ({ ...prev, [key]: syncing }));
+  };
+
+  const openConflict = (conflict: SyncConflict) => {
+    setActiveConflict(conflict);
+    setFieldSelections({});
+    setConflictError("");
+  };
+
+  const applyConflict = async () => {
+    if (!activeConflict) return;
+    const fields = conflictFields(activeConflict);
+    if (fields.some((field) => !fieldSelections[field.field])) return;
+    setResolvingConflict(true);
+    setConflictError("");
+    try {
+      await ResolveSyncConflict(activeConflict.ID, fieldSelections);
+      setActiveConflict(null);
+      await loadActivityData(date);
+    } catch (error) {
+      setConflictError(getErrorMessage(error));
+    } finally {
+      setResolvingConflict(false);
+    }
   };
 
   const clearSyncError = (key: string) => {
@@ -446,6 +510,42 @@ const ActivityLogs = () => {
                 </div>
               </div>
             ))}
+          </section>
+        )}
+
+        {conflicts.length > 0 && (
+          <section className="rounded-2xl border border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10 overflow-hidden">
+            <div className="px-6 py-3 border-b border-amber-200 dark:border-amber-900/50 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300">
+                Sync conflicts requiring review
+              </span>
+              <span className="text-xs text-amber-700 dark:text-amber-300">{conflicts.length}</span>
+            </div>
+            <div className="divide-y divide-amber-200 dark:divide-amber-900/50">
+              {conflicts.map((conflict) => {
+                const fields = conflictFields(conflict);
+                const identityConflict = conflict.Status === "identity_conflict";
+                return (
+                  <div key={conflict.ID} className="px-6 py-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+                        {conflict.RecordType === "attendance" ? "Login / logout session" : "Task record"}
+                      </p>
+                      <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                        {identityConflict ? "Record identity differs and needs administrator review." : `${fields.length} field${fields.length === 1 ? "" : "s"} differ between Bubble and desktop.`}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      disabled={identityConflict}
+                      onClick={() => openConflict(conflict)}
+                    >
+                      {identityConflict ? "Identity review required" : "Review fields"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           </section>
         )}
 
@@ -636,6 +736,50 @@ const ActivityLogs = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!activeConflict} onOpenChange={(open) => !open && setActiveConflict(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Resolve Bubble and desktop differences</DialogTitle>
+            <DialogDescription>
+              Choose the true source separately for each field. Your choices are applied together only after Bubble confirms the record has not changed again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] overflow-y-auto space-y-3 py-2">
+            {activeConflict && conflictFields(activeConflict).map((field) => (
+              <div key={field.field} className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">{field.field.replaceAll("_", " ")}</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    onClick={() => setFieldSelections((previous) => ({ ...previous, [field.field]: "bubble" }))}
+                    className={`rounded border p-2 text-left ${fieldSelections[field.field] === "bubble" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : "border-neutral-200 dark:border-neutral-700"}`}
+                  >
+                    <span className="block text-[10px] font-semibold uppercase text-neutral-500">Use Bubble</span>
+                    {displayConflictValue(field.bubbleValue)}
+                  </button>
+                  <button
+                    onClick={() => setFieldSelections((previous) => ({ ...previous, [field.field]: "local" }))}
+                    className={`rounded border p-2 text-left ${fieldSelections[field.field] === "local" ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : "border-neutral-200 dark:border-neutral-700"}`}
+                  >
+                    <span className="block text-[10px] font-semibold uppercase text-neutral-500">Upload desktop</span>
+                    {displayConflictValue(field.localValue)}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {conflictError && <p className="text-xs text-rose-600 dark:text-rose-400">{conflictError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setActiveConflict(null)} disabled={resolvingConflict}>Cancel</Button>
+            <Button
+              onClick={applyConflict}
+              disabled={resolvingConflict || !activeConflict || conflictFields(activeConflict).some((field) => !fieldSelections[field.field])}
+            >
+              {resolvingConflict ? "Applying..." : "Apply selected sources"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SettingsLayout>
   );
 };
@@ -676,7 +820,8 @@ function ActivityBanner({
   const synced = isSynced(syncStatus, syncedAt);
   const remoteMissing = syncStatus?.toLowerCase() === "remote_missing";
   const identityConflict = syncStatus?.toLowerCase() === "identity_conflict";
-  const requiresReview = remoteMissing || identityConflict;
+  const fieldConflict = syncStatus?.toLowerCase() === "conflict";
+  const requiresReview = remoteMissing || identityConflict || fieldConflict;
   const currentStatus = statusLabelOverride ?? statusLabel(syncStatus, syncedAt);
   const currentTone =
     statusTone ?? (synced ? "success" : requiresReview ? "warning" : "danger");
@@ -719,7 +864,7 @@ function ActivityBanner({
           )}
           {requiresReview && (
             <p className="text-[10px] text-amber-600 dark:text-amber-400">
-              Review the matching Bubble session before resyncing this record.
+              Review the Bubble and desktop values before resyncing this record.
             </p>
           )}
         </div>

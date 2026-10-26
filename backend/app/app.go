@@ -456,6 +456,29 @@ func (a *App) GetActivityLogRecord(dateStr string) ([]models.ActivityLogRecord, 
 	return records, nil
 }
 
+// GetOpenSyncConflicts returns unresolved Bubble/local comparisons for the
+// authenticated desktop user. Values are preserved in the conflict snapshot.
+func (a *App) GetOpenSyncConflicts() ([]models.SyncConflict, error) {
+	user, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+	return a.SyncService.GetOpenSyncConflicts(user.LocalID)
+}
+
+// ResolveSyncConflict applies the user's per-field Bubble/desktop choices.
+// Bubble verifies its modified timestamp before any local record is changed.
+func (a *App) ResolveSyncConflict(conflictID uint, selections map[string]string) error {
+	user, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return err
+	}
+	if err := a.SyncService.ResolveSyncConflict(user.LocalID, conflictID, selections); err != nil {
+		return a.stableClientError("resolve_sync_conflict", err)
+	}
+	return nil
+}
+
 func (a *App) OpenUpwork(taskID string) error {
 	if err := a.SyncService.FesClientService.FetchUpworkCreds(a.ctx, taskID); err != nil {
 		return a.stableClientError("open_upwork", err)

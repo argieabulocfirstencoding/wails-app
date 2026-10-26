@@ -245,8 +245,8 @@ func TestSessionBrowserImportLinksIdentityAndPreservesPendingStop(t *testing.T) 
 		}
 	}
 	stored := storedSession(t, record.ID)
-	if stored.Productivity == nil || *stored.Productivity != "remote-1" || stored.EndedAt == nil || !stored.EndedAt.Equal(end) || stored.Notes != "keep local" || stored.SyncStatus != syncStatePending {
-		t.Fatalf("pending stop lost: %#v", stored)
+	if stored.Productivity == nil || *stored.Productivity != "remote-1" || stored.EndedAt == nil || !stored.EndedAt.Equal(end) || stored.Notes != "keep local" || stored.SyncStatus != syncStateConflict {
+		t.Fatalf("pending stop was not preserved as a review conflict: %#v", stored)
 	}
 	var count int64
 	db.DB.Model(&models.TaskRecord{}).Count(&count)

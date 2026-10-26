@@ -96,8 +96,8 @@ func TestReconcileBrowserRecordsCreatesThenUpdates(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if created || !updated || conflict || skipped {
-			t.Fatalf("unexpected update productivity result: created=%t updated=%t conflict=%t skipped=%t", created, updated, conflict, skipped)
+		if created || updated || !conflict || skipped {
+			t.Fatalf("expected a review conflict instead of an automatic update: created=%t updated=%t conflict=%t skipped=%t", created, updated, conflict, skipped)
 		}
 		return nil
 	}); err != nil {
@@ -107,8 +107,12 @@ func TestReconcileBrowserRecordsCreatesThenUpdates(t *testing.T) {
 	if err := database.Where("id = ?", stored.ID).First(&stored).Error; err != nil {
 		t.Fatal(err)
 	}
-	if stored.Notes != "edited in browser" {
-		t.Fatalf("expected newer Bubble note to update local record, got %q", stored.Notes)
+	if stored.Notes != "created in browser" || stored.SyncStatus != syncStateConflict {
+		t.Fatalf("expected local record to remain unchanged and require review, got %#v", stored)
+	}
+	var savedConflict models.SyncConflict
+	if err := database.Where("task_record_id = ? AND status = ?", stored.ID, "open").First(&savedConflict).Error; err != nil {
+		t.Fatalf("expected stored field conflict: %v", err)
 	}
 }
 

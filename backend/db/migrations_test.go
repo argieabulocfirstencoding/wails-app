@@ -29,7 +29,7 @@ func TestRunMigrations_FreshDatabaseCreatesCanonicalSchema(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	for _, table := range []string{"users", "clients", "tasks", "attendances", "task_records", "screenshots", gormMigrationsTable} {
+	for _, table := range []string{"users", "clients", "tasks", "attendances", "task_records", "screenshots", "sync_conflicts", gormMigrationsTable} {
 		if !database.Migrator().HasTable(table) {
 			t.Fatalf("expected table %s to exist", table)
 		}
