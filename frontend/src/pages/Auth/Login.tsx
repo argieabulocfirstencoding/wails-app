@@ -19,6 +19,38 @@ import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import { Eye, EyeOff } from "lucide-react";
 
+const incorrectCredentialsMessage = "Incorrect email or password.";
+const genericLoginFailureMessage = "Unable to sign in. Please try again.";
+
+function onlineLoginErrorMessage(error: unknown): string {
+  if (typeof error === "string") {
+    return /\b(incorrect|invalid)\b.*\b(email|password|credentials?)\b|\b(email|password|credentials?)\b.*\b(incorrect|invalid)\b/i.test(
+      error
+    )
+      ? incorrectCredentialsMessage
+      : genericLoginFailureMessage;
+  }
+
+  if (error instanceof Error) {
+    return onlineLoginErrorMessage(error.message);
+  }
+
+  if (typeof error !== "object" || error === null) {
+    return genericLoginFailureMessage;
+  }
+
+  const payload = error as Record<string, unknown>;
+  const statusCode = payload.statusCode ?? payload.StatusCode;
+  if (statusCode === 400 || statusCode === 401) {
+    return incorrectCredentialsMessage;
+  }
+
+  const message = payload.message ?? payload.Message;
+  return typeof message === "string"
+    ? onlineLoginErrorMessage(message)
+    : genericLoginFailureMessage;
+}
+
 const Login = () => {
   const navigate = useNavigate();
   const { online, setSynced, setAttendance } = useAuthStore();
@@ -37,6 +69,7 @@ const Login = () => {
     setLoading(true);
     showCancel(true);
     cancelRef.current = false;
+    setErrorMsg("");
 
     try {
       if (!online) console.log("no internet connection!");
@@ -67,9 +100,9 @@ const Login = () => {
 
         navigate("/home");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      setErrorMsg(error);
+      setErrorMsg(onlineLoginErrorMessage(error));
     } finally {
       setLoading(false);
     }
