@@ -5,10 +5,10 @@
 | Repository | Purpose |
 | --- | --- |
 | `FES-Paul/wails-app` | Application source, development branches, pull requests, version tags, and GitHub Actions |
-| `FES-Paul/FES-APP-TRACKER` | Public production installers, checksums, and update manifests |
+| `argieabulocfirstencoding/fes-app-tracker-new` | Public production installers, checksums, and update manifests |
 
 Developers push their code to **wails-app**. The release workflow publishes the
-compiled application to **FES-APP-TRACKER**. Do not change the source repository's
+compiled application to **fes-app-tracker-new**. Do not change the source repository's
 `origin` to the installer repository or push application source there.
 
 The production release flow is:
@@ -16,7 +16,7 @@ The production release flow is:
 ```text
 development -> main -> vMAJOR.MINOR.PATCH tag
     -> Build and Release workflow
-    -> FES-Paul/FES-APP-TRACKER release
+    -> argieabulocfirstencoding/fes-app-tracker-new release
     -> installed stable app checks -> user chooses Install now
 ```
 
@@ -25,11 +25,13 @@ release trigger. A release tag must point to a commit already merged into `main`
 
 ## One-time setup by the repository owner
 
-1. Ensure `FES-Paul/FES-APP-TRACKER` exists, is **public**, and has an initial
-   commit on its default branch (a README is enough). The desktop app downloads
+1. Ensure `argieabulocfirstencoding/fes-app-tracker-new` exists, is **public**, and has an initial
+   commit on its default branch. Use the provided
+   [`release-repository-readme.md`](./release-repository-readme.md) as its
+   `README.md`. The desktop app downloads
    updates without a GitHub login. A private repository will return 404 to it.
 2. Create a fine-grained GitHub personal access token with resource owner
-   `FES-Paul`, access only to `FES-APP-TRACKER`, and **Contents: Read and write**.
+   `argieabulocfirstencoding`, access only to `fes-app-tracker-new`, and **Contents: Read and write**.
    The token owner must have write access to that repository. Complete any
    organization approval required by GitHub and record the token expiry date.
 3. In **FES-Paul/wails-app**, open **Settings -> Secrets and variables -> Actions**.
@@ -111,7 +113,7 @@ git tag -a v2.5.1 -m "Release 2.5.1"
 git push origin v2.5.1
 ```
 
-Push the tag to **wails-app**, not FES-APP-TRACKER. Do not move or reuse published
+Push the tag to **wails-app**, not fes-app-tracker-new. Do not move or reuse published
 version tags. The workflow creates the corresponding release in the asset
 repository; the manifest records the actual source commit.
 
@@ -121,7 +123,7 @@ In **wails-app -> Actions -> Build and Release**, open the run for the tag.
 It validates the version and main ancestry, tests the backend/updater, installs
 the build tools, and creates the Windows amd64 installer.
 
-The workflow uploads these files to a **draft** in FES-APP-TRACKER, then publishes
+The workflow uploads these files to a **draft** in fes-app-tracker-new, then publishes
 the completed release and marks it Latest when it is newer than the current one:
 
 - `FESApp-Setup.exe`
@@ -136,9 +138,9 @@ a new commit merged into main and a new version tag.
 
 ### 6. Verify the public release and user update
 
-Open [the production releases](https://github.com/FES-Paul/FES-APP-TRACKER/releases)
+Open [the production releases](https://github.com/argieabulocfirstencoding/fes-app-tracker-new/releases)
 in a signed-out/private browser window. Check that all three assets download.
-The [latest-release API](https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest)
+The [latest-release API](https://api.github.com/repos/argieabulocfirstencoding/fes-app-tracker-new/releases/latest)
 must return the intended stable tag and those assets. The manifest's `version`
 must match the tag without `v`, its channel must be `stable`, and branch `main`.
 

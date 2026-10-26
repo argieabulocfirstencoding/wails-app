@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	Repository            = "FES-Paul/FES-APP-TRACKER"
+	Repository            = "argieabulocfirstencoding/fes-app-tracker-new"
 	developmentRepository = "argieabulocfirstencoding/fesapp-updates"
 	developmentReleaseTag = "development-latest"
 	developmentManifest   = "development-manifest.json"

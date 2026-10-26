@@ -20,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_REPOSITORY: FES-Paul/FES-APP-TRACKER
+  RELEASE_REPOSITORY: argieabulocfirstencoding/fes-app-tracker-new
 
 jobs:
   build-windows:

@@ -1224,7 +1224,7 @@ func (a *App) downloadAndInstallLegacy(url string) error {
 }
 
 func fetchLatestTrustedRelease() (*githubRelease, error) {
-	const latestURL = "https://api.github.com/repos/FES-Paul/FES-APP-TRACKER/releases/latest"
+	const latestURL = "https://api.github.com/repos/" + updater.Repository + "/releases/latest"
 	req, err := http.NewRequest(http.MethodGet, latestURL, nil)
 	if err != nil {
 		return nil, err
@@ -1285,7 +1285,7 @@ func validateTrustedDownloadURL(raw string) error {
 	}
 
 	p := path.Clean(u.Path)
-	if host == "github.com" && !strings.Contains(p, "/FES-Paul/FES-APP-TRACKER/releases/download/") {
+	if host == "github.com" && !strings.Contains(p, "/"+updater.Repository+"/releases/download/") {
 		return fmt.Errorf("untrusted github path")
 	}
 	return nil

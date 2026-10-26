@@ -1,7 +1,7 @@
 # Private Source Repository with a Public Update Repository
 
 This guide applies to the **development channel**. For production updates from
-`main` using `FES-Paul/FES-APP-TRACKER`, follow
+`main` using `argieabulocfirstencoding/fes-app-tracker-new`, follow
 [`stable-release-workflow.md`](./stable-release-workflow.md).
 
 This guide keeps the application source repository private while allowing the
@@ -130,7 +130,7 @@ repository and from the `development-latest` release, so no URL-validation
 weakening is required.
 
 Keep the separate stable `Repository` constant pointed to
-`FES-Paul/FES-APP-TRACKER`.
+`argieabulocfirstencoding/fes-app-tracker-new`.
 
 ## 6. Commit and publish the configuration
 
