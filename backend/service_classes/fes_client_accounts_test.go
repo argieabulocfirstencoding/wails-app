@@ -448,9 +448,12 @@ func TestRemoveManagedUpworkChromeUserDataDirRejectsUnmanagedDirectory(t *testin
 	}
 }
 
-func TestUpworkChromeLoginURLUsesProvidedOAuthFlow(t *testing.T) {
+func TestUpworkChromeLoginURLsUseTheExpectedFlows(t *testing.T) {
 	if upworkChromeLoginURL != "https://www.upwork.com/ab/account-security/login?redir=%2Fab%2Faccount-security%2Foauth2%2Fauthorize%3Fresponse_type%3Dcode%26redirect_uri%3Dupwork%253A%252F%252Fwww.upwork.com%252Foauth2redir%26client_id%3D522767a70366bdd00e95cd6e8756940c" {
-		t.Fatalf("expected provided OAuth login URL, got %q", upworkChromeLoginURL)
+		t.Fatalf("task Upwork login URL = %q, want the OAuth login URL", upworkChromeLoginURL)
+	}
+	if upworkClientAccountChromeLoginURL != "https://www.upwork.com/ab/account-security/login" {
+		t.Fatalf("client account Upwork login URL = %q, want the direct login URL", upworkClientAccountChromeLoginURL)
 	}
 }
 

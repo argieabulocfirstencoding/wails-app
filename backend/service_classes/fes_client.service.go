@@ -163,6 +163,7 @@ const (
 	upworkFieldReadyPollInterval         = 250 * time.Millisecond
 	chromeDefaultRemoteDebuggingPort     = 9333
 	upworkChromeLoginURL                 = "https://www.upwork.com/ab/account-security/login?redir=%2Fab%2Faccount-security%2Foauth2%2Fauthorize%3Fresponse_type%3Dcode%26redirect_uri%3Dupwork%253A%252F%252Fwww.upwork.com%252Foauth2redir%26client_id%3D522767a70366bdd00e95cd6e8756940c"
+	upworkClientAccountChromeLoginURL    = "https://www.upwork.com/ab/account-security/login"
 	upworkChromeUserDataDirPrefix        = "fes-upwork-chrome-"
 	upworkChromeStaleProfileAge          = 24 * time.Hour
 	upworkClientAutomationTimeout        = 45 * time.Second
@@ -913,7 +914,7 @@ func (f *FesClientService) launchUpworkAccountRecord(ctx context.Context, select
 	f.logCredentialResolution(selected.Display, source, creds)
 
 	windowTarget := newUpworkClientWindowTarget()
-	if err := openChromeProfileForUpworkClientAccount(profileDirectory, upworkChromeLoginURL); err != nil {
+	if err := openChromeProfileForUpworkClientAccount(profileDirectory, upworkClientAccountChromeLoginURL); err != nil {
 		return f.logger.Errorf("failed to open Chrome profile for %q: %w", selected.Display, err)
 	}
 
