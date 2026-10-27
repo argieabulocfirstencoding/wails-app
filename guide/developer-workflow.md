@@ -269,7 +269,7 @@ Inspect them for debugging, but do not treat them like source files.
 For the current production publishing process, follow
 [`stable-release-workflow.md`](./stable-release-workflow.md). Code is merged into
 `main` in `FES-Paul/wails-app`; a version tag triggers publication of the installer,
-checksum, and manifest to `FES-Paul/FES-APP-TRACKER`. Stable apps check that public
+checksum, and manifest to `argieabulocfirstencoding/fes-app-tracker-new`. Stable apps check that public
 release repository. Merging alone does not publish an update.
 
 Before a release, verify all of these:
