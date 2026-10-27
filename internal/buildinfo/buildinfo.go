@@ -10,7 +10,7 @@ import (
 // These variables are intentionally variables, rather than constants, so the release
 // workflow can set them with -ldflags. Do not put credentials or user data here.
 var (
-	Version       = "2.5.2"
+	Version       = "2.5.5"
 	Environment   = "production"
 	UpdateChannel = "stable"
 	UpdateBranch  = "main"

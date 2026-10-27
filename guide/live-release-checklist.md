@@ -145,9 +145,9 @@ On a test computer with an older updater-enabled stable build:
 5. Allow the application to close and the installer to run.
 6. Reopen the app and confirm the installed version and normal operation.
 
-The app also checks when opened and every two minutes while it runs. Users with
-an old build that lacks the new updater must manually install the first release
-from the public Releases page. Later releases can then be installed in the app.
+Users check for updates manually from Account settings. Users with an old build
+that lacks the new updater must manually install the first release from the
+public Releases page. Later releases can then be installed in the app.
 
 ## More detail
 

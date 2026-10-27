@@ -154,10 +154,10 @@ On a test machine with an older compatible stable build:
 5. Reopen the app after installation if needed. Verify the version, existing
    data, login, and task tracking. Checking again must report no newer update.
 
-The app also checks when opened and every two minutes while running and online.
-The update is optional; users can select Later. They do not need Git or a GitHub
-account. GitHub rate limits or network failures can temporarily prevent checks;
-retry later through the account screen.
+Users check for updates manually from the account screen. The update is
+optional; users can select Later. They do not need Git or a GitHub account.
+GitHub rate limits or network failures can temporarily prevent checks; retry
+later through the account screen.
 
 ## First deployment of this updater
 

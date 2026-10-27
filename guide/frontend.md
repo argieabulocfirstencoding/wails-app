@@ -50,7 +50,7 @@ It:
 - activates `useFirebaseAuth()`
 - activates `useOnlineStatus()`
 - sets up the router
-- optionally checks for updates after a delay
+- listens for update download progress; users manually check for updates from Account settings
 
 ### Why `App.tsx` matters
 
@@ -191,7 +191,6 @@ Main file:
 Current flags include:
 
 - `screenshotsEnabled: true`
-- `updateCheckDelayMs: 15000`
 
 ### Why this matters
 
