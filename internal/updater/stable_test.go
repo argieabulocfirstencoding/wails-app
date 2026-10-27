@@ -121,6 +121,67 @@ func TestStableCheck(t *testing.T) {
 	}
 }
 
+func TestStableCheckRateLimitBackoff(t *testing.T) {
+	s := New(stableBuild())
+	reset := time.Now().Add(time.Hour).Truncate(time.Second)
+	requests := 0
+	headers := make(http.Header)
+	headers.Set("Content-Type", "application/json")
+	headers.Set("X-RateLimit-Remaining", "0")
+	headers.Set("X-RateLimit-Reset", fmt.Sprint(reset.Unix()))
+	s.client.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests++
+		return &http.Response{
+			StatusCode: http.StatusForbidden,
+			Header:     headers,
+			Body:       io.NopCloser(strings.NewReader(`{"message":"API rate limit exceeded"}`)),
+		}, nil
+	})
+
+	_, err := s.Check(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "temporarily rate-limited") {
+		t.Fatalf("expected rate-limit error, got %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("requests=%d; want 1", requests)
+	}
+
+	_, err = s.Check(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "temporarily rate-limited") {
+		t.Fatalf("expected cached rate-limit error, got %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("backoff made %d requests; want 1", requests)
+	}
+
+	s.mu.Lock()
+	s.rateLimitedUntil = time.Now().Add(-time.Second)
+	s.mu.Unlock()
+	_, _ = s.Check(context.Background())
+	if requests != 2 {
+		t.Fatalf("expired backoff made %d requests; want 2", requests)
+	}
+}
+
+func TestStableCheckDoesNotBackoffForOrdinaryForbidden(t *testing.T) {
+	s := New(stableBuild())
+	requests := 0
+	s.client.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests++
+		return jsonResponse(map[string]string{"message": "forbidden"}, http.StatusForbidden), nil
+	})
+
+	for range 2 {
+		_, err := s.Check(context.Background())
+		if err == nil || strings.Contains(err.Error(), "temporarily rate-limited") {
+			t.Fatalf("expected ordinary 403 error, got %v", err)
+		}
+	}
+	if requests != 2 {
+		t.Fatalf("ordinary 403 made %d requests; want 2", requests)
+	}
+}
+
 func TestDevelopmentCheckKeepsExistingReleaseSource(t *testing.T) {
 	s := New(developmentBuild())
 	base := "https://github.com/" + developmentRepository + "/releases/download/" + developmentReleaseTag + "/"

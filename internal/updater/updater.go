@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -101,8 +102,17 @@ type Service struct {
 	build  buildinfo.Info
 	client *http.Client
 
-	mu     sync.Mutex
-	latest *UpdateInfo
+	mu               sync.Mutex
+	latest           *UpdateInfo
+	rateLimitedUntil time.Time
+}
+
+type githubRateLimitError struct {
+	until time.Time
+}
+
+func (e *githubRateLimitError) Error() string {
+	return fmt.Sprintf("GitHub update checks are temporarily rate-limited; try again after %s.", e.until.Local().Format("Jan 2, 3:04 PM"))
 }
 
 func New(build buildinfo.Info) *Service {
@@ -119,6 +129,9 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 		s.clearLatest()
 		return result, nil
 	}
+	if err := s.rateLimitError(time.Now()); err != nil {
+		return result, err
+	}
 
 	config, err := configFor(s.build)
 	if err != nil {
@@ -126,6 +139,10 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 	}
 	release, err := s.fetchRelease(ctx, config)
 	if err != nil {
+		var rateLimitErr *githubRateLimitError
+		if errors.As(err, &rateLimitErr) {
+			s.setRateLimitedUntil(rateLimitErr.until)
+		}
 		return result, err
 	}
 
@@ -261,6 +278,11 @@ func (s *Service) fetchRelease(ctx context.Context, config channelConfig) (*rele
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
+		if response.StatusCode == http.StatusForbidden {
+			if rateLimitErr := githubRateLimitErrorFromHeaders(response.Header, time.Now()); rateLimitErr != nil {
+				return nil, rateLimitErr
+			}
+		}
 		if s.build.UpdateChannel == "development" {
 			return nil, developmentReleaseLookupError(response.StatusCode)
 		}
@@ -294,6 +316,21 @@ func (s *Service) fetchRelease(ctx context.Context, config channelConfig) (*rele
 		return nil, errors.New("development release tag did not match")
 	}
 	return &value, nil
+}
+
+func githubRateLimitErrorFromHeaders(headers http.Header, now time.Time) *githubRateLimitError {
+	if strings.TrimSpace(headers.Get("X-RateLimit-Remaining")) != "0" {
+		return nil
+	}
+	resetSeconds, err := strconv.ParseInt(strings.TrimSpace(headers.Get("X-RateLimit-Reset")), 10, 64)
+	if err != nil {
+		return nil
+	}
+	until := time.Unix(resetSeconds, 0)
+	if !until.After(now) {
+		return nil
+	}
+	return &githubRateLimitError{until: until}
 }
 
 func developmentReleaseLookupError(statusCode int) error {
@@ -510,6 +547,27 @@ func (s *Service) latestUpdate() (UpdateInfo, bool) {
 		return UpdateInfo{}, false
 	}
 	return *s.latest, true
+}
+
+func (s *Service) rateLimitError(now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.rateLimitedUntil.IsZero() {
+		return nil
+	}
+	if !now.Before(s.rateLimitedUntil) {
+		s.rateLimitedUntil = time.Time{}
+		return nil
+	}
+	return &githubRateLimitError{until: s.rateLimitedUntil}
+}
+
+func (s *Service) setRateLimitedUntil(until time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if until.After(s.rateLimitedUntil) {
+		s.rateLimitedUntil = until
+	}
 }
 
 func trustedHTTPClient(timeout time.Duration) *http.Client {

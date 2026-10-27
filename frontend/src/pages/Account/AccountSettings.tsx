@@ -16,10 +16,14 @@ import {
   GitBranch,
   RefreshCw,
   PackageCheck,
+  Download,
 } from "lucide-react";
 import { GetFolderSize, ClearScreenshots, GetBuildInfo, CheckForUpdates } from "@/../wailsjs/go/app/App";
+import { BrowserOpenURL } from "@/../wailsjs/runtime/runtime";
 import { releaseFlags } from "@/config/release";
 import { updateErrorMessage, useUpdateStore } from "@/store/updateStore";
+
+const LATEST_STABLE_RELEASE_URL = "https://github.com/argieabulocfirstencoding/fes-app-tracker-new/releases/latest";
 
 type AccountUser = {
   fullName: string;
@@ -48,6 +52,7 @@ const AccountSettings = () => {
   const [size, setSize] = useState<number>(0);
   const [buildInfo, setBuildInfo] = useState<BuildInfo | null>(null);
   const [updateCheckMessage, setUpdateCheckMessage] = useState<string | null>(null);
+  const [updateCheckFailed, setUpdateCheckFailed] = useState(false);
   const checkingForUpdate = useUpdateStore((state) => state.checking);
   const setCheckingForUpdate = useUpdateStore((state) => state.setChecking);
   const setAvailableUpdate = useUpdateStore((state) => state.setUpdate);
@@ -94,6 +99,7 @@ const AccountSettings = () => {
     setCheckingForUpdate(true);
     setUpdateError(null);
     setUpdateCheckMessage(null);
+    setUpdateCheckFailed(false);
     try {
       const update = await CheckForUpdates();
       setAvailableUpdate(update.available ? update : null);
@@ -104,6 +110,7 @@ const AccountSettings = () => {
       const message = updateErrorMessage(error, "Unable to check for updates.");
       setUpdateError(message);
       setUpdateCheckMessage(message);
+      setUpdateCheckFailed(true);
     } finally {
       setCheckingForUpdate(false);
     }
@@ -357,9 +364,15 @@ const AccountSettings = () => {
               </Button>
             </div>
             {updateCheckMessage && (
-              <p className="rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:bg-neutral-800/70 dark:text-neutral-300">
-                {updateCheckMessage}
-              </p>
+              <div className="space-y-2 rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-800/70">
+                <p className="text-xs text-neutral-600 dark:text-neutral-300">{updateCheckMessage}</p>
+                {updateCheckFailed && buildInfo?.updatesEnabled && buildInfo.updateChannel === "stable" && (
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => BrowserOpenURL(LATEST_STABLE_RELEASE_URL)}>
+                    <Download className="size-3.5" />
+                    Download latest release
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </section>
