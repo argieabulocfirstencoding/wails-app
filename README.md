@@ -21,6 +21,46 @@ Area-specific guides:
 - [`guide/troubleshooting.md`](guide/troubleshooting.md)
 - [`guide/glossary.md`](guide/glossary.md)
 - [`guide/stable-release-workflow.md`](guide/stable-release-workflow.md) — developer branches, production tags, publishing, and user updates
+- [`guide/live-release-checklist.md`](guide/live-release-checklist.md) — concise steps from `development` to the live app
+
+## Release a Change to the Live App
+
+The live-app release path is deliberately explicit. Pushing code to `development`
+does **not** update users, and merging it into `main` does **not** publish an
+installer. A new production version tag triggers the GitHub Actions release
+workflow.
+
+```text
+development branch
+  -> pull request into main
+  -> test the merged main commit
+  -> push a new vMAJOR.MINOR.PATCH tag
+  -> Build and Release GitHub Action
+  -> public installer release and in-app update
+```
+
+Use the copy-pasteable
+[`guide/live-release-checklist.md`](guide/live-release-checklist.md) for each
+release. The detailed setup and troubleshooting guide is
+[`guide/stable-release-workflow.md`](guide/stable-release-workflow.md). The short
+checklist is:
+
+1. Update `development`, test the change, commit it, and push it to `origin development`.
+2. Open and merge a pull request from `development` into `main`.
+3. Update local `main`, run `go test ./backend/... ./internal/...`, and smoke-test a build.
+4. Create and push one new, unused tag in the format `vMAJOR.MINOR.PATCH` from that `main` commit.
+5. Wait for **Build and Release** in GitHub Actions, then verify the published installer, checksum, and manifest in the public release repository.
+
+For a local installer smoke test, NSIS must be available as `makensis` on the
+current shell's `PATH`:
+
+```powershell
+$env:Path += ";C:\Program Files (x86)\NSIS"
+wails build -nsis
+```
+
+The GitHub release workflow installs NSIS itself; this command is only needed
+when creating an installer locally.
 
 ## What The App Does
 
