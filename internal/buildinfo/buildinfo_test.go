@@ -11,6 +11,7 @@ func TestCurrentDefaultBuildChecksStableUpdates(t *testing.T) {
 }
 
 func TestCurrentEnablesExplicitLocalDevelopmentChecks(t *testing.T) {
+	t.Setenv("DEVELOPMENT", "true")
 	t.Setenv("ENABLE_DEV_UPDATE_CHECK", "true")
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("UPDATE_CHANNEL", "development")
@@ -18,6 +19,15 @@ func TestCurrentEnablesExplicitLocalDevelopmentChecks(t *testing.T) {
 	info := Current()
 	if !info.UpdatesEnabled || info.UpdateChannel != "development" || info.UpdateBranch != "developer/jomary" {
 		t.Fatalf("expected explicit development update check, got %#v", info)
+	}
+}
+
+func TestCurrentDisablesUpdateChecksForLocalDevelopmentByDefault(t *testing.T) {
+	t.Setenv("DEVELOPMENT", "true")
+	t.Setenv("ENABLE_DEV_UPDATE_CHECK", "")
+	info := Current()
+	if info.UpdatesEnabled {
+		t.Fatalf("local development must not check stable updates by default, got %#v", info)
 	}
 }
 

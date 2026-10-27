@@ -29,8 +29,9 @@ type Info struct {
 	UpdatesEnabled bool   `json:"updatesEnabled"`
 }
 
-// Current returns the compiled build identity. Builds default to stable updates;
-// local development checks can opt in with ENABLE_DEV_UPDATE_CHECK=true.
+// Current returns the compiled build identity. Release builds default to stable
+// updates. Local development sessions disable update checks unless explicitly
+// opted into development update testing.
 func Current() Info {
 	info := Info{
 		Version:       strings.TrimSpace(Version),
@@ -39,6 +40,11 @@ func Current() Info {
 		UpdateBranch:  strings.TrimSpace(UpdateBranch),
 		CommitSHA:     strings.TrimSpace(CommitSHA),
 		BuildNumber:   parseBuildNumber(BuildNumber),
+	}
+
+	if isLocalDevelopmentSession() && !isLocalDevelopmentCheckEnabled() {
+		info.UpdatesEnabled = false
+		return info
 	}
 
 	if isLocalDevelopmentCheckEnabled() {
@@ -54,6 +60,13 @@ func Current() Info {
 
 func isLocalDevelopmentCheckEnabled() bool {
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("ENABLE_DEV_UPDATE_CHECK")), "true")
+}
+
+// Keep this aligned with main.go, which uses DEVELOPMENT to separate local
+// development data and desktop identity from a production installation.
+func isLocalDevelopmentSession() bool {
+	_, enabled := os.LookupEnv("DEVELOPMENT")
+	return enabled
 }
 
 func envOrDefault(key, fallback string) string {
