@@ -94,6 +94,8 @@ If you are completely new, read the docs in this order:
 6. [`guide/backend.md`](./backend.md) or [`guide/frontend.md`](./frontend.md)
 7. [`guide/data-and-sync.md`](./data-and-sync.md)
 8. [`guide/troubleshooting.md`](./troubleshooting.md)
+9. [`guide/live-release-checklist.md`](./live-release-checklist.md) when moving work from `development` to the live app
+10. [`guide/stable-release-workflow.md`](./stable-release-workflow.md) for release setup and troubleshooting
 
 If you only need one area:
 
@@ -115,6 +117,8 @@ If you only need one area:
 | `guide/developer-workflow.md` | Setup, commands, safe change patterns, testing, release workflow |
 | `guide/troubleshooting.md` | Incident response, debugging checklists, common failure modes |
 | `guide/glossary.md` | Plain-language definitions of project and technical terms |
+| `guide/stable-release-workflow.md` | Development-to-main merge, tag-triggered live release, and update verification |
+| `guide/live-release-checklist.md` | Copy-pasteable development-to-main-to-live release checklist |
 
 ## Very short repo map
 
