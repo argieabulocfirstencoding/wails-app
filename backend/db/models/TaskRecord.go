@@ -49,6 +49,22 @@ type TaskRecordWithScreenshots struct {
 	Screenshots []string       `json:"screenshots"`
 }
 
+// TaskShiftTime is the timer state for one task inside the current
+// login/logout attendance session. CompletedShiftSeconds excludes a running
+// record; clients add elapsed time from CurrentSessionStartedAt while it runs.
+type TaskShiftTime struct {
+	CurrentSessionStartedAt *time.Time `json:"current_session_started_at"`
+	CompletedShiftSeconds   int64      `json:"completed_shift_seconds"`
+}
+
+// ShiftTime is the aggregate timer state for every task in one login/logout
+// attendance session. CompletedShiftSeconds excludes a running record; clients
+// add elapsed time from CurrentSessionStartedAt while it runs.
+type ShiftTime struct {
+	CurrentSessionStartedAt *time.Time `json:"current_session_started_at"`
+	CompletedShiftSeconds   int64      `json:"completed_shift_seconds"`
+}
+
 func (tr TaskRecord) ToExp() ExpTaskRecord {
 	return ExpTaskRecord{
 		ID:         tr.ID,

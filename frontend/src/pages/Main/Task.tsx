@@ -8,13 +8,14 @@ import {
 } from "lucide-react";
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { intervalToDuration, formatDistance } from "date-fns";
+import { formatDistance } from "date-fns";
 import upworkLogo from "@/assets/images/upwork_logo.png";
 import {
   GetMonitorCount,
   StartTracking,
   StopTrackingRecord,
   GetLastTaskRecord,
+  GetTaskShiftTime,
   AddMemo,
   OpenUpwork,
   SetTaskRecordNotes,
@@ -63,9 +64,9 @@ const Task = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [isStarted, setStart] = useState(false);
-  const [timeStarted, setStartTime] = useState<number>(0);
-  const [timeEnded, setEndTime] = useState<number>();
-  const [_, setElapsedTime] = useState<number>(0);
+  const [currentSessionStartedAt, setCurrentSessionStartedAt] = useState(0);
+  const [completedShiftSeconds, setCompletedShiftSeconds] = useState(0);
+  const [timerTick, setTimerTick] = useState(Date.now());
   const [monitor, setMonitor] = useState<number>(0);
   const [screenshots, setScreenshots] = useState<ScreenshotProps | null>(null);
   const [screenshotDate, setScreenshotDate] = useState<string>("");
@@ -121,12 +122,6 @@ const Task = () => {
     }
   }
 
-  function resetTimer() {
-    setStartTime(0);
-    setEndTime(0);
-    setElapsedTime(0);
-  }
-
   async function stopTime() {
     const taskRecordID = lastTaskRecord?.id;
     if (!taskRecordID || !beginTrackingAction("stopping")) return;
@@ -162,23 +157,15 @@ const Task = () => {
     }
   }
 
-  function getFormattedTime() {
-    if (timeStarted) {
-      const duration = intervalToDuration({
-        start: timeStarted,
-        end: timeEnded ? timeEnded : Date.now(),
-      });
-
-      const hours = duration.hours ?? 0;
-      const minutes = duration.minutes ?? 0;
-      const secs = duration.seconds ?? 0;
-
-      return `${hours}h:${String(minutes).padStart(2, "0")}m:${String(
-        secs,
-      ).padStart(2, "0")}s`;
-    } else {
-      return `--:--:--`;
-    }
+  function formatDuration(seconds: number) {
+    const safeSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const remainingSeconds = safeSeconds % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+      2,
+      "0",
+    )}:${String(remainingSeconds).padStart(2, "0")}`;
   }
 
   async function countMonitor() {
@@ -196,7 +183,10 @@ const Task = () => {
     const requestID = ++hydrationRequestRef.current;
 
     try {
-      const response = await GetLastTaskRecord(id);
+      const [response, shiftTime] = await Promise.all([
+        GetLastTaskRecord(id),
+        GetTaskShiftTime(id),
+      ]);
       if (
         requestID !== hydrationRequestRef.current ||
         (actionRef.current !== "idle" && !allowDuringAction)
@@ -205,33 +195,29 @@ const Task = () => {
         return;
       }
       const record = response?.record;
+      const activeStartedAt = shiftTime?.current_session_started_at
+        ? new Date(shiftTime.current_session_started_at).getTime()
+        : 0;
+      const hasActiveSession = Number.isFinite(activeStartedAt) && activeStartedAt > 0;
+
+      setCurrentSessionStartedAt(hasActiveSession ? activeStartedAt : 0);
+      setCompletedShiftSeconds(
+        Math.max(0, Number(shiftTime?.completed_shift_seconds ?? 0)),
+      );
+      setStart(hasActiveSession);
+      setTaskID(hasActiveSession ? (id ?? null) : null);
 
       if (!record || !record.started_at) {
         setLastTaskRecord(undefined);
         setSynced(false);
-        setStart(false);
-        setStartTime(0);
-        setEndTime(undefined);
         setScreenshots(null);
         setNotes("");
-        setTaskID(null);
         return;
       }
 
-      const started = new Date(record.started_at).getTime();
-      const ended = record.ended_at
-        ? new Date(record.ended_at).getTime()
-        : null;
-
       setLastTaskRecord(record);
-      setStartTime(started);
-      setEndTime(ended ?? undefined);
       setSynced(record.sync_status === "synced");
       setNotes(record.notes ?? "");
-
-      const isActive = !record.ended_at;
-      setStart(isActive);
-      setTaskID(isActive ? (id ?? null) : null);
 
       if (
         releaseFlags.screenshotsEnabled &&
@@ -247,6 +233,10 @@ const Task = () => {
       }
     } catch (err) {
       console.error("Refresh error:", err);
+      setCurrentSessionStartedAt(0);
+      setCompletedShiftSeconds(0);
+      setStart(false);
+      setTaskID(null);
     } finally {
       setHydrated(true);
     }
@@ -339,13 +329,13 @@ const Task = () => {
   }, []);
 
   useEffect(() => {
-    if (!isStarted || !timeStarted) return;
+    if (!isStarted || !currentSessionStartedAt) return;
+    setTimerTick(Date.now());
     const interval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - timeStarted) / 1000);
-      setElapsedTime(elapsed);
+      setTimerTick(Date.now());
     }, 1000);
     return () => clearInterval(interval);
-  }, [isStarted, timeStarted]);
+  }, [isStarted, currentSessionStartedAt]);
 
   useEffect(() => {
     hydrateTaskRecord();
@@ -408,6 +398,10 @@ const Task = () => {
     return () => off();
   }, [id]);
   const titleLower = taskDetails?.title?.toLowerCase() ?? "";
+  const currentSessionSeconds = currentSessionStartedAt
+    ? Math.max(0, Math.floor((timerTick - currentSessionStartedAt) / 1000))
+    : 0;
+  const projectShiftSeconds = completedShiftSeconds + currentSessionSeconds;
 
   return (
     <MainLayout>
@@ -489,10 +483,10 @@ const Task = () => {
       {/* Main content */}
       <div className="max-w-3xl mx-auto px-4 py-5">
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 sm:px-5 py-4 sm:py-5 shadow-sm">
-          {/* Header: label + sync status */}
+          {/* Current-session time + shift total */}
           <header className="flex items-center justify-between gap-3">
             <span className="text-[11px] sm:text-xs font-semibold tracking-[0.16em] uppercase text-neutral-500 dark:text-neutral-400">
-              {isStarted ? "Current session" : "Last session"}
+              Current session
             </span>
           </header>
 
@@ -503,7 +497,7 @@ const Task = () => {
                 <div className="h-9 w-32 rounded-md bg-neutral-200 dark:bg-neutral-800 animate-pulse" />
               ) : (
                 <p className="text-2xl sm:text-3xl font-semibold text-neutral-900 dark:text-neutral-50">
-                  {getFormattedTime()}
+                  {formatDuration(currentSessionSeconds)}
                 </p>
               )}
               <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
@@ -518,6 +512,14 @@ const Task = () => {
               >
                 {lastTaskRecord?.padagan ? "Padagan" : ""}
               </p>
+              <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-700">
+                <p className="text-[11px] sm:text-xs font-semibold tracking-[0.12em] uppercase text-neutral-500 dark:text-neutral-400">
+                  Project time this shift
+                </p>
+                <p className="mt-1 text-lg sm:text-xl font-semibold text-neutral-900 dark:text-neutral-50">
+                  {formatDuration(projectShiftSeconds)}
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col items-end gap-2">

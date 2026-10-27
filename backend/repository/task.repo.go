@@ -209,6 +209,72 @@ func (t *TaskRepository) GetTaskRecordForDisplay(userID, taskID string, attendan
 	return &latest, nil
 }
 
+// GetTaskShiftTime returns timing information only for the supplied
+// login/logout attendance session. It deliberately has no historical fallback:
+// a task not used in the current shift must display zero time.
+func (t *TaskRepository) GetTaskShiftTime(userID, taskID string, attendanceID uint) (*models.TaskShiftTime, error) {
+	summary := &models.TaskShiftTime{}
+	if attendanceID == 0 {
+		return summary, nil
+	}
+
+	if err := db.DB.Model(&models.TaskRecord{}).
+		Select("COALESCE(SUM(CASE WHEN ended_at IS NOT NULL THEN duration ELSE 0 END), 0)").
+		Where("user_id = ? AND task_id = ? AND attendance_id = ?", userID, taskID, attendanceID).
+		Scan(&summary.CompletedShiftSeconds).Error; err != nil {
+		return nil, err
+	}
+
+	var active models.TaskRecord
+	err := db.DB.
+		Where("user_id = ? AND task_id = ? AND attendance_id = ? AND ended_at IS NULL", userID, taskID, attendanceID).
+		Order("started_at DESC, id DESC").
+		First(&active).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return summary, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	startedAt := active.StartedAt
+	summary.CurrentSessionStartedAt = &startedAt
+	return summary, nil
+}
+
+// GetShiftTime returns aggregate timing information for every task in the
+// supplied login/logout attendance session. It deliberately excludes all prior
+// attendances so the Home page reports the current shift only.
+func (t *TaskRepository) GetShiftTime(userID string, attendanceID uint) (*models.ShiftTime, error) {
+	summary := &models.ShiftTime{}
+	if attendanceID == 0 {
+		return summary, nil
+	}
+
+	if err := db.DB.Model(&models.TaskRecord{}).
+		Select("COALESCE(SUM(CASE WHEN ended_at IS NOT NULL THEN duration ELSE 0 END), 0)").
+		Where("user_id = ? AND attendance_id = ?", userID, attendanceID).
+		Scan(&summary.CompletedShiftSeconds).Error; err != nil {
+		return nil, err
+	}
+
+	var active models.TaskRecord
+	err := db.DB.
+		Where("user_id = ? AND attendance_id = ? AND ended_at IS NULL", userID, attendanceID).
+		Order("started_at DESC, id DESC").
+		First(&active).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return summary, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	startedAt := active.StartedAt
+	summary.CurrentSessionStartedAt = &startedAt
+	return summary, nil
+}
+
 func (t *TaskRepository) GetLastTaskRecordFromAttendance(userId string, attendanceId uint) (*models.TaskRecord, error) {
 	var taskRecord models.TaskRecord
 

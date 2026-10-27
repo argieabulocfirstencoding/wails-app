@@ -12,6 +12,7 @@ import {
   GetActiveTaskRecord,
   GetTasks,
   GetCurrentAttendance,
+  GetCurrentShiftTime,
   GetLastTaskRecords,
   FetchActiveTask,
   FetchUserDetails,
@@ -37,6 +38,8 @@ const Home = () => {
   const [taskSyncWarning, setTaskSyncWarning] = useState("");
   const [taskRecords, setTaskRecords] = useState<models.ExpTaskRecord[]>();
   const [nowTick, setNowTick] = useState<number>(Date.now());
+  const [shiftCompletedSeconds, setShiftCompletedSeconds] = useState(0);
+  const [shiftSessionStartedAt, setShiftSessionStartedAt] = useState(0);
   const {
     taskID,
     setFetchedActiveRecord,
@@ -94,6 +97,7 @@ const Home = () => {
   useEffect(() => {
     refreshTaskRecords();
     refreshActiveRecord(true);
+    refreshCurrentShiftTime();
   }, []);
 
   useEffect(() => {
@@ -101,6 +105,7 @@ const Home = () => {
     const off = EventsOn("record-synced", () => {
       refreshTaskRecords();
       refreshActiveRecord(true);
+      refreshCurrentShiftTime();
     });
 
     return () => off();
@@ -110,6 +115,7 @@ const Home = () => {
     if (!EventsOn) return;
     const off = EventsOn("browser-records-synced", async () => {
       await refreshTaskRecords();
+      await refreshCurrentShiftTime();
       const fetchedTasks: any = await GetTasks(false);
       if (fetchedTasks) setTasks(fetchedTasks);
       await fetchTodayClientSummary();
@@ -188,6 +194,25 @@ const Home = () => {
     await refreshActiveRecord(true);
   }
 
+  async function refreshCurrentShiftTime() {
+    try {
+      const shiftTime = await GetCurrentShiftTime();
+      const startedAt = shiftTime?.current_session_started_at
+        ? new Date(shiftTime.current_session_started_at).getTime()
+        : 0;
+      setShiftSessionStartedAt(
+        Number.isFinite(startedAt) && startedAt > 0 ? startedAt : 0,
+      );
+      setShiftCompletedSeconds(
+        Math.max(0, Number(shiftTime?.completed_shift_seconds ?? 0)),
+      );
+    } catch (error) {
+      console.error("Error fetching current shift total:", error);
+      setShiftSessionStartedAt(0);
+      setShiftCompletedSeconds(0);
+    }
+  }
+
   async function refreshActiveRecord(force = false) {
     const { online: currentOnline, fetchedActiveRecord: currentFetchedActiveRecord } =
       useAuthStore.getState();
@@ -253,6 +278,7 @@ const Home = () => {
       }
 
       await refreshActiveRecord(true);
+      await refreshCurrentShiftTime();
     } catch (error) {
       console.error("Error fetching tasks:", error);
     } finally {
@@ -355,6 +381,10 @@ const Home = () => {
 
     return mappedTasks;
   }, [tasks, taskRecords, taskID, searchQuery, summaries, nowTick]);
+  const activeShiftSeconds = shiftSessionStartedAt
+    ? Math.max(0, Math.floor((nowTick - shiftSessionStartedAt) / 1000))
+    : 0;
+  const currentShiftSeconds = shiftCompletedSeconds + activeShiftSeconds;
 
   return (
     <MainLayout>
@@ -395,12 +425,20 @@ const Home = () => {
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="px-4 sm:px-6 pt-4 pb-3 flex items-center justify-between">
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">
-              All tasks
-            </h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">All tasks</h1>
 
-            {synced && (
-              <div className="flex items-center gap-3 text-xs sm:text-sm">
+            <div className="flex items-center gap-3">
+              <div className="text-right leading-tight">
+                <span className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Total hours this shift
+                </span>
+                <span className="text-sm sm:text-base font-semibold tabular-nums text-foreground">
+                  {secondsToShiftHours(currentShiftSeconds)}
+                </span>
+              </div>
+
+              {synced && (
+                <div className="flex items-center gap-3 text-xs sm:text-sm">
                 {attendanceSynced ? (
                   <div
                     className="inline-flex items-center gap-1 text-green-600 dark:text-green-400"
@@ -417,8 +455,9 @@ const Home = () => {
                     </span>
                   </div>
                 )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Search + Refresh */}
@@ -572,6 +611,14 @@ const secondsToHHMMSS = (seconds: number): string => {
     )}`;
   }
   return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+};
+
+const secondsToShiftHours = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 };
 
 const TaskItem = ({ task, active }: TaskItemProps) => {

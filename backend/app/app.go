@@ -392,6 +392,50 @@ func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshot
 	return record, nil
 }
 
+// GetTaskShiftTime returns the selected task's timing state for the current
+// login/logout attendance session. Unlike GetLastTaskRecord, it never falls
+// back to a prior shift.
+func (a *App) GetTaskShiftTime(taskID string) (*models.TaskShiftTime, error) {
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+	if a.Attendance == nil {
+		return nil, types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
+	}
+
+	summary, err := a.AuthService.TaskService.TaskRepository.GetTaskShiftTime(
+		authUser.LocalID,
+		taskID,
+		a.Attendance.ID,
+	)
+	if err != nil {
+		return nil, a.stableClientError("get_task_shift_time", err)
+	}
+	return summary, nil
+}
+
+// GetCurrentShiftTime returns the aggregate timing state for every task in
+// the current login/logout attendance session.
+func (a *App) GetCurrentShiftTime() (*models.ShiftTime, error) {
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+	if a.Attendance == nil {
+		return nil, types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
+	}
+
+	summary, err := a.AuthService.TaskService.TaskRepository.GetShiftTime(
+		authUser.LocalID,
+		a.Attendance.ID,
+	)
+	if err != nil {
+		return nil, a.stableClientError("get_current_shift_time", err)
+	}
+	return summary, nil
+}
+
 func (a *App) SetTaskRecordNotes(taskRecordId uint, notes string) {
 	a.AuthService.TaskService.SetTaskRecordNotes(taskRecordId, notes)
 }

@@ -339,3 +339,128 @@ func TestGetLastTaskRecordPrefersActiveCurrentAttendanceRecord(t *testing.T) {
 		t.Fatalf("expected active record %d, got %#v", activeRecord.ID, response.Record)
 	}
 }
+
+func TestGetTaskShiftTimeUsesOnlyCurrentAttendance(t *testing.T) {
+	_, user, client, task, attendance, activeRecord := setupActiveTaskCacheTestDB(t)
+
+	endedAt := time.Now().Add(-time.Minute)
+	currentCompleted := &models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: attendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    endedAt.Add(-2 * time.Minute),
+		EndedAt:      &endedAt,
+		Duration:     120,
+		SyncStatus:   "synced",
+	}
+	if err := db.DB.Create(currentCompleted).Error; err != nil {
+		t.Fatal(err)
+	}
+	otherTask := &models.Task{
+		TaskID:      "task-2",
+		Title:       "Another Task",
+		ProjectName: "Another Project",
+		ClientID:    models.StringPtr(client.ID),
+	}
+	if err := db.DB.Create(otherTask).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.Create(&models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: attendance.ID,
+		TaskID:       otherTask.TaskID,
+		StartedAt:    endedAt.Add(-5 * time.Minute),
+		EndedAt:      &endedAt,
+		Duration:     300,
+		SyncStatus:   "synced",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	previousAttendance := &models.Attendance{
+		UserID:     user.ID,
+		TimeIn:     time.Now().Add(-24 * time.Hour),
+		SyncStatus: "synced",
+	}
+	if err := db.DB.Create(previousAttendance).Error; err != nil {
+		t.Fatal(err)
+	}
+	previousEndedAt := time.Now().Add(-23 * time.Hour)
+	if err := db.DB.Create(&models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: previousAttendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    previousEndedAt.Add(-time.Hour),
+		EndedAt:      &previousEndedAt,
+		Duration:     3600,
+		SyncStatus:   "synced",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	otherUser := &models.User{ID: "other-user", Email: "other@example.com"}
+	if err := db.DB.Create(otherUser).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.Create(&models.TaskRecord{
+		UserID:       otherUser.ID,
+		AttendanceID: attendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    endedAt.Add(-time.Hour),
+		EndedAt:      &endedAt,
+		Duration:     1800,
+		SyncStatus:   "synced",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewApp()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+
+	summary, err := a.GetTaskShiftTime(task.TaskID)
+	if err != nil {
+		t.Fatalf("GetTaskShiftTime returned error: %v", err)
+	}
+	if summary.CompletedShiftSeconds != 120 {
+		t.Fatalf("completed shift seconds = %d, want 120", summary.CompletedShiftSeconds)
+	}
+	if summary.CurrentSessionStartedAt == nil || !summary.CurrentSessionStartedAt.Equal(activeRecord.StartedAt) {
+		t.Fatalf("current session start = %v, want %v", summary.CurrentSessionStartedAt, activeRecord.StartedAt)
+	}
+
+	shiftSummary, err := a.GetCurrentShiftTime()
+	if err != nil {
+		t.Fatalf("GetCurrentShiftTime returned error: %v", err)
+	}
+	if shiftSummary.CompletedShiftSeconds != 420 {
+		t.Fatalf("all-project completed shift seconds = %d, want 420", shiftSummary.CompletedShiftSeconds)
+	}
+	if shiftSummary.CurrentSessionStartedAt == nil || !shiftSummary.CurrentSessionStartedAt.Equal(activeRecord.StartedAt) {
+		t.Fatalf("all-project current session start = %v, want %v", shiftSummary.CurrentSessionStartedAt, activeRecord.StartedAt)
+	}
+}
+
+func TestGetTaskShiftTimeReturnsZeroForUnusedTaskInCurrentAttendance(t *testing.T) {
+	_, user, _, task, _, _ := setupActiveTaskCacheTestDB(t)
+
+	newAttendance := &models.Attendance{
+		UserID:     user.ID,
+		TimeIn:     time.Now(),
+		SyncStatus: "pending",
+	}
+	if err := db.DB.Create(newAttendance).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewApp()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = newAttendance
+
+	summary, err := a.GetTaskShiftTime(task.TaskID)
+	if err != nil {
+		t.Fatalf("GetTaskShiftTime returned error: %v", err)
+	}
+	if summary.CompletedShiftSeconds != 0 || summary.CurrentSessionStartedAt != nil {
+		t.Fatalf("expected zero timer state, got %#v", summary)
+	}
+}
