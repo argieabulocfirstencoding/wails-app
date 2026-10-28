@@ -119,6 +119,42 @@ func TestGetActiveTaskRecordClearsStaleWorkingTaskCache(t *testing.T) {
 	}
 }
 
+func TestShutdownKeepsActiveTaskRecordOpenAndTimerContinuous(t *testing.T) {
+	_, user, _, _, attendance, activeRecord := setupActiveTaskCacheTestDB(t)
+
+	a := NewApp()
+	a.ctx = context.Background()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+	a.AuthService.TaskService.Attendance = &a.Attendance
+
+	// Shutdown accepts a nil lifecycle context in this unit test. A real Wails
+	// lifecycle context is only needed for runtime logging, not persistence.
+	a.Shutdown(nil)
+
+	var persisted models.TaskRecord
+	if err := db.DB.First(&persisted, activeRecord.ID).Error; err != nil {
+		t.Fatalf("load active task after shutdown: %v", err)
+	}
+	if persisted.EndedAt != nil {
+		t.Fatalf("shutdown must not write task-out; got ended_at %v", persisted.EndedAt)
+	}
+
+	summary, err := a.GetCurrentShiftTime()
+	if err != nil {
+		t.Fatalf("get current shift time after shutdown: %v", err)
+	}
+	if summary.CurrentSessionStartedAt == nil || !summary.CurrentSessionStartedAt.Equal(activeRecord.StartedAt) {
+		t.Fatalf("timer start = %v, want persisted start %v", summary.CurrentSessionStartedAt, activeRecord.StartedAt)
+	}
+	if summary.CompletedShiftSeconds != 0 {
+		t.Fatalf("completed shift seconds = %d, want 0 for the still-running record", summary.CompletedShiftSeconds)
+	}
+	if elapsed := time.Since(*summary.CurrentSessionStartedAt); elapsed < 4*time.Minute {
+		t.Fatalf("expected timer to continue from the original start; elapsed = %v", elapsed)
+	}
+}
+
 func TestGetActiveTaskRecordReturnsNilWithoutActiveRow(t *testing.T) {
 	_, user, _, _, attendance, taskRecord := setupActiveTaskCacheTestDB(t)
 

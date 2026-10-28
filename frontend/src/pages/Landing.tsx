@@ -14,7 +14,8 @@ const Landing = () => {
         const recovery = await RestoreInterruptedSession();
         if (cancelled) return;
         if (recovery?.recovered && recovery.user && recovery.attendance) {
-          useAuthStore.getState().setUser({
+          const authStore = useAuthStore.getState();
+          authStore.setUser({
             uid: recovery.user.localId,
             email: recovery.user.email,
             name: recovery.user.name,
@@ -25,9 +26,14 @@ const Landing = () => {
             photo: recovery.user.photo,
             fesid: recovery.user.fesid,
           });
-          useAuthStore.getState().setAttendance(recovery.attendance);
-          useAuthStore.getState().setSynced(true);
-          useAuthStore.getState().setRecoveryState(true, false);
+          authStore.setAttendance(recovery.attendance);
+          // The backend has already rehydrated the active task before it
+          // returns this response. Seed the store now so Home renders it as
+          // running even while its normal refresh calls are still in flight.
+          authStore.setTaskID(recovery.activeTaskId || null);
+          authStore.setFetchedActiveRecord(false);
+          authStore.setSynced(true);
+          authStore.setRecoveryState(true, false);
           navigate("/home", { replace: true });
           return;
         }

@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { LogoutUser } from "@/../wailsjs/go/app/App";
-import { auth } from "@/firebase";
-import { signOut } from "firebase/auth";
 import { useAuthStore } from "@/store/AuthContext";
 import { X } from "lucide-react";
 
@@ -34,13 +32,6 @@ const Logout = () => {
         console.warn("LogoutUser failed:", e);
       });
     } catch {}
-
-    // try {
-    //   // firebase sign out (best-effort)
-    //   await signOut(auth).catch((e) => {
-    //     console.warn("Firebase signOut failed:", e);
-    //   });
-    // } catch {}
 
     try {
       // clear local client state BEFORE navigation

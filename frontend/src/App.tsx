@@ -12,7 +12,6 @@ import ActivityLogs from "./pages/Main/ActivityLogs";
 import Logout from "./pages/Auth/Logout";
 
 import { EventsOn } from "../wailsjs/runtime/runtime";
-import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import OfflineLogin from "./pages/Auth/OfflineLogin";
 import Landing from "./pages/Landing";
@@ -20,7 +19,6 @@ import { useUpdateStore } from "./store/updateStore";
 import DesktopUpdateDialog from "./components/custom/DesktopUpdateDialog";
 
 function App() {
-  useFirebaseAuth();
   useOnlineStatus();
 
   const setProgress = useUpdateStore((state) => state.setProgress);
