@@ -3,6 +3,7 @@ package service_classes
 import (
 	"fesapp/backend/db/models"
 	"fesapp/backend/repository"
+	"time"
 )
 
 type AttendanceService struct {
@@ -26,6 +27,14 @@ func (a *AttendanceService) LogoutAttendance(attendance *models.Attendance) erro
 	return a.AttendanceRepo.LogoutAttendance(attendance)
 }
 
+func (a *AttendanceService) LogoutAttendanceAt(attendance *models.Attendance, endedAt time.Time) error {
+	return a.AttendanceRepo.LogoutAttendanceAt(attendance, endedAt)
+}
+
 func (a *AttendanceService) GetAttendanceFromID(id uint) (*models.Attendance, error) {
 	return a.AttendanceRepo.GetAttendanceFromID(id)
+}
+
+func (a *AttendanceService) GetOpenAttendanceFromUserID(userID string) (*models.Attendance, error) {
+	return a.AttendanceRepo.GetOpenAttendanceFromUserID(userID)
 }

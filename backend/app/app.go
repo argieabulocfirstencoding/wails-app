@@ -54,6 +54,9 @@ type App struct {
 	WorkingTaskID *string
 	AttendanceID  *uint
 
+	interruptedSession     bool
+	recoveryRequiresReview bool
+
 	browserTaskEventsMu         sync.Mutex
 	browserTaskEventsCancel     context.CancelFunc
 	browserTaskEventsGeneration uint64
@@ -193,13 +196,9 @@ func (a *App) Shutdown(ctx context.Context) {
 		a.ScreenshotService.Stop()
 	}
 
-	// Shutdown should stop local tracking once and leave the record retryable on next launch.
+	// A normal Quit, update restart, or force exit must preserve an open shift.
+	// Explicit Logout is the only operation that writes task-out and logout.
 	a.Connectivity.SetOnline(false)
-	if a.WorkingTaskID != nil {
-		taskID := *a.WorkingTaskID
-		a.StopTracking(taskID)
-		safeRuntimeLogPrintf(ctx, "Closing task: %s", taskID)
-	}
 
 	a.SyncService.Shutdown()
 
@@ -258,6 +257,8 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.AttendanceID = &attendance.ID
 	a.Attendance = attendance
 	a.AuthUser = authUser
+	a.interruptedSession = false
+	a.recoveryRequiresReview = time.Since(attendance.TimeIn) > 16*time.Hour
 	a.SyncService.SetAuthUser(authUser)
 	a.SyncService.Attendance = &a.Attendance
 	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
@@ -280,12 +281,17 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	a.AttendanceID = &attendance.ID
 	a.Attendance = attendance
 	a.AuthUser = authUser
+	a.interruptedSession = false
+	a.recoveryRequiresReview = time.Since(attendance.TimeIn) > 16*time.Hour
 
 	a.Connectivity.SetOnline(true)
 	a.AuthService.TaskService.Attendance = &a.Attendance
 	a.SyncService.SetAuthUser(authUser)
 	a.SyncService.Attendance = &a.Attendance
 	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
+	// A normal sign-in may reuse an unclosed, stale attendance. Rehydrate its
+	// active task too so the mandatory review can write a task-out safely.
+	a.GetActiveTaskRecord()
 	utils.GoSafe("app.login_online.backblaze_init", func() {
 		if err := a.initializeBackblaze(); err != nil {
 			a.Logger.Warnf("op=login_online_backblaze_init_failed user_id=%s err=%v", authUser.LocalID, err)
@@ -338,6 +344,145 @@ func (a *App) LogoutUser() error {
 		a.clearSessionState()
 	}
 	return err
+}
+
+// RestoreInterruptedSession restores only a locally open shift backed by a
+// non-expired token stored in the Windows credential manager. It makes no
+// network request, so local recovery works while offline.
+func (a *App) RestoreInterruptedSession() (*models.SessionRecovery, error) {
+	recovery := &models.SessionRecovery{}
+	if a.SyncService == nil || a.SyncService.FesClientService == nil || a.AuthService == nil {
+		return recovery, nil
+	}
+
+	userID, err := a.SyncService.FesClientService.RestoreBubbleSession()
+	if err != nil {
+		return recovery, nil
+	}
+	user, err := a.AuthService.UserService.GetUserFromId(userID)
+	if err != nil {
+		a.SyncService.FesClientService.ClearActiveBubbleSession(true)
+		return recovery, nil
+	}
+	attendance, err := a.AuthService.AttendanceService.GetOpenAttendanceFromUserID(userID)
+	if err != nil {
+		a.SyncService.FesClientService.ClearActiveBubbleSession(true)
+		return recovery, nil
+	}
+	if time.Since(attendance.TimeIn) > 16*time.Hour {
+		// Stale shifts require a fresh sign-in and review before closing.
+		a.SyncService.FesClientService.ClearActiveBubbleSession(true)
+		return recovery, nil
+	}
+
+	a.activateRecoveredSession(user, attendance, true, false)
+	return a.currentSessionRecovery(), nil
+}
+
+func (a *App) GetSessionRecoveryState() *models.SessionRecovery {
+	return a.currentSessionRecovery()
+}
+
+func (a *App) currentSessionRecovery() *models.SessionRecovery {
+	recovery := &models.SessionRecovery{
+		Recovered:      a.interruptedSession,
+		RequiresReview: a.recoveryRequiresReview,
+		Attendance:     a.Attendance,
+		User:           a.AuthUser,
+	}
+	if a.WorkingTask != nil {
+		recovery.ActiveTaskID = a.WorkingTask.TaskID
+		recovery.ActiveTaskTitle = a.WorkingTask.Title
+	}
+	return recovery
+}
+
+func (a *App) activateRecoveredSession(user *models.User, attendance *models.Attendance, interrupted, requiresReview bool) {
+	if user == nil || attendance == nil {
+		return
+	}
+	authUser := &models.AuthUser{
+		LocalID: user.ID, Email: user.Email, Name: user.Name, Position: user.Position,
+		Birthdate: user.Birthdate, Phone: user.Phone, Address: user.Address, Photo: user.Photo,
+		FESID: user.FESID, SupervisorId: user.SupervisorId, EmployeeId: user.EmployeeId, EmploymentId: user.EmploymentId,
+	}
+	a.AuthUser = authUser
+	a.Attendance = attendance
+	a.AttendanceID = &attendance.ID
+	a.interruptedSession = interrupted
+	a.recoveryRequiresReview = requiresReview
+	a.Connectivity.SetOnline(true)
+	a.SyncService.SetAuthUser(authUser)
+	a.SyncService.Attendance = &a.Attendance
+	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
+	a.AuthService.TaskService.Attendance = &a.Attendance
+	a.AuthService.TaskService.WorkingTaskID = &a.WorkingTaskID
+	// SetAuthUser intentionally clears the in-memory session cache. Reload the
+	// already validated secure session after the authenticated graph is ready.
+	_, _ = a.SyncService.FesClientService.RestoreBubbleSession()
+
+	var active models.TaskRecord
+	if err := db.DB.Preload("Task").Where("attendance_id = ? AND ended_at IS NULL", attendance.ID).Order("started_at DESC, id DESC").First(&active).Error; err == nil {
+		a.WorkingTaskID = &active.TaskID
+		a.WorkingTask = &active.Task
+		if a.ScreenshotService != nil {
+			a.ScreenshotService.TaskID = a.WorkingTaskID
+			a.ScreenshotService.TaskRecordID = &active.ID
+			a.ScreenshotService.Start(a.ctx)
+		}
+	}
+	a.startBrowserTaskEventPolling()
+}
+
+func (a *App) GetInterruptedShiftSummary() (*models.InterruptedShiftSummary, error) {
+	if a.Attendance == nil || (!a.interruptedSession && !a.recoveryRequiresReview) {
+		return nil, nil
+	}
+	records, err := a.AuthService.TaskService.TaskRepository.GetTaskRecordsForAttendance(a.Attendance.ID)
+	if err != nil {
+		return nil, err
+	}
+	summary := &models.InterruptedShiftSummary{AttendanceID: a.Attendance.ID, TimeIn: a.Attendance.TimeIn}
+	for _, record := range records {
+		item := models.InterruptedTaskRecord{
+			ID: record.ID, TaskID: record.TaskID, TaskTitle: record.Task.Title, StartedAt: record.StartedAt,
+			EndedAt: record.EndedAt, Duration: record.Duration, SyncStatus: record.SyncStatus, Open: record.EndedAt == nil,
+		}
+		if item.Open {
+			summary.OpenRecordID = record.ID
+			lastActivity, err := a.AuthService.TaskService.TaskRepository.GetLatestScreenshotTime(record.ID)
+			if err != nil {
+				return nil, err
+			}
+			if lastActivity != nil {
+				summary.SuggestedEnd = lastActivity
+			} else {
+				startedAt := record.StartedAt
+				summary.SuggestedEnd = &startedAt
+			}
+		}
+		summary.Records = append(summary.Records, item)
+	}
+	return summary, nil
+}
+
+// EndInterruptedShift uses the employee-confirmed end time for the final
+// task and the attendance record, then clears the local credential even if a
+// remote sync must be retried later.
+func (a *App) EndInterruptedShift(endedAtISO string) error {
+	if a.Attendance == nil || (!a.interruptedSession && !a.recoveryRequiresReview) {
+		return types.NewStableError("NO_INTERRUPTED_SHIFT", "No interrupted shift is available to close.")
+	}
+	endedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(endedAtISO))
+	if err != nil {
+		return types.NewStableError("INVALID_SHIFT_END", "Choose a valid task-out time.")
+	}
+	if err := a.AuthService.LogoutAt(endedAt); err != nil {
+		return err
+	}
+	a.Connectivity.SetOnline(false)
+	a.clearSessionState()
+	return nil
 }
 
 func (a *App) GetActiveTaskRecord() *string {
@@ -1460,6 +1605,9 @@ func (a *App) clearSessionState() {
 	a.Attendance = nil
 	a.AttendanceID = nil
 	a.AuthUser = nil
+	a.WorkingTask = nil
+	a.interruptedSession = false
+	a.recoveryRequiresReview = false
 
 	if a.SyncService != nil {
 		a.SyncService.SetAuthUser(nil)

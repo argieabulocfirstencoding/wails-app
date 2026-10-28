@@ -429,7 +429,7 @@ func (t *TaskService) StopTracking(taskId string) (*StopTrackingResult, error) {
 		t.clearActiveTaskCacheForTask(taskId)
 		return nil, err
 	}
-	return t.stopTrackingRecordLocked(record.ID)
+	return t.stopTrackingRecordLocked(record.ID, time.Time{})
 }
 
 // StopTrackingRecord stops one known session. Calling it again for a session
@@ -438,10 +438,18 @@ func (t *TaskService) StopTracking(taskId string) (*StopTrackingResult, error) {
 func (t *TaskService) StopTrackingRecord(taskRecordID uint) (*StopTrackingResult, error) {
 	t.lifecycleMu.Lock()
 	defer t.lifecycleMu.Unlock()
-	return t.stopTrackingRecordLocked(taskRecordID)
+	return t.stopTrackingRecordLocked(taskRecordID, time.Time{})
 }
 
-func (t *TaskService) stopTrackingRecordLocked(taskRecordID uint) (*StopTrackingResult, error) {
+// StopTrackingRecordAt closes a task at an employee-confirmed time after an
+// interrupted session. The time is validated locally before any durable write.
+func (t *TaskService) StopTrackingRecordAt(taskRecordID uint, endedAt time.Time) (*StopTrackingResult, error) {
+	t.lifecycleMu.Lock()
+	defer t.lifecycleMu.Unlock()
+	return t.stopTrackingRecordLocked(taskRecordID, endedAt)
+}
+
+func (t *TaskService) stopTrackingRecordLocked(taskRecordID uint, requestedEnd time.Time) (*StopTrackingResult, error) {
 	if t.Attendance == nil || *t.Attendance == nil {
 		return nil, fmt.Errorf("StopTracking error: Attendance is nil")
 	}
@@ -461,7 +469,13 @@ func (t *TaskService) stopTrackingRecordLocked(taskRecordID uint) (*StopTracking
 		t.ScreenshotService.Stop()
 	}
 
-	now := time.Now()
+	now := requestedEnd
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if now.Before(taskRecord.StartedAt) || now.After(time.Now().Add(time.Minute)) {
+		return nil, fmt.Errorf("stop tracking: end time must be between task start and now")
+	}
 	duration := int32(now.Sub(taskRecord.StartedAt).Seconds())
 	if duration < 0 {
 		duration = 0

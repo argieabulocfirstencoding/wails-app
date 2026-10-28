@@ -335,3 +335,39 @@ func (t *TaskRepository) GetActiveTaskRecord(userId string, attendanceId uint) (
 
 	return &taskRecord, nil
 }
+
+func (t *TaskRepository) GetTaskRecordsForAttendance(attendanceID uint) ([]models.TaskRecord, error) {
+	var records []models.TaskRecord
+	err := db.DB.Preload("Task").
+		Where("attendance_id = ?", attendanceID).
+		Order("started_at ASC, id ASC").
+		Find(&records).Error
+	return records, err
+}
+
+func (t *TaskRepository) GetOpenTaskRecordForAttendance(attendanceID uint) (*models.TaskRecord, error) {
+	var record models.TaskRecord
+	err := db.DB.Where("attendance_id = ? AND ended_at IS NULL", attendanceID).
+		Order("started_at DESC, id DESC").First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+func (t *TaskRepository) GetLatestScreenshotTime(taskRecordID uint) (*time.Time, error) {
+	var screenshot models.Screenshot
+	err := db.DB.Where("task_record_id = ?", taskRecordID).
+		Order("taken_at DESC, id DESC").
+		First(&screenshot).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &screenshot.TakenAt, nil
+}

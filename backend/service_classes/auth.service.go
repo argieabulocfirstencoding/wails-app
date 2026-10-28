@@ -3,7 +3,6 @@ package service_classes
 import (
 	"context"
 	"fesapp/backend/db/models"
-	"fesapp/backend/services"
 	"fesapp/backend/types"
 	"fesapp/backend/utils"
 	"fmt"
@@ -107,22 +106,35 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 }
 
 func (a *AuthService) Logout() error {
-	attendance := a.TaskService.Attendance
-	workingTaskID := a.TaskService.WorkingTaskID
+	return a.LogoutAt(time.Now())
+}
 
-	if workingTaskID != nil && *workingTaskID != nil {
-		a.TaskService.StopTracking(**workingTaskID)
-		a.Logger.Printf("WorkingTaskID: %s", **workingTaskID)
+// LogoutAt makes local task and attendance closure durable before attempting
+// remote sync. A Bubble outage must not prevent an employee from ending a
+// shift or retaining its retryable local records.
+func (a *AuthService) LogoutAt(endedAt time.Time) error {
+	attendance := a.TaskService.Attendance
+
+	if attendance != nil && *attendance != nil {
+		record, err := a.TaskService.TaskRepository.GetOpenTaskRecordForAttendance((*attendance).ID)
+		if err != nil {
+			return fmt.Errorf("find active task during logout: %w", err)
+		}
+		if record != nil {
+			if _, err := a.TaskService.StopTrackingRecordAt(record.ID, endedAt); err != nil {
+				return err
+			}
+			a.Logger.Printf("Stopping task record: %d", record.ID)
+		}
 	}
 
 	if attendance != nil && *attendance != nil {
-		if err := services.LogoutAttendance(*attendance); err != nil {
+		if err := a.AttendanceService.LogoutAttendanceAt(*attendance, endedAt); err != nil {
 			return err
 		}
 
 		if err := a.TaskService.SyncService.SyncAttendance(*attendance); err != nil {
 			a.Logger.Printf("error syncing attendance on logout: %v", err)
-			return fmt.Errorf("logout sync failed: %w", err)
 		}
 	} else {
 		a.Logger.Println("No active AttendanceID")

@@ -127,3 +127,60 @@ func TestRequestDoesNotUseSessionFromAnotherEnvironment(t *testing.T) {
 		t.Fatal("a production session must not be sent to the development Bubble app")
 	}
 }
+
+func TestRestoreBubbleSessionReloadsSecureSessionForRestart(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if got := r.Header.Get("Authorization"); got != "Bearer persisted-token" {
+			t.Fatalf("Authorization = %q", got)
+		}
+		_, _ = w.Write([]byte(`{"response":{}}`))
+	}))
+	defer server.Close()
+
+	store := &memoryBubbleSessionStore{values: map[string]string{}}
+	writer := NewFesClientService(NewConnectivityStateService())
+	writer.sessionStore = store
+	writer.sessionScope = "test"
+	if err := writer.SetBubbleSession("user-1", "persisted-token", time.Hour); err != nil {
+		t.Fatalf("set session: %v", err)
+	}
+
+	restarted := NewFesClientService(NewConnectivityStateService())
+	restarted.sessionStore = store
+	restarted.sessionScope = "test"
+	restarted.baseUrl = server.URL + "/"
+	restarted.client = server.Client()
+	userID, err := restarted.RestoreBubbleSession()
+	if err != nil || userID != "user-1" {
+		t.Fatalf("RestoreBubbleSession() = %q, %v", userID, err)
+	}
+	if _, err := restarted.Request(types.Request{Url: "wf/task_out", Method: http.MethodPost, Body: map[string]any{}}); err != nil {
+		t.Fatalf("request after restart: %v", err)
+	}
+	if !called {
+		t.Fatal("expected restored session to authorize request")
+	}
+}
+
+func TestRestoreBubbleSessionRemovesExpiredSession(t *testing.T) {
+	store := &memoryBubbleSessionStore{values: map[string]string{}}
+	client := NewFesClientService(NewConnectivityStateService())
+	client.sessionStore = store
+	client.sessionScope = "test"
+	if err := client.SetBubbleSession("user-1", "token", time.Hour); err != nil {
+		t.Fatalf("set session: %v", err)
+	}
+	store.values[bubbleSessionKey("test", "user-1")] = `{"user_id":"user-1","environment":"test","token":"expired","expires_at":"2020-01-01T00:00:00Z"}`
+
+	if _, err := client.RestoreBubbleSession(); err == nil {
+		t.Fatal("expected expired session to require sign-in")
+	}
+	if _, ok := store.values[bubbleSessionKey("test", "user-1")]; ok {
+		t.Fatal("expected expired session to be deleted")
+	}
+	if _, ok := store.values[bubbleSessionKey("test", bubbleRecoveryPointerName)]; ok {
+		t.Fatal("expected expired recovery pointer to be deleted")
+	}
+}

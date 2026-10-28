@@ -42,7 +42,7 @@ func TestOpenClientAccountRequiresAuthentication(t *testing.T) {
 	}
 }
 
-func TestShutdownStopsActiveTaskLocally(t *testing.T) {
+func TestShutdownPreservesActiveTaskForRecovery(t *testing.T) {
 	_, user, _, task, attendance, taskRecord := setupActiveTaskCacheTestDB(t)
 
 	a := NewApp()
@@ -63,13 +63,10 @@ func TestShutdownStopsActiveTaskLocally(t *testing.T) {
 	if err := db.DB.First(&stopped, taskRecord.ID).Error; err != nil {
 		t.Fatalf("expected task record after shutdown: %v", err)
 	}
-	if stopped.EndedAt == nil {
-		t.Fatalf("expected shutdown to end the active task record")
+	if stopped.EndedAt != nil {
+		t.Fatalf("expected shutdown to preserve the active task record")
 	}
-	if stopped.SyncStatus != "pending" {
-		t.Fatalf("expected shutdown to leave task record retryable, got %q", stopped.SyncStatus)
-	}
-	if a.WorkingTaskID != nil {
-		t.Fatalf("expected working task cache to be cleared after shutdown")
+	if a.WorkingTaskID == nil {
+		t.Fatal("expected working task cache to remain available for recovery")
 	}
 }
