@@ -49,6 +49,19 @@ type TaskRecordWithScreenshots struct {
 	Screenshots []string       `json:"screenshots"`
 }
 
+// StaleOpenTaskRecord identifies an unclosed task from a previous attendance.
+// It is intentionally a read model: employees must explicitly choose a task-out
+// time before the persisted record is changed.
+type StaleOpenTaskRecord struct {
+	ID               uint       `json:"id"`
+	TaskID           string     `json:"taskId"`
+	TaskTitle        string     `json:"taskTitle"`
+	AttendanceID     uint       `json:"attendanceId"`
+	StartedAt        time.Time  `json:"startedAt"`
+	SuggestedEndedAt *time.Time `json:"suggestedEndedAt"`
+	SyncStatus       string     `json:"syncStatus"`
+}
+
 // TaskShiftTime is the timer state for one task inside the current
 // login/logout attendance session. CompletedShiftSeconds excludes a running
 // record; clients add elapsed time from CurrentSessionStartedAt while it runs.

@@ -490,9 +490,13 @@ func (a *App) GetActiveTaskRecord() *string {
 		a.clearActiveTaskState(true)
 		return nil
 	}
+	if a.Attendance == nil {
+		a.clearActiveTaskState(true)
+		return nil
+	}
 
-	// NOTE this needs to be refactor, no logic should be applied here
-	taskRecord, err := a.AuthService.TaskService.GetActiveTaskRecord(a.AuthUser.LocalID)
+	// Home must use the same attendance-scoped active record as task detail.
+	taskRecord, err := a.AuthService.TaskService.TaskRepository.GetActiveTaskRecord(a.AuthUser.LocalID, a.Attendance.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			utils.Logger.Print("No active record")
@@ -516,6 +520,72 @@ func (a *App) GetActiveTaskRecord() *string {
 	}
 
 	return a.WorkingTaskID
+}
+
+// GetStaleOpenTaskRecords exposes records that need employee-confirmed
+// recovery. They are deliberately separate from the current active timer.
+func (a *App) GetStaleOpenTaskRecords() ([]models.StaleOpenTaskRecord, error) {
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+	if a.Attendance == nil {
+		return nil, types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
+	}
+
+	records, err := a.AuthService.TaskService.TaskRepository.GetStaleOpenTaskRecords(authUser.LocalID, a.Attendance.ID)
+	if err != nil {
+		return nil, a.stableClientError("get_stale_open_task_records", err)
+	}
+	return records, nil
+}
+
+// ResolveStaleOpenTaskRecord closes an older task record without modifying the
+// current attendance. The employee must supply the task-out time explicitly.
+func (a *App) ResolveStaleOpenTaskRecord(taskRecordID uint, endedAtISO string) (*service_classes.StopTrackingResult, error) {
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+	if a.Attendance == nil {
+		return nil, types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
+	}
+	if taskRecordID == 0 {
+		return nil, types.NewStableError("INVALID_TASK_RECORD", "Choose a valid task record.")
+	}
+	endedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(endedAtISO))
+	if err != nil {
+		return nil, types.NewStableError("INVALID_TASK_OUT", "Choose a valid task-out time.")
+	}
+	if endedAt.After(time.Now().Add(time.Minute)) {
+		return nil, types.NewStableError("INVALID_TASK_OUT", "Task-out time cannot be in the future.")
+	}
+
+	record, err := a.AuthService.TaskService.TaskRepository.GetTaskRecord(taskRecordID)
+	if err != nil || record == nil || record.ID == 0 {
+		if errors.Is(err, gorm.ErrRecordNotFound) || record == nil || record.ID == 0 {
+			return nil, types.NewStableError("TASK_RECORD_NOT_FOUND", "The task record no longer exists.")
+		}
+		return nil, a.stableClientError("load_stale_task_record", err)
+	}
+	if record.UserID != authUser.LocalID {
+		return nil, types.NewStableError("TASK_RECORD_OWNERSHIP_DENIED", "You cannot resolve another employee's task record.")
+	}
+	if record.AttendanceID == a.Attendance.ID {
+		return nil, types.NewStableError("CURRENT_TASK_RECORD", "Stop the current task from its task page.")
+	}
+	if record.EndedAt != nil {
+		return nil, types.NewStableError("TASK_RECORD_ALREADY_CLOSED", "This task record has already been closed.")
+	}
+	if endedAt.Before(record.StartedAt) {
+		return nil, types.NewStableError("INVALID_TASK_OUT", "Task-out time must be after the task started.")
+	}
+
+	result, err := a.AuthService.TaskService.ResolveStaleTaskRecordAt(taskRecordID, endedAt)
+	if err != nil {
+		return nil, a.stableClientError("resolve_stale_task_record", err)
+	}
+	return result, nil
 }
 
 func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {

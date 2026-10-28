@@ -464,3 +464,139 @@ func TestGetTaskShiftTimeReturnsZeroForUnusedTaskInCurrentAttendance(t *testing.
 		t.Fatalf("expected zero timer state, got %#v", summary)
 	}
 }
+
+func TestStaleOpenTaskRecordsExcludeCurrentAttendanceAndOtherUsers(t *testing.T) {
+	_, user, _, task, attendance, _ := setupActiveTaskCacheTestDB(t)
+
+	previousAttendance := &models.Attendance{
+		UserID:     user.ID,
+		TimeIn:     time.Now().Add(-24 * time.Hour),
+		SyncStatus: "synced",
+	}
+	if err := db.DB.Create(previousAttendance).Error; err != nil {
+		t.Fatal(err)
+	}
+	staleStartedAt := time.Now().Add(-23 * time.Hour).Truncate(time.Second)
+	stale := &models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: previousAttendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    staleStartedAt,
+		SyncStatus:   "pending",
+	}
+	if err := db.DB.Create(stale).Error; err != nil {
+		t.Fatal(err)
+	}
+	latestScreenshot := staleStartedAt.Add(15 * time.Minute)
+	if err := db.DB.Create(&models.Screenshot{
+		TaskRecordID: stale.ID,
+		TaskID:       task.TaskID,
+		TakenAt:      latestScreenshot,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	otherUser := &models.User{ID: "other-user", Email: "other@example.com"}
+	if err := db.DB.Create(otherUser).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.Create(&models.TaskRecord{
+		UserID:       otherUser.ID,
+		AttendanceID: previousAttendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    staleStartedAt,
+		SyncStatus:   "pending",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewApp()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+
+	records, err := a.GetStaleOpenTaskRecords()
+	if err != nil {
+		t.Fatalf("GetStaleOpenTaskRecords returned error: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected one stale record, got %#v", records)
+	}
+	if got := records[0]; got.ID != stale.ID || got.TaskTitle != task.Title || got.AttendanceID != previousAttendance.ID {
+		t.Fatalf("unexpected stale record: %#v", got)
+	}
+	if records[0].SuggestedEndedAt == nil || !records[0].SuggestedEndedAt.Equal(latestScreenshot) {
+		t.Fatalf("suggested task-out = %v, want %v", records[0].SuggestedEndedAt, latestScreenshot)
+	}
+}
+
+func TestResolveStaleOpenTaskRecordClosesOnlySelectedPreviousRecord(t *testing.T) {
+	_, user, _, task, attendance, currentRecord := setupActiveTaskCacheTestDB(t)
+
+	previousAttendance := &models.Attendance{
+		UserID:     user.ID,
+		TimeIn:     time.Now().Add(-24 * time.Hour),
+		SyncStatus: "synced",
+	}
+	if err := db.DB.Create(previousAttendance).Error; err != nil {
+		t.Fatal(err)
+	}
+	staleStartedAt := time.Now().Add(-23 * time.Hour).Truncate(time.Second)
+	stale := &models.TaskRecord{
+		UserID:       user.ID,
+		AttendanceID: previousAttendance.ID,
+		TaskID:       task.TaskID,
+		StartedAt:    staleStartedAt,
+		SyncStatus:   "synced",
+	}
+	if err := db.DB.Create(stale).Error; err != nil {
+		t.Fatal(err)
+	}
+	endedAt := staleStartedAt.Add(45 * time.Minute).UTC()
+
+	a := NewApp()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+	a.AuthService.TaskService.Attendance = &a.Attendance
+
+	result, err := a.ResolveStaleOpenTaskRecord(stale.ID, endedAt.Format(time.RFC3339))
+	if err != nil {
+		t.Fatalf("ResolveStaleOpenTaskRecord returned error: %v", err)
+	}
+	if result == nil || result.RecordID != stale.ID || result.SyncStatus != "pending" {
+		t.Fatalf("unexpected resolve result: %#v", result)
+	}
+
+	var resolved models.TaskRecord
+	if err := db.DB.First(&resolved, stale.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if resolved.EndedAt == nil || !resolved.EndedAt.Equal(endedAt) || resolved.Duration != int32((45*time.Minute).Seconds()) {
+		t.Fatalf("stale record was not closed as requested: %#v", resolved)
+	}
+	if resolved.SyncStatus != "pending" {
+		t.Fatalf("resolved sync status = %q, want pending", resolved.SyncStatus)
+	}
+
+	var current models.TaskRecord
+	if err := db.DB.First(&current, currentRecord.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if current.EndedAt != nil {
+		t.Fatalf("current record must remain active, got %#v", current)
+	}
+}
+
+func TestResolveStaleOpenTaskRecordRejectsCurrentRecordAndInvalidTime(t *testing.T) {
+	_, user, _, _, attendance, currentRecord := setupActiveTaskCacheTestDB(t)
+	a := NewApp()
+	a.AuthUser = &models.AuthUser{LocalID: user.ID}
+	a.Attendance = attendance
+	a.AuthService.TaskService.Attendance = &a.Attendance
+
+	if _, err := a.ResolveStaleOpenTaskRecord(currentRecord.ID, time.Now().UTC().Format(time.RFC3339)); err == nil {
+		t.Fatal("expected current-attendance record to be rejected")
+	}
+	if _, err := a.ResolveStaleOpenTaskRecord(currentRecord.ID+1000, "not-a-date"); err == nil {
+		t.Fatal("expected invalid task-out time to be rejected")
+	}
+}

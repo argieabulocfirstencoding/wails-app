@@ -242,6 +242,52 @@ func (t *TaskRepository) GetTaskShiftTime(userID, taskID string, attendanceID ui
 	return summary, nil
 }
 
+// GetStaleOpenTaskRecords returns unclosed records that are not part of the
+// current attendance. They must never be used to drive an active timer.
+func (t *TaskRepository) GetStaleOpenTaskRecords(userID string, currentAttendanceID uint) ([]models.StaleOpenTaskRecord, error) {
+	if currentAttendanceID == 0 {
+		return nil, fmt.Errorf("stale open task records: current attendance is required")
+	}
+
+	var staleRecords []models.TaskRecord
+	err := db.DB.Preload("Task").
+		Where("user_id = ? AND attendance_id <> ? AND ended_at IS NULL", userID, currentAttendanceID).
+		Order("task_records.started_at ASC, task_records.id ASC").
+		Find(&staleRecords).Error
+	if err != nil {
+		return nil, err
+	}
+
+	records := make([]models.StaleOpenTaskRecord, 0, len(staleRecords))
+	for _, staleRecord := range staleRecords {
+		suggestedEnd := staleRecord.StartedAt
+		var screenshot models.Screenshot
+		err := db.DB.Where("task_record_id = ?", staleRecord.ID).
+			Order("taken_at DESC, id DESC").
+			First(&screenshot).Error
+		if err == nil && !screenshot.TakenAt.Before(staleRecord.StartedAt) {
+			suggestedEnd = screenshot.TakenAt
+		} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+
+		taskTitle := staleRecord.Task.Title
+		if taskTitle == "" {
+			taskTitle = staleRecord.TaskID
+		}
+		records = append(records, models.StaleOpenTaskRecord{
+			ID:               staleRecord.ID,
+			TaskID:           staleRecord.TaskID,
+			TaskTitle:        taskTitle,
+			AttendanceID:     staleRecord.AttendanceID,
+			StartedAt:        staleRecord.StartedAt,
+			SuggestedEndedAt: &suggestedEnd,
+			SyncStatus:       staleRecord.SyncStatus,
+		})
+	}
+	return records, nil
+}
+
 // GetShiftTime returns aggregate timing information for every task in the
 // supplied login/logout attendance session. It deliberately excludes all prior
 // attendances so the Home page reports the current shift only.

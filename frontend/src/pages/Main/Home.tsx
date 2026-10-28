@@ -14,6 +14,8 @@ import {
   GetCurrentAttendance,
   GetCurrentShiftTime,
   GetLastTaskRecords,
+  GetStaleOpenTaskRecords,
+  ResolveStaleOpenTaskRecord,
   FetchActiveTask,
   FetchUserDetails,
 } from "@/../wailsjs/go/app/App";
@@ -23,6 +25,16 @@ import { models, types } from "@/../wailsjs/go/models";
 import { EventsOn } from "@/../wailsjs/runtime/runtime";
 import { formatDistance } from "date-fns";
 import { fetchTodayClientSummary } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface TaskProps {
   taskId: string | null;
@@ -40,6 +52,17 @@ const Home = () => {
   const [nowTick, setNowTick] = useState<number>(Date.now());
   const [shiftCompletedSeconds, setShiftCompletedSeconds] = useState(0);
   const [shiftSessionStartedAt, setShiftSessionStartedAt] = useState(0);
+  const [staleOpenRecords, setStaleOpenRecords] = useState<
+    models.StaleOpenTaskRecord[]
+  >([]);
+  const [staleReviewOpen, setStaleReviewOpen] = useState(false);
+  const [staleEndTimes, setStaleEndTimes] = useState<Record<number, string>>(
+    {},
+  );
+  const [staleRecoveryError, setStaleRecoveryError] = useState("");
+  const [resolvingStaleRecordID, setResolvingStaleRecordID] = useState<
+    number | null
+  >(null);
   const {
     taskID,
     setFetchedActiveRecord,
@@ -98,6 +121,7 @@ const Home = () => {
     refreshTaskRecords();
     refreshActiveRecord(true);
     refreshCurrentShiftTime();
+    refreshStaleOpenTaskRecords();
   }, []);
 
   useEffect(() => {
@@ -106,6 +130,7 @@ const Home = () => {
       refreshTaskRecords();
       refreshActiveRecord(true);
       refreshCurrentShiftTime();
+      refreshStaleOpenTaskRecords();
     });
 
     return () => off();
@@ -116,6 +141,7 @@ const Home = () => {
     const off = EventsOn("browser-records-synced", async () => {
       await refreshTaskRecords();
       await refreshCurrentShiftTime();
+      await refreshStaleOpenTaskRecords();
       const fetchedTasks: any = await GetTasks(false);
       if (fetchedTasks) setTasks(fetchedTasks);
       await fetchTodayClientSummary();
@@ -128,6 +154,7 @@ const Home = () => {
       setAttendanceSynced(synced);
       fetchCurrentAttendance();
       refreshActiveRecord(true);
+      refreshStaleOpenTaskRecords();
     });
 
     return () => off();
@@ -179,6 +206,7 @@ const Home = () => {
         if (fetchedTasks) setTasks(fetchedTasks);
       }
       await refreshActiveRecord(true);
+      await refreshStaleOpenTaskRecords();
     } catch (error) {
       console.log("Error fetching initial tasks:", error);
     } finally {
@@ -192,6 +220,63 @@ const Home = () => {
     console.log("Task Records: ", task_records);
     setTaskRecords(task_records);
     await refreshActiveRecord(true);
+  }
+
+  function toLocalDateTime(value: unknown) {
+    const date = new Date(String(value));
+    if (Number.isNaN(date.getTime())) return "";
+    const timezoneOffset = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
+  }
+
+  function errorMessage(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  async function refreshStaleOpenTaskRecords() {
+    try {
+      const records = await GetStaleOpenTaskRecords();
+      setStaleOpenRecords(records ?? []);
+      setStaleEndTimes((current) => {
+        const next: Record<number, string> = {};
+        for (const record of records ?? []) {
+          next[record.id] =
+            current[record.id] ||
+            toLocalDateTime(record.suggestedEndedAt || record.startedAt);
+        }
+        return next;
+      });
+    } catch (error) {
+      console.error("Error fetching stale task records:", error);
+      setStaleOpenRecords([]);
+    }
+  }
+
+  async function resolveStaleRecord(recordID: number) {
+    const localEndTime = staleEndTimes[recordID];
+    const endedAt = new Date(localEndTime);
+    if (!localEndTime || Number.isNaN(endedAt.getTime())) {
+      setStaleRecoveryError("Choose a valid task-out time.");
+      return;
+    }
+
+    setResolvingStaleRecordID(recordID);
+    setStaleRecoveryError("");
+    try {
+      await ResolveStaleOpenTaskRecord(recordID, endedAt.toISOString());
+      await Promise.all([
+        refreshTaskRecords(),
+        refreshCurrentShiftTime(),
+        refreshStaleOpenTaskRecords(),
+      ]);
+      if (staleOpenRecords.length === 1) {
+        setStaleReviewOpen(false);
+      }
+    } catch (error) {
+      setStaleRecoveryError(errorMessage(error));
+    } finally {
+      setResolvingStaleRecordID(null);
+    }
   }
 
   async function refreshCurrentShiftTime() {
@@ -279,6 +364,7 @@ const Home = () => {
 
       await refreshActiveRecord(true);
       await refreshCurrentShiftTime();
+      await refreshStaleOpenTaskRecords();
     } catch (error) {
       console.error("Error fetching tasks:", error);
     } finally {
@@ -318,9 +404,9 @@ const Home = () => {
       recordsByTask[record.task_id].push(record);
     });
 
-    // Step 2: Determine the active task
-    const activeTaskId =
-      (taskRecords ?? []).find((r) => !r.ended_at)?.task_id ?? null;
+    // GetActiveTaskRecord is scoped to the current attendance. Historical
+    // unclosed records are recoverable, but must never drive a live timer.
+    const activeTaskId = taskID;
 
     // Step 3: Map tasks with their records and compute latest ended_at timestamp
     let mappedTasks = tasks.map((task) => {
@@ -334,7 +420,10 @@ const Home = () => {
         : 0;
 
       const recordSummary = combinedSummaries[task.taskId] || null;
-      const runningRecord = records.find((r) => !r.ended_at);
+      const runningRecord =
+        task.taskId === activeTaskId
+          ? records.find((r) => !r.ended_at)
+          : undefined;
       const runningStartedAt = runningRecord?.started_at
         ? new Date(runningRecord.started_at).getTime()
         : NaN;
@@ -391,6 +480,26 @@ const Home = () => {
       {taskSyncWarning && (
         <div className="mx-4 mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
           Task sync warning: {taskSyncWarning}
+        </div>
+      )}
+      {staleOpenRecords.length > 0 && (
+        <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          <span>
+            {staleOpenRecords.length === 1
+              ? "One older task did not record a task-out. It is not running in this shift."
+              : `${staleOpenRecords.length} older tasks did not record a task-out. They are not running in this shift.`}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-amber-400 bg-transparent text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-900/60"
+            onClick={() => {
+              setStaleRecoveryError("");
+              setStaleReviewOpen(true);
+            }}
+          >
+            Review
+          </Button>
         </div>
       )}
       {/* Full-screen refresh overlay – now covers the whole app */}
@@ -590,6 +699,79 @@ const Home = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={staleReviewOpen} onOpenChange={setStaleReviewOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Review older task timers</DialogTitle>
+            <DialogDescription>
+              These tasks are from older shifts and are not running now. Choose
+              the confirmed task-out time for each one to save it locally for
+              sync.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
+            {staleOpenRecords.map((record) => (
+              <div
+                key={record.id}
+                className="space-y-2 rounded-lg border border-amber-200 p-3 dark:border-amber-900"
+              >
+                <div>
+                  <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                    {record.taskTitle || record.taskId}
+                  </p>
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                    Started {new Date(String(record.startedAt)).toLocaleString()}
+                  </p>
+                </div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  Confirmed task-out time
+                  <Input
+                    type="datetime-local"
+                    className="mt-1"
+                    max={toLocalDateTime(new Date().toISOString())}
+                    value={staleEndTimes[record.id] || ""}
+                    onChange={(event) =>
+                      setStaleEndTimes((current) => ({
+                        ...current,
+                        [record.id]: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={resolvingStaleRecordID !== null}
+                  onClick={() => resolveStaleRecord(record.id)}
+                >
+                  {resolvingStaleRecordID === record.id
+                    ? "Saving…"
+                    : "Save task-out"}
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          {staleRecoveryError && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {staleRecoveryError}
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={resolvingStaleRecordID !== null}
+              onClick={() => setStaleReviewOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };
