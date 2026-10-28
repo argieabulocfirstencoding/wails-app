@@ -80,7 +80,7 @@ func TestValidateReleaseAssetURL(t *testing.T) {
 
 	for _, raw := range []string{
 		"http://github.com/FESTrainee01/wails-app/releases/download/development-latest/file.exe",
-		"https://github.com/" + Repository + "/releases/download/v1.0.0/file.exe",
+		"https://github.com/argieabulocfirstencoding/fes-app-tracker-new/releases/download/v1.0.0/file.exe",
 		"https://example.com/file.exe",
 	} {
 		if err := validateReleaseAssetURL(raw, developmentRepository, developmentReleaseTag, developmentManifest); err == nil {

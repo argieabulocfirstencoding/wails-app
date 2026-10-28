@@ -4,7 +4,9 @@ package updater
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -28,16 +30,24 @@ import (
 )
 
 const (
+	// Repository is retained only for inactive legacy helpers in backend/app.
+	// Stable update checks no longer use GitHub Releases.
 	Repository            = "argieabulocfirstencoding/fes-app-tracker-new"
 	developmentRepository = "argieabulocfirstencoding/fesapp-updates"
 	developmentReleaseTag = "development-latest"
 	developmentManifest   = "development-manifest.json"
 	expectedInstallerName = "FESApp-Development-Setup.exe"
-	stableManifest        = "stable-manifest.json"
 	stableInstallerName   = "FESApp-Setup.exe"
+	stableUpdateBaseURL   = "https://fesapp-updates.s3.us-east-005.backblazeb2.com/stable"
+	stableLatestManifest  = "latest.json"
 	maxManifestSize       = 128 * 1024
 	maxChecksumSize       = 16 * 1024
 )
+
+// StableManifestPublicKey is stamped into production installers by the release
+// workflow. It is an Ed25519 public key encoded with standard base64; only its
+// matching private key, stored as a GitHub Actions secret, can sign an update.
+var StableManifestPublicKey = ""
 
 type releaseAsset struct {
 	Name               string `json:"name"`
@@ -51,18 +61,24 @@ type release struct {
 	Prerelease bool           `json:"prerelease"`
 }
 
-// Manifest describes a build published by the release workflow. It is not a
-// digital signature; its asset URLs are resolved from the trusted release API.
+// Manifest describes a build published by the release workflow. Stable B2
+// manifests are carried in a signed envelope and include the installer hash.
 type Manifest struct {
-	Channel        string    `json:"channel"`
-	Branch         string    `json:"branch"`
-	Version        string    `json:"version"`
-	RunNumber      int       `json:"runNumber"`
-	CommitSHA      string    `json:"commitSha"`
-	PublishedAt    time.Time `json:"publishedAt"`
-	Mandatory      bool      `json:"mandatory"`
-	InstallerAsset string    `json:"installerAsset"`
-	SHA256Asset    string    `json:"sha256Asset"`
+	Channel         string    `json:"channel"`
+	Branch          string    `json:"branch"`
+	Version         string    `json:"version"`
+	RunNumber       int       `json:"runNumber"`
+	CommitSHA       string    `json:"commitSha"`
+	PublishedAt     time.Time `json:"publishedAt"`
+	Mandatory       bool      `json:"mandatory"`
+	InstallerAsset  string    `json:"installerAsset"`
+	SHA256Asset     string    `json:"sha256Asset"`
+	InstallerSHA256 string    `json:"installerSha256"`
+}
+
+type signedManifest struct {
+	Payload   string `json:"payload"`
+	Signature string `json:"signature"`
 }
 
 // UpdateInfo is returned to Wails and retained only for the current process.
@@ -77,9 +93,11 @@ type UpdateInfo struct {
 	InstallerURL   string `json:"installerUrl"`
 	ChecksumURL    string `json:"checksumUrl"`
 	releaseTag     string
+	expectedSHA256 string
 }
 
 type channelConfig struct {
+	source      updateSource
 	repository  string
 	branch      string
 	manifest    string
@@ -87,12 +105,19 @@ type channelConfig struct {
 	releasePath string
 }
 
+type updateSource int
+
+const (
+	updateSourceGitHub updateSource = iota
+	updateSourceB2
+)
+
 func configFor(build buildinfo.Info) (channelConfig, error) {
 	switch {
 	case build.UpdateChannel == "stable" && build.UpdateBranch == "main":
-		return channelConfig{Repository, "main", stableManifest, stableInstallerName, "latest"}, nil
+		return channelConfig{source: updateSourceB2, branch: "main", manifest: stableLatestManifest, installer: stableInstallerName}, nil
 	case build.UpdateChannel == "development" && build.UpdateBranch == "developer/jomary":
-		return channelConfig{developmentRepository, "developer/jomary", developmentManifest, expectedInstallerName, "tags/" + developmentReleaseTag}, nil
+		return channelConfig{source: updateSourceGitHub, repository: developmentRepository, branch: "developer/jomary", manifest: developmentManifest, installer: expectedInstallerName, releasePath: "tags/" + developmentReleaseTag}, nil
 	default:
 		return channelConfig{}, errors.New("unsupported update channel or branch")
 	}
@@ -105,6 +130,8 @@ type Service struct {
 	mu               sync.Mutex
 	latest           *UpdateInfo
 	rateLimitedUntil time.Time
+	stablePublicKey  ed25519.PublicKey
+	stableKeyError   error
 }
 
 type githubRateLimitError struct {
@@ -116,7 +143,8 @@ func (e *githubRateLimitError) Error() string {
 }
 
 func New(build buildinfo.Info) *Service {
-	return &Service{build: build, client: trustedHTTPClient(3 * time.Minute)}
+	publicKey, err := decodeStableManifestPublicKey(StableManifestPublicKey)
+	return &Service{build: build, client: trustedHTTPClient(3 * time.Minute), stablePublicKey: publicKey, stableKeyError: err}
 }
 
 func (s *Service) BuildInfo() buildinfo.Info {
@@ -129,12 +157,14 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 		s.clearLatest()
 		return result, nil
 	}
-	if err := s.rateLimitError(time.Now()); err != nil {
-		return result, err
-	}
-
 	config, err := configFor(s.build)
 	if err != nil {
+		return result, err
+	}
+	if config.source == updateSourceB2 {
+		return s.checkStableB2(ctx, result, config)
+	}
+	if err := s.rateLimitError(time.Now()); err != nil {
 		return result, err
 	}
 	release, err := s.fetchRelease(ctx, config)
@@ -160,9 +190,6 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 	}
 	if err := validateManifest(s.build, manifest); err != nil {
 		return result, err
-	}
-	if s.build.UpdateChannel == "stable" && release.TagName != "v"+manifest.Version {
-		return result, errors.New("stable manifest version does not match the release tag")
 	}
 	newer, err := isNewerBuild(s.build, manifest)
 	if err != nil {
@@ -198,6 +225,45 @@ func (s *Service) Check(ctx context.Context) (UpdateInfo, error) {
 	return result, nil
 }
 
+func (s *Service) checkStableB2(ctx context.Context, result UpdateInfo, config channelConfig) (UpdateInfo, error) {
+	if s.stableKeyError != nil {
+		return result, fmt.Errorf("stable update signature verification is not configured: %w", s.stableKeyError)
+	}
+	manifest, err := s.fetchSignedStableManifest(ctx)
+	if err != nil {
+		return result, err
+	}
+	if err := validateManifest(s.build, manifest); err != nil {
+		return result, err
+	}
+	newer, err := isNewerBuild(s.build, manifest)
+	if err != nil {
+		return result, err
+	}
+	if !newer {
+		s.clearLatest()
+		return result, nil
+	}
+	installerURL := stableAssetURL(manifest.Version, config.installer)
+	checksumURL := stableAssetURL(manifest.Version, config.installer+".sha256")
+	if err := validateStableAssetURL(installerURL, manifest.Version, config.installer); err != nil {
+		return result, fmt.Errorf("installer URL rejected: %w", err)
+	}
+	if err := validateStableAssetURL(checksumURL, manifest.Version, config.installer+".sha256"); err != nil {
+		return result, fmt.Errorf("checksum URL rejected: %w", err)
+	}
+
+	result.Available = true
+	result.LatestVersion = manifest.Version
+	result.LatestCommit = manifest.CommitSHA
+	result.InstallerURL = installerURL
+	result.ChecksumURL = checksumURL
+	result.releaseTag = manifest.Version
+	result.expectedSHA256 = manifest.InstallerSHA256
+	s.setLatest(result)
+	return result, nil
+}
+
 // Install downloads only the installer selected from the manifest just checked,
 // verifies its SHA-256 file, and starts a helper that waits for Wails to exit
 // before launching NSIS. This avoids asking NSIS to overwrite a running executable.
@@ -215,16 +281,29 @@ func (s *Service) Install(ctx context.Context, progress func(int)) error {
 		return err
 	}
 	installerName := config.installer
-	if err := validateReleaseAssetURL(update.InstallerURL, config.repository, update.releaseTag, installerName); err != nil {
-		return fmt.Errorf("installer URL rejected: %w", err)
-	}
-	if err := validateReleaseAssetURL(update.ChecksumURL, config.repository, update.releaseTag, installerName+".sha256"); err != nil {
-		return fmt.Errorf("checksum URL rejected: %w", err)
+	if config.source == updateSourceB2 {
+		if err := validateStableAssetURL(update.InstallerURL, update.releaseTag, installerName); err != nil {
+			return fmt.Errorf("installer URL rejected: %w", err)
+		}
+		if err := validateStableAssetURL(update.ChecksumURL, update.releaseTag, installerName+".sha256"); err != nil {
+			return fmt.Errorf("checksum URL rejected: %w", err)
+		}
+	} else {
+		if err := validateReleaseAssetURL(update.InstallerURL, config.repository, update.releaseTag, installerName); err != nil {
+			return fmt.Errorf("installer URL rejected: %w", err)
+		}
+		if err := validateReleaseAssetURL(update.ChecksumURL, config.repository, update.releaseTag, installerName+".sha256"); err != nil {
+			return fmt.Errorf("checksum URL rejected: %w", err)
+		}
 	}
 
-	expectedChecksum, err := s.fetchChecksum(ctx, update.ChecksumURL, installerName)
-	if err != nil {
-		return err
+	expectedChecksum := update.expectedSHA256
+	if config.source != updateSourceB2 {
+		var err error
+		expectedChecksum, err = s.fetchChecksum(ctx, update.ChecksumURL, installerName)
+		if err != nil {
+			return err
+		}
 	}
 
 	directory, err := os.MkdirTemp("", "fesapp-update-")
@@ -367,6 +446,73 @@ func (s *Service) fetchManifest(ctx context.Context, manifestURL string) (Manife
 	return manifest, nil
 }
 
+func (s *Service) fetchSignedStableManifest(ctx context.Context) (Manifest, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, stableLatestManifestURL(), nil)
+	if err != nil {
+		return Manifest{}, err
+	}
+	response, err := s.client.Do(request)
+	if err != nil {
+		return Manifest{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return Manifest{}, fmt.Errorf("stable update manifest download failed with status %d", response.StatusCode)
+	}
+	contentType := strings.ToLower(response.Header.Get("Content-Type"))
+	if !strings.Contains(contentType, "application/json") && !strings.Contains(contentType, "application/octet-stream") {
+		return Manifest{}, errors.New("stable update manifest returned an unexpected content type")
+	}
+
+	var envelope signedManifest
+	decoder := json.NewDecoder(io.LimitReader(response.Body, maxManifestSize))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&envelope); err != nil {
+		return Manifest{}, fmt.Errorf("decode signed stable update manifest: %w", err)
+	}
+	return verifySignedManifest(envelope, s.stablePublicKey)
+}
+
+func decodeStableManifestPublicKey(encoded string) (ed25519.PublicKey, error) {
+	value := strings.TrimSpace(encoded)
+	if value == "" {
+		return nil, errors.New("the UPDATE_MANIFEST_PUBLIC_KEY build value is empty")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return nil, errors.New("the UPDATE_MANIFEST_PUBLIC_KEY build value is not base64")
+	}
+	if len(decoded) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("the UPDATE_MANIFEST_PUBLIC_KEY build value must decode to %d bytes", ed25519.PublicKeySize)
+	}
+	return ed25519.PublicKey(decoded), nil
+}
+
+func verifySignedManifest(envelope signedManifest, publicKey ed25519.PublicKey) (Manifest, error) {
+	if len(publicKey) != ed25519.PublicKeySize {
+		return Manifest{}, errors.New("stable update public key is invalid")
+	}
+	payload, err := base64.StdEncoding.DecodeString(strings.TrimSpace(envelope.Payload))
+	if err != nil || len(payload) == 0 || len(payload) > maxManifestSize {
+		return Manifest{}, errors.New("signed stable update manifest payload is invalid")
+	}
+	signature, err := base64.StdEncoding.DecodeString(strings.TrimSpace(envelope.Signature))
+	if err != nil || len(signature) != ed25519.SignatureSize {
+		return Manifest{}, errors.New("signed stable update manifest signature is invalid")
+	}
+	if !ed25519.Verify(publicKey, payload, signature) {
+		return Manifest{}, errors.New("stable update manifest signature verification failed")
+	}
+
+	var manifest Manifest
+	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&manifest); err != nil {
+		return Manifest{}, fmt.Errorf("decode signed stable update payload: %w", err)
+	}
+	return manifest, nil
+}
+
 func (s *Service) fetchChecksum(ctx context.Context, checksumURL, installerName string) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, checksumURL, nil)
 	if err != nil {
@@ -481,8 +627,16 @@ func validateManifest(build buildinfo.Info, manifest Manifest) error {
 		return errors.New("manifest contains an unexpected installer asset")
 	}
 	if build.UpdateChannel == "stable" {
-		_, err := parseStableVersion(manifest.Version)
-		return err
+		if _, err := parseStableVersion(manifest.Version); err != nil {
+			return err
+		}
+		checksum := strings.ToLower(strings.TrimSpace(manifest.InstallerSHA256))
+		if len(checksum) != sha256.Size*2 {
+			return errors.New("manifest installer checksum has an invalid length")
+		}
+		if _, err := hex.DecodeString(checksum); err != nil {
+			return errors.New("manifest installer checksum is not hexadecimal")
+		}
 	}
 	return nil
 }
@@ -594,9 +748,39 @@ func validateReleaseAssetURL(raw, repository, tag, asset string) error {
 	return nil
 }
 
+func stableLatestManifestURL() string {
+	return stableUpdateBaseURL + "/" + stableLatestManifest
+}
+
+func stableAssetURL(version, asset string) string {
+	return stableUpdateBaseURL + "/" + version + "/" + asset
+}
+
+func validateStableAssetURL(raw, version, asset string) error {
+	if _, err := parseStableVersion(version); err != nil {
+		return err
+	}
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return err
+	}
+	base, err := url.Parse(stableUpdateBaseURL)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme != "https" || parsed.Host != base.Host || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return errors.New("URL is not an HTTPS Backblaze B2 update asset")
+	}
+	expectedPath := base.Path + "/" + version + "/" + asset
+	if parsed.Path != expectedPath || path.Clean(parsed.Path) != expectedPath {
+		return errors.New("URL is not the expected asset in the selected stable update")
+	}
+	return nil
+}
+
 func validateRedirectURL(parsed *url.URL) error {
-	if !strings.EqualFold(parsed.Scheme, "https") || !isTrustedReleaseHost(parsed.Hostname()) {
-		return errors.New("redirect left trusted HTTPS GitHub hosts")
+	if !strings.EqualFold(parsed.Scheme, "https") || parsed.Port() != "" || !isTrustedReleaseHost(parsed.Hostname()) {
+		return errors.New("redirect left trusted HTTPS update hosts")
 	}
 	return nil
 }
@@ -604,6 +788,8 @@ func validateRedirectURL(parsed *url.URL) error {
 func isTrustedReleaseHost(host string) bool {
 	switch strings.ToLower(strings.TrimSpace(host)) {
 	case "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com":
+		return true
+	case "fesapp-updates.s3.us-east-005.backblazeb2.com":
 		return true
 	default:
 		return false

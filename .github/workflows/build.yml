@@ -20,7 +20,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_REPOSITORY: argieabulocfirstencoding/fes-app-tracker-new
+  B2_BUCKET: fesapp-updates
+  B2_ENDPOINT: https://s3.us-east-005.backblazeb2.com
+  B2_PUBLIC_BASE_URL: https://fesapp-updates.s3.us-east-005.backblazeb2.com
 
 jobs:
   build-windows:
@@ -101,9 +103,13 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          UPDATE_MANIFEST_PUBLIC_KEY: ${{ vars.UPDATE_MANIFEST_PUBLIC_KEY }}
         run: |
           $version = $env:RELEASE_VERSION
           $installer = 'FESApp-Setup.exe'
+          if (-not $env:UPDATE_MANIFEST_PUBLIC_KEY) { throw 'Add the UPDATE_MANIFEST_PUBLIC_KEY repository variable before releasing.' }
+          try { $publicKey = [Convert]::FromBase64String($env:UPDATE_MANIFEST_PUBLIC_KEY) } catch { throw 'UPDATE_MANIFEST_PUBLIC_KEY must be standard base64.' }
+          if ($publicKey.Length -ne 32) { throw 'UPDATE_MANIFEST_PUBLIC_KEY must decode to a 32-byte Ed25519 public key.' }
           # Use the tag for both Windows metadata and the updater's build identity.
           $config = Get-Content wails.json -Raw | ConvertFrom-Json
           $config.info.productVersion = $version
@@ -116,6 +122,7 @@ jobs:
             "-X fesapp/internal/buildinfo.CommitSHA=$env:SOURCE_COMMIT"
             "-X fesapp/internal/buildinfo.BuildNumber=$env:GITHUB_RUN_NUMBER"
             "-X fesapp/backend/app.CurrentVersion=$version"
+            "-X fesapp/internal/updater.StableManifestPublicKey=$env:UPDATE_MANIFEST_PUBLIC_KEY"
           ) -join ' '
           # Wails generates bindings before the frontend TypeScript/Vite build.
           wails build -clean -nsis -platform windows/amd64 -ldflags "$ldflags"
@@ -135,56 +142,52 @@ jobs:
             mandatory = $false
             installerAsset = $installer
             sha256Asset = "$installer.sha256"
+            installerSha256 = $hash
           } | ConvertTo-Json | Set-Content stable-manifest.json -Encoding utf8NoBOM
 
-      - name: Stage assets and publish the stable release
+      - name: Sign the stable update manifest
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          RELEASE_TAG: ${{ steps.version.outputs.tag }}
-          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+          UPDATE_MANIFEST_SIGNING_KEY: ${{ secrets.UPDATE_MANIFEST_SIGNING_KEY }}
         run: |
-          if (-not $env:GH_TOKEN) { throw 'Add the RELEASE_TOKEN secret to the source repository.' }
-          $repo = $env:RELEASE_REPOSITORY
-          $tag = $env:RELEASE_TAG
-          $repoInfo = gh repo view $repo --json isPrivate,defaultBranchRef | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot access the release repository.' }
-          if ($repoInfo.isPrivate) { throw 'The release repository must be public for desktop downloads.' }
-          $target = $repoInfo.defaultBranchRef.name
-          if (-not $target) { throw 'Initialize the release repository with a README first.' }
+          if (-not $env:UPDATE_MANIFEST_SIGNING_KEY) { throw 'Add the UPDATE_MANIFEST_SIGNING_KEY repository secret before releasing.' }
+          go run ./cmd/update-manifest-sign -input stable-manifest.json -output latest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not sign the stable update manifest.' }
 
-          # Keep published versions immutable. A failed draft can be retried.
-          $existing = gh release view $tag --repo $repo --json isDraft 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            if (-not ($existing | ConvertFrom-Json).isDraft) {
-              throw 'This version is already published. Create a higher version tag for changes.'
-            }
-          } else {
-            @(
-              "FES App Tracker $tag"
-              ''
-              "Built from $env:GITHUB_REPOSITORY, branch main, source commit $env:SOURCE_COMMIT."
-              'Download FESApp-Setup.exe to install. Existing compatible installations can use Check for updates.'
-            ) | Set-Content release-notes.md -Encoding utf8NoBOM
-            # The target tag belongs to the asset repository, not the source repo.
-            gh release create $tag --repo $repo --target $target --draft --title "FES App Tracker $tag" --notes-file release-notes.md
-            if ($LASTEXITCODE -ne 0) { throw 'Could not create the draft release.' }
-          }
-          gh release upload $tag --repo $repo FESApp-Setup.exe FESApp-Setup.exe.sha256 stable-manifest.json --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed; the release remains a draft.' }
+      - name: Publish the signed stable release to Backblaze B2
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: us-east-005
+        run: |
+          if (-not $env:AWS_ACCESS_KEY_ID -or -not $env:AWS_SECRET_ACCESS_KEY) { throw 'Add B2_KEY_ID and B2_APPLICATION_KEY repository secrets before releasing.' }
+          aws --version
+          if ($LASTEXITCODE -ne 0) { throw 'AWS CLI is unavailable on this runner.' }
 
-          # A delayed older build must not replace a newer version as Latest.
-          $latestJSON = gh api "repos/$repo/releases/latest" 2>$null
-          $latestFlag = '--latest'
-          if ($LASTEXITCODE -eq 0) {
-            $latestTag = ($latestJSON | ConvertFrom-Json).tag_name
-            $latestVersion = $null
-            if (-not [version]::TryParse(($latestTag -replace '^v', ''), [ref]$latestVersion)) {
-              throw 'Cannot compare the existing latest tag. Review it before publishing.'
-            }
-            if ([version]($tag.Substring(1)) -le $latestVersion) { $latestFlag = '--latest=false' }
-          } elseif ($latestJSON -notmatch '"status"\s*:\s*"404"') {
-            throw 'Could not determine the latest release; leaving this release as a draft.'
+          $version = $env:RELEASE_VERSION
+          $prefix = "stable/$version"
+          $publicVersionURL = "$env:B2_PUBLIC_BASE_URL/$prefix"
+          foreach ($name in @('FESApp-Setup.exe', 'FESApp-Setup.exe.sha256', 'stable-manifest.json')) {
+            $status = curl.exe --silent --output NUL --write-out '%{http_code}' --head "$publicVersionURL/$name"
+            if ($LASTEXITCODE -ne 0) { throw "Could not check whether $name already exists in B2." }
+            if ($status -ne '404') { throw "B2 already contains $prefix/$name. Release files are immutable; use a new version tag." }
           }
-          gh release edit $tag --repo $repo --draft=false --prerelease=false $latestFlag
-          if ($LASTEXITCODE -ne 0) { throw 'Could not publish the completed release.' }
+
+          aws s3api put-object --bucket $env:B2_BUCKET --key "$prefix/FESApp-Setup.exe" --body FESApp-Setup.exe --endpoint-url $env:B2_ENDPOINT --content-type application/octet-stream --cache-control 'public, max-age=31536000, immutable'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the installer to B2.' }
+          aws s3api put-object --bucket $env:B2_BUCKET --key "$prefix/FESApp-Setup.exe.sha256" --body FESApp-Setup.exe.sha256 --endpoint-url $env:B2_ENDPOINT --content-type text/plain --cache-control 'public, max-age=31536000, immutable'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the installer checksum to B2.' }
+          aws s3api put-object --bucket $env:B2_BUCKET --key "$prefix/stable-manifest.json" --body stable-manifest.json --endpoint-url $env:B2_ENDPOINT --content-type application/json --cache-control 'public, max-age=31536000, immutable'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload the signed manifest payload to B2.' }
+
+          foreach ($name in @('FESApp-Setup.exe', 'FESApp-Setup.exe.sha256', 'stable-manifest.json')) {
+            $status = curl.exe --silent --output NUL --write-out '%{http_code}' --head "$publicVersionURL/$name"
+            if ($LASTEXITCODE -ne 0 -or $status -ne '200') { throw "B2 did not make $name publicly available." }
+          }
+
+          aws s3api put-object --bucket $env:B2_BUCKET --key stable/latest.json --body latest.json --endpoint-url $env:B2_ENDPOINT --content-type application/json --cache-control 'no-store, max-age=0'
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish the stable B2 update pointer.' }
+          $latest = Invoke-WebRequest -Uri "$env:B2_PUBLIC_BASE_URL/stable/latest.json" -UseBasicParsing
+          if ($latest.StatusCode -ne 200 -or -not (($latest.Content | ConvertFrom-Json).payload)) { throw 'The signed B2 update pointer is not publicly available.' }

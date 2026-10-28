@@ -49,7 +49,7 @@ checklist is:
 2. Open and merge a pull request from `development` into `main`.
 3. Update local `main`, run `go test ./backend/... ./internal/...`, and smoke-test a build.
 4. Create and push one new, unused tag in the format `vMAJOR.MINOR.PATCH` from that `main` commit.
-5. Wait for **Build and Release** in GitHub Actions, then verify the published installer, checksum, and manifest in the public release repository.
+5. Wait for **Build and Release** in GitHub Actions, then verify the published installer, checksum, and signed update manifest in the public Backblaze B2 bucket.
 
 For a local installer smoke test, NSIS must be available as `makensis` on the
 current shell's `PATH`:
@@ -97,7 +97,7 @@ The app is designed around local-first operation. The local database is not just
 ### Integrations
 
 - FES API
-- GitHub Releases for app updates
+- Backblaze B2 for stable app updates (GitHub Releases remain for development builds)
 - OS keyring for secret storage
 - Backblaze B2 for screenshot upload
 

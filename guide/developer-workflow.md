@@ -269,15 +269,15 @@ Inspect them for debugging, but do not treat them like source files.
 For the current production publishing process, follow
 [`stable-release-workflow.md`](./stable-release-workflow.md). Code is merged into
 `main` in `FES-Paul/wails-app`; a version tag triggers publication of the installer,
-checksum, and manifest to `argieabulocfirstencoding/fes-app-tracker-new`. Stable apps check that public
-release repository. Merging alone does not publish an update.
+checksum, and signed manifest to the public `fesapp-updates` Backblaze B2 bucket.
+Stable apps check that bucket. Merging alone does not publish an update.
 
 Before a release, verify all of these:
 
 1. the release tag is an unused version greater than the current production release
 2. `wails.json` metadata is correct
 3. screenshot-related flags and constants match intended release behavior
-4. update-check behavior points to the right GitHub release source
+4. update-check behavior points to the right signed Backblaze B2 source
 5. no secrets are being newly exposed
 6. backend tests pass
 7. manual smoke test covers:

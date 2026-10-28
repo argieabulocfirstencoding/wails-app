@@ -2,7 +2,10 @@ package updater
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -22,7 +25,7 @@ func stableBuild() buildinfo.Info {
 }
 
 func stableManifestFixture() Manifest {
-	return Manifest{Channel: "stable", Branch: "main", Version: "2.5.1", RunNumber: 1, CommitSHA: "new", PublishedAt: time.Now().UTC(), InstallerAsset: stableInstallerName, SHA256Asset: stableInstallerName + ".sha256"}
+	return Manifest{Channel: "stable", Branch: "main", Version: "2.5.1", RunNumber: 1, CommitSHA: "new", PublishedAt: time.Now().UTC(), InstallerAsset: stableInstallerName, SHA256Asset: stableInstallerName + ".sha256", InstallerSHA256: strings.Repeat("a", 64)}
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -34,14 +37,41 @@ func jsonResponse(value any, status int) *http.Response {
 	return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(string(body)))}
 }
 
-// Exercise the complete release -> manifest -> selected installer flow without
-// network access or launching an installer on the developer's machine.
+func stableService(t *testing.T) (*Service, ed25519.PrivateKey) {
+	t.Helper()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := New(stableBuild())
+	service.stablePublicKey = publicKey
+	service.stableKeyError = nil
+	return service, privateKey
+}
+
+func signedManifestResponse(t *testing.T, manifest Manifest, privateKey ed25519.PrivateKey, status int) *http.Response {
+	t.Helper()
+	if status != http.StatusOK {
+		return jsonResponse(map[string]string{"message": "not found"}, status)
+	}
+	payload, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope := signedManifest{
+		Payload:   base64.StdEncoding.EncodeToString(payload),
+		Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, payload)),
+	}
+	return jsonResponse(envelope, http.StatusOK)
+}
+
+// Exercise the signed B2 manifest -> selected installer flow without network
+// access or launching an installer on the developer's machine.
 func TestStableCheck(t *testing.T) {
-	for _, name := range []string{"newer", "equal", "older", "tag mismatch", "prerelease", "draft", "wrong channel", "wrong branch", "missing manifest", "missing installer", "missing checksum", "wrong repository", "wrong asset", "wrong release", "404", "rate limited", "invalid version", "invalid installed version", "disabled"} {
+	for _, name := range []string{"newer", "equal", "older", "wrong channel", "wrong branch", "wrong asset", "404", "invalid signature", "invalid version", "invalid checksum", "invalid installed version", "disabled"} {
 		t.Run(name, func(t *testing.T) {
 			build := stableBuild()
 			manifest := stableManifestFixture()
-			tag := "v2.5.1"
 			status := http.StatusOK
 			expectError := true
 			expectUpdate := false
@@ -52,133 +82,51 @@ func TestStableCheck(t *testing.T) {
 				build.Version, expectError = "2.5.1", false
 			case "older":
 				build.Version, expectError = "2.6.0", false
-			case "tag mismatch":
-				manifest.Version = "2.5.2"
 			case "wrong channel":
 				manifest.Channel = "development"
 			case "wrong branch":
 				manifest.Branch = "developer/jomary"
+			case "wrong asset":
+				manifest.InstallerAsset = "other.exe"
 			case "404":
 				status = http.StatusNotFound
-			case "rate limited":
-				status = http.StatusForbidden
 			case "invalid version":
-				manifest.Version, tag = "2.6.0-beta.1", "v2.6.0-beta.1"
+				manifest.Version = "2.6.0-beta.1"
+			case "invalid checksum":
+				manifest.InstallerSHA256 = "not-a-checksum"
 			case "invalid installed version":
 				build.Version = "unknown"
 			case "disabled":
-				build.UpdatesEnabled, expectError = false, false
+				build.UpdatesEnabled, expectError, expectUpdate = false, false, false
 			}
-			base := "https://github.com/" + Repository + "/releases/download/" + tag + "/"
-			r := release{TagName: tag, Draft: name == "draft", Prerelease: name == "prerelease"}
-			for _, asset := range []string{stableManifest, stableInstallerName, stableInstallerName + ".sha256"} {
-				if (name == "missing manifest" && asset == stableManifest) || (name == "missing installer" && asset == stableInstallerName) || (name == "missing checksum" && asset == stableInstallerName+".sha256") {
-					continue
-				}
-				assetURL := base + asset
-				if name == "wrong repository" {
-					assetURL = strings.Replace(assetURL, Repository, developmentRepository, 1)
-				}
-				if name == "wrong asset" && asset == stableInstallerName {
-					assetURL = base + "other.exe"
-				}
-				if name == "wrong release" && asset == stableInstallerName {
-					assetURL = strings.Replace(assetURL, tag, "v2.0.0", 1)
-				}
-				r.Assets = append(r.Assets, releaseAsset{Name: asset, BrowserDownloadURL: assetURL})
+
+			s, privateKey := stableService(t)
+			s.build = build
+			if name == "invalid signature" {
+				_, privateKey, _ = ed25519.GenerateKey(rand.Reader)
 			}
-			s := New(build)
 			requests := 0
 			s.client.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
 				requests++
-				switch request.URL.String() {
-				case "https://api.github.com/repos/" + Repository + "/releases/latest":
-					return jsonResponse(r, status), nil
-				case base + stableManifest:
-					return jsonResponse(manifest, http.StatusOK), nil
-				default:
+				if request.URL.String() != stableLatestManifestURL() {
 					t.Fatalf("unexpected request: %s", request.URL)
-					return nil, fmt.Errorf("unexpected request")
 				}
+				return signedManifestResponse(t, manifest, privateKey, status), nil
 			})
 			info, err := s.Check(context.Background())
 			if (err != nil) != expectError || info.Available != expectUpdate {
 				t.Fatalf("available=%v error=%v; want available=%v error=%v", info.Available, err, expectUpdate, expectError)
-			}
-			if name == "404" && !strings.Contains(err.Error(), Repository) {
-				t.Fatalf("404 must identify the release repository: %v", err)
 			}
 			if name == "disabled" && requests != 0 {
 				t.Fatal("disabled updates must not access the network")
 			}
 			if expectUpdate {
 				cached, ok := s.latestUpdate()
-				if !ok || cached.releaseTag != tag || cached.InstallerURL != base+stableInstallerName {
+				if !ok || cached.releaseTag != manifest.Version || cached.InstallerURL != stableAssetURL(manifest.Version, stableInstallerName) || cached.expectedSHA256 != manifest.InstallerSHA256 {
 					t.Fatalf("wrong cached update: %#v", cached)
 				}
 			}
 		})
-	}
-}
-
-func TestStableCheckRateLimitBackoff(t *testing.T) {
-	s := New(stableBuild())
-	reset := time.Now().Add(time.Hour).Truncate(time.Second)
-	requests := 0
-	headers := make(http.Header)
-	headers.Set("Content-Type", "application/json")
-	headers.Set("X-RateLimit-Remaining", "0")
-	headers.Set("X-RateLimit-Reset", fmt.Sprint(reset.Unix()))
-	s.client.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		requests++
-		return &http.Response{
-			StatusCode: http.StatusForbidden,
-			Header:     headers,
-			Body:       io.NopCloser(strings.NewReader(`{"message":"API rate limit exceeded"}`)),
-		}, nil
-	})
-
-	_, err := s.Check(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "temporarily rate-limited") {
-		t.Fatalf("expected rate-limit error, got %v", err)
-	}
-	if requests != 1 {
-		t.Fatalf("requests=%d; want 1", requests)
-	}
-
-	_, err = s.Check(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "temporarily rate-limited") {
-		t.Fatalf("expected cached rate-limit error, got %v", err)
-	}
-	if requests != 1 {
-		t.Fatalf("backoff made %d requests; want 1", requests)
-	}
-
-	s.mu.Lock()
-	s.rateLimitedUntil = time.Now().Add(-time.Second)
-	s.mu.Unlock()
-	_, _ = s.Check(context.Background())
-	if requests != 2 {
-		t.Fatalf("expired backoff made %d requests; want 2", requests)
-	}
-}
-
-func TestStableCheckDoesNotBackoffForOrdinaryForbidden(t *testing.T) {
-	s := New(stableBuild())
-	requests := 0
-	s.client.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		requests++
-		return jsonResponse(map[string]string{"message": "forbidden"}, http.StatusForbidden), nil
-	})
-
-	for range 2 {
-		_, err := s.Check(context.Background())
-		if err == nil || strings.Contains(err.Error(), "temporarily rate-limited") {
-			t.Fatalf("expected ordinary 403 error, got %v", err)
-		}
-	}
-	if requests != 2 {
-		t.Fatalf("ordinary 403 made %d requests; want 2", requests)
 	}
 }
 
@@ -207,22 +155,19 @@ func TestDevelopmentCheckKeepsExistingReleaseSource(t *testing.T) {
 }
 
 func TestStableAssetURLRejectsUntrustedLocations(t *testing.T) {
-	valid := "https://github.com/" + Repository + "/releases/download/v2.5.1/" + stableInstallerName
-	if err := validateReleaseAssetURL(valid, Repository, "v2.5.1", stableInstallerName); err != nil {
+	valid := stableAssetURL("2.5.1", stableInstallerName)
+	if err := validateStableAssetURL(valid, "2.5.1", stableInstallerName); err != nil {
 		t.Fatal(err)
 	}
 	for _, raw := range []string{
 		strings.Replace(valid, "https:", "http:", 1),
-		strings.Replace(valid, "github.com", "github.com.evil.example", 1),
-		strings.Replace(valid, "github.com", "github.com:444", 1),
-		strings.Replace(valid, "github.com", "user@github.com", 1),
-		strings.Replace(valid, Repository, developmentRepository, 1),
-		strings.Replace(valid, "v2.5.1", "v2.5.0", 1),
+		strings.Replace(valid, "fesapp-updates.s3.us-east-005.backblazeb2.com", "fesapp-updates.s3.us-east-005.backblazeb2.com.evil.example", 1),
+		strings.Replace(valid, "https://", "https://user@", 1),
+		strings.Replace(valid, "/2.5.1/", "/2.5.0/", 1),
 		strings.Replace(valid, stableInstallerName, "../"+stableInstallerName, 1),
 		valid + "?redirect=elsewhere", valid + "#fragment",
-		"https://objects.githubusercontent.com/unrelated.exe",
 	} {
-		if err := validateReleaseAssetURL(raw, Repository, "v2.5.1", stableInstallerName); err == nil {
+		if err := validateStableAssetURL(raw, "2.5.1", stableInstallerName); err == nil {
 			t.Fatalf("accepted %s", raw)
 		}
 	}
@@ -237,7 +182,6 @@ func TestStableVersionOrdering(t *testing.T) {
 	} {
 		build, manifest := stableBuild(), stableManifestFixture()
 		build.Version, manifest.Version = tc.current, tc.latest
-		// Stable versions do not depend on development workflow run numbers or SHAs.
 		manifest.CommitSHA = build.CommitSHA
 		got, err := isNewerBuild(build, manifest)
 		if err != nil || got != tc.want {
@@ -257,19 +201,19 @@ func TestInstallerDownloadRequiresMatchingChecksum(t *testing.T) {
 		{"matching", expected, false}, {"tampered", strings.Repeat("0", 64), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := New(stableBuild())
+			s, _ := stableService(t)
 			s.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				if strings.HasSuffix(r.URL.Path, ".sha256") {
 					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(tc.checksum + "  " + stableInstallerName))}, nil
 				}
 				return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/octet-stream"}}, Body: io.NopCloser(strings.NewReader(contents)), ContentLength: int64(len(contents))}, nil
 			})
-			checksum, err := s.fetchChecksum(context.Background(), "https://github.com/check.sha256", stableInstallerName)
+			checksum, err := s.fetchChecksum(context.Background(), stableAssetURL("2.5.1", stableInstallerName+".sha256"), stableInstallerName)
 			if err != nil {
 				t.Fatal(err)
 			}
 			destination := filepath.Join(t.TempDir(), stableInstallerName)
-			err = s.downloadInstaller(context.Background(), "https://github.com/installer", destination, checksum, nil)
+			err = s.downloadInstaller(context.Background(), stableAssetURL("2.5.1", stableInstallerName), destination, checksum, nil)
 			if (err != nil) != tc.wantError {
 				t.Fatalf("unexpected verification result: %v", err)
 			}
