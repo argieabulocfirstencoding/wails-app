@@ -161,6 +161,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.B2_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_APPLICATION_KEY }}
           AWS_DEFAULT_REGION: us-east-005
+          AWS_EC2_METADATA_DISABLED: true
         run: |
           if (-not $env:AWS_ACCESS_KEY_ID -or -not $env:AWS_SECRET_ACCESS_KEY) { throw 'Add B2_KEY_ID and B2_APPLICATION_KEY repository secrets before releasing.' }
           aws --version
@@ -175,11 +176,13 @@ jobs:
             if ($status -ne '404') { throw "B2 already contains $prefix/$name. Release files are immutable; use a new version tag." }
           }
 
-          aws s3api put-object --bucket $env:B2_BUCKET --key "$prefix/FESApp-Setup.exe" --body FESApp-Setup.exe --endpoint-url $env:B2_ENDPOINT --content-type application/octet-stream --cache-control 'public, max-age=31536000, immutable'
+          # Backblaze documents `aws s3 cp` as the supported AWS CLI transfer path.
+          # It avoids the low-level PutObject transport path that some runners close.
+          aws s3 cp FESApp-Setup.exe "s3://$env:B2_BUCKET/$prefix/FESApp-Setup.exe" --endpoint-url $env:B2_ENDPOINT --no-progress --content-type application/octet-stream --cache-control 'public, max-age=31536000, immutable'
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload the installer to B2.' }
-          aws s3api put-object --bucket $env:B2_BUCKET --key "$prefix/FESApp-Setup.exe.sha256" --body FESApp-Setup.exe.sha256 --endpoint-url $env:B2_ENDPOINT --content-type text/plain --cache-control 'public, max-age=31536000, immutable'
+          aws s3 cp FESApp-Setup.exe.sha256 "s3://$env:B2_BUCKET/$prefix/FESApp-Setup.exe.sha256" --endpoint-url $env:B2_ENDPOINT --no-progress --content-type text/plain --cache-control 'public, max-age=31536000, immutable'
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload the installer checksum to B2.' }
-          aws s3api put-object --bucket $env:B2_BUCKET --key "$prefix/stable-manifest.json" --body stable-manifest.json --endpoint-url $env:B2_ENDPOINT --content-type application/json --cache-control 'public, max-age=31536000, immutable'
+          aws s3 cp stable-manifest.json "s3://$env:B2_BUCKET/$prefix/stable-manifest.json" --endpoint-url $env:B2_ENDPOINT --no-progress --content-type application/json --cache-control 'public, max-age=31536000, immutable'
           if ($LASTEXITCODE -ne 0) { throw 'Could not upload the signed manifest payload to B2.' }
 
           foreach ($name in @('FESApp-Setup.exe', 'FESApp-Setup.exe.sha256', 'stable-manifest.json')) {
@@ -187,7 +190,7 @@ jobs:
             if ($LASTEXITCODE -ne 0 -or $status -ne '200') { throw "B2 did not make $name publicly available." }
           }
 
-          aws s3api put-object --bucket $env:B2_BUCKET --key stable/latest.json --body latest.json --endpoint-url $env:B2_ENDPOINT --content-type application/json --cache-control 'no-store, max-age=0'
+          aws s3 cp latest.json "s3://$env:B2_BUCKET/stable/latest.json" --endpoint-url $env:B2_ENDPOINT --no-progress --content-type application/json --cache-control 'no-store, max-age=0'
           if ($LASTEXITCODE -ne 0) { throw 'Could not publish the stable B2 update pointer.' }
           $latest = Invoke-WebRequest -Uri "$env:B2_PUBLIC_BASE_URL/stable/latest.json" -UseBasicParsing
           if ($latest.StatusCode -ne 200 -or -not (($latest.Content | ConvertFrom-Json).payload)) { throw 'The signed B2 update pointer is not publicly available.' }
