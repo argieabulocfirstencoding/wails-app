@@ -167,6 +167,7 @@ const (
 	upworkChromeUserDataDirPrefix        = "fes-upwork-chrome-"
 	upworkChromeStaleProfileAge          = 24 * time.Hour
 	upworkClientAutomationTimeout        = 45 * time.Second
+	upworkGuestAutomationTimeout         = 2 * time.Minute
 	upworkFieldPositionTolerance         = 2.0
 )
 
@@ -774,12 +775,12 @@ func (f *FesClientService) FetchUpworkCreds(ctx context.Context, taskID string) 
 
 	f.logCredentialResolution(task.Title, "workflow", creds)
 
-	session, err := f.openIsolatedUpworkBrowserURL(upworkChromeLoginURL)
-	if err != nil {
+	windowTarget := newUpworkClientWindowTarget()
+	if err := f.openGuestUpworkBrowserURL(upworkChromeLoginURL); err != nil {
 		return err
 	}
 
-	return f.launchUpworkAutomation(ctx, task.Title, creds, session)
+	return f.launchTaskUpworkGuestAutomation(ctx, task.Title, creds, windowTarget)
 }
 
 func (f *FesClientService) fetchClientAccountRecords() ([]clientAccountRecord, error) {
@@ -959,6 +960,55 @@ func (f *FesClientService) launchUpworkAutomation(ctx context.Context, accountLa
 	return f.launchUpworkLoginAutomation(ctx, accountLabel, creds, session, true)
 }
 
+// launchTaskUpworkGuestAutomation waits for the user to complete any
+// Cloudflare challenge in a Chrome Guest window. It only begins entering
+// credentials after the real Upwork login form is available.
+func (f *FesClientService) launchTaskUpworkGuestAutomation(ctx context.Context, accountLabel string, creds *upworkCredentials, target *upworkClientWindowTarget) error {
+	username, password, err := upworkLoginFormValues(creds)
+	if err != nil {
+		return f.logger.Error(err.Error())
+	}
+
+	runCtx, finish, err := f.upworkCancellation.begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	f.logger.Printf("Opening Upwork Guest login form for account: %s", strings.TrimSpace(accountLabel))
+	f.emitUpworkLoginStatus(ctx, "task", "awaiting_verification", "Guest Chrome opened. Complete Cloudflare verification in Chrome; credentials will be entered when the Upwork form appears.")
+
+	go func() {
+		defer finish()
+		if ctx != nil {
+			defer runtime.EventsEmit(ctx, "upwork-button", true)
+		}
+
+		err := performUpworkNativeLogin(runCtx, target, username, password, upworkGuestAutomationTimeout, func(stage string, waitErr error) {
+			f.logger.Infof("op=upwork_guest_native_automation_waiting account=%q stage=%q err=%v", strings.TrimSpace(accountLabel), stage, waitErr)
+		})
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				f.logger.Infof("op=upwork_guest_native_automation_stopped account=%q", strings.TrimSpace(accountLabel))
+				f.emitUpworkLoginStatus(ctx, "task", "cancelled", "Upwork sign-in was cancelled.")
+				return
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				f.logger.Infof("op=upwork_guest_native_automation_verification_timeout account=%q", strings.TrimSpace(accountLabel))
+				f.emitUpworkLoginStatus(ctx, "task", "verification_timeout", "Upwork's sign-in form did not appear in time. Finish verification or sign in manually in the Guest Chrome window.")
+				return
+			}
+			f.logger.Warnf("op=upwork_guest_native_automation_failed account=%q err=%v", strings.TrimSpace(accountLabel), err)
+			f.emitUpworkLoginStatus(ctx, "task", "failed", "Upwork credentials could not be entered. Complete sign-in manually in the Guest Chrome window.")
+			return
+		}
+
+		f.logger.Infof("op=upwork_guest_native_automation_credentials_entered account=%q method=windows_send_input", strings.TrimSpace(accountLabel))
+		f.emitUpworkLoginStatus(ctx, "task", "credentials_entered", "Credentials entered. Complete any Upwork MFA or additional verification in Chrome.")
+	}()
+
+	return nil
+}
+
 func upworkLoginFormValues(creds *upworkCredentials) (string, string, error) {
 	if creds == nil {
 		return "", "", fmt.Errorf("missing Upwork credentials")
@@ -977,8 +1027,8 @@ type upworkClientControlAction func(*uia.IUIAutomationElement) error
 type upworkClientControlRetry func(stage string, err error)
 
 // upworkClientWindowTarget restricts native automation to the Upwork Chrome
-// window launched for one Client Accounts request. It prevents a second open
-// Upwork account from receiving credentials intended for this one.
+// window launched for one request. It prevents a second open Upwork account
+// from receiving credentials intended for this one.
 type upworkClientWindowTarget struct {
 	existing map[win.HWND]struct{}
 	hwnd     win.HWND
@@ -993,10 +1043,17 @@ func newUpworkClientWindowTarget() *upworkClientWindowTarget {
 }
 
 func performLegacyClientAccountUpworkLogin(ctx context.Context, target *upworkClientWindowTarget, username, password string, onRetry upworkClientControlRetry) error {
+	return performUpworkNativeLogin(ctx, target, username, password, upworkClientAutomationTimeout, onRetry)
+}
+
+func performUpworkNativeLogin(ctx context.Context, target *upworkClientWindowTarget, username, password string, timeout time.Duration, onRetry upworkClientControlRetry) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(ctx, upworkClientAutomationTimeout)
+	if timeout <= 0 {
+		timeout = upworkClientAutomationTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	if err := waitForUpworkClientDelay(ctx, upworkClientAccountInitialFocusDelay); err != nil {
@@ -2193,6 +2250,29 @@ func (f *FesClientService) openIncognitoBrowserUrl(url string) error {
 	}
 
 	return nil
+}
+
+func (f *FesClientService) openGuestUpworkBrowserURL(url string) error {
+	chromeBinary, err := chromeExecutablePath()
+	if err != nil {
+		return err
+	}
+
+	args := upworkGuestChromeLaunchArgs(url)
+	cmd := exec.Command(chromeBinary, args...)
+	if err := cmd.Start(); err != nil {
+		return f.logger.Errorf("open Chrome Guest window for Upwork: %w", err)
+	}
+
+	return nil
+}
+
+func upworkGuestChromeLaunchArgs(url string) []string {
+	args := []string{"--guest", "--force-renderer-accessibility", "--new-window"}
+	if trimmedURL := strings.TrimSpace(url); trimmedURL != "" {
+		args = append(args, trimmedURL)
+	}
+	return args
 }
 
 func (f *FesClientService) openIsolatedUpworkBrowserURL(url string) (*upworkBrowserSession, error) {

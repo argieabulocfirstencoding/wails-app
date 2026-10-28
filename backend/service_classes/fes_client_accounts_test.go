@@ -312,6 +312,25 @@ func TestUpworkChromeLaunchArgsRejectMissingProfileDirectory(t *testing.T) {
 	}
 }
 
+func TestUpworkGuestChromeLaunchArgsUseGuestWindowWithoutDevTools(t *testing.T) {
+	args := upworkGuestChromeLaunchArgs(" https://www.upwork.com/ab/account-security/login ")
+	want := []string{
+		"--guest",
+		"--force-renderer-accessibility",
+		"--new-window",
+		"https://www.upwork.com/ab/account-security/login",
+	}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("launch args = %#v, want %#v", args, want)
+	}
+
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--remote-debugging") || strings.HasPrefix(arg, "--user-data-dir") {
+			t.Fatalf("Guest launch must not use a debug or persistent profile argument: %q", arg)
+		}
+	}
+}
+
 func TestUpworkBrowserSessionReadsChromeSelectedDevToolsPort(t *testing.T) {
 	userDataDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(userDataDir, "DevToolsActivePort"), []byte("45123\n/devtools/browser/test\n"), 0600); err != nil {

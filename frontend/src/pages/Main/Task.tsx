@@ -345,13 +345,31 @@ const Task = () => {
     if (!EventsOn) return;
     const off = EventsOn("upwork-login-status", (payload: UpworkLoginStatus) => {
       if (payload?.mode !== "task") return;
-      if (payload.state === "succeeded") {
-        setUpworkNotice("");
+      if (payload.state === "awaiting_verification") {
+        setUpworkNotice(
+          payload.message ||
+            "Complete Cloudflare verification in Guest Chrome before credentials are entered.",
+        );
       }
-      if (payload.state === "failed" || payload.state === "cancelled") {
+      if (payload.state === "credentials_entered") {
+        setUpworkNotice(
+          payload.message ||
+            "Credentials entered. Complete any additional verification in Guest Chrome.",
+        );
+      }
+      if (
+        payload.state === "verification_timeout" ||
+        payload.state === "failed" ||
+        payload.state === "cancelled"
+      ) {
         setUpworkNotice(payload.message || "Upwork sign-in did not complete.");
       }
-      if (payload.state === "succeeded" || payload.state === "failed" || payload.state === "cancelled") {
+      if (
+        payload.state === "credentials_entered" ||
+        payload.state === "verification_timeout" ||
+        payload.state === "failed" ||
+        payload.state === "cancelled"
+      ) {
         setLaunching(false);
       }
     });
