@@ -15,7 +15,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const bubbleResolveSyncConflictEndpoint = "wf/resolve_sync_conflict"
+const (
+	bubbleResolveAttendanceConflictEndpoint = "wf/resolve_attendance_conflict"
+	bubbleResolveTaskConflictEndpoint       = "wf/resolve_task_conflict"
+)
 
 func attendanceConflictValues(local *models.Attendance) map[string]any {
 	values := map[string]any{"time_in": local.TimeIn.UnixMilli(), "time_out": nil}
@@ -168,10 +171,75 @@ func conflictTimestamp(response map[string]any, fallback time.Time) time.Time {
 				if typed > 0 {
 					return time.UnixMilli(typed)
 				}
+			case string:
+				if timestamp, err := time.Parse(time.RFC3339Nano, typed); err == nil {
+					return timestamp
+				}
 			}
 		}
 	}
 	return fallback
+}
+
+// conflictDateValue turns the persisted JSON timestamp back into a Bubble API
+// date. Bubble's native API workflow accepts RFC3339 dates directly, avoiding
+// a server-side milliseconds-to-date conversion.
+func conflictDateValue(values map[string]any, field string) (any, error) {
+	timestamp, err := milliValue(values, field)
+	if err != nil || timestamp == nil {
+		return nil, err
+	}
+	return timestamp.UTC().Format(time.RFC3339Nano), nil
+}
+
+func conflictResolutionRequest(conflict models.SyncConflict, values map[string]any) (string, map[string]any, error) {
+	expectedModifiedAt := conflict.ExpectedRemoteModifiedAt.UTC().Format(time.RFC3339Nano)
+	switch conflict.RecordType {
+	case "attendance":
+		timeIn, err := conflictDateValue(values, "time_in")
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid time_in: %w", err)
+		}
+		if timeIn == nil {
+			return "", nil, fmt.Errorf("invalid time_in")
+		}
+		timeOut, err := conflictDateValue(values, "time_out")
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid time_out: %w", err)
+		}
+		return bubbleResolveAttendanceConflictEndpoint, map[string]any{
+			"record_id": conflict.RemoteID, "expected_modified_at": expectedModifiedAt,
+			"time_in": timeIn, "time_out": timeOut,
+		}, nil
+	case "task":
+		startedAt, err := conflictDateValue(values, "started_at")
+		if err != nil || startedAt == nil {
+			return "", nil, fmt.Errorf("invalid started_at")
+		}
+		endedAt, err := conflictDateValue(values, "ended_at")
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid ended_at: %w", err)
+		}
+		duration, err := numberValue(values, "duration")
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid duration: %w", err)
+		}
+		notes, ok := values["notes"].(string)
+		if !ok {
+			return "", nil, fmt.Errorf("invalid notes")
+		}
+		padagan, ok := values["padagan"].(bool)
+		if !ok {
+			return "", nil, fmt.Errorf("invalid padagan")
+		}
+		return bubbleResolveTaskConflictEndpoint, map[string]any{
+			"record_id": conflict.RemoteID, "expected_modified_at": expectedModifiedAt,
+			"started_at": startedAt, "ended_at": endedAt, "duration": duration,
+			"notes": notes, "padagan": padagan,
+		}, nil
+	default:
+		return "", nil, fmt.Errorf("unknown conflict record type")
+	}
 }
 
 func milliValue(values map[string]any, field string) (*time.Time, error) {
@@ -226,9 +294,11 @@ func (s *SyncService) ResolveSyncConflict(userID string, conflictID uint, select
 		return err
 	}
 
-	response, err := s.FesClientService.Request(types.Request{Url: bubbleResolveSyncConflictEndpoint, Method: "POST", Body: map[string]any{
-		"record_type": conflict.RecordType, "record_id": conflict.RemoteID, "expected_modified_at": conflict.ExpectedRemoteModifiedAt.UnixMilli(), "values": merged,
-	}})
+	endpoint, body, err := conflictResolutionRequest(conflict, merged)
+	if err != nil {
+		return err
+	}
+	response, err := s.FesClientService.Request(types.Request{Url: endpoint, Method: "POST", Body: body})
 	if err != nil {
 		return err
 	}
