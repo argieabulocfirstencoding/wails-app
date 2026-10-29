@@ -187,6 +187,14 @@ func (a *App) Startup(ctx context.Context) {
 
 func (a *App) Shutdown(ctx context.Context) {
 	a.ctx = ctx
+	// A controlled Quit must not be presented as a crash when the app resumes
+	// the still-open shift. A crash, force-close, or power loss never reaches
+	// this hook, so it intentionally leaves no marker.
+	if a.AuthUser != nil && a.Attendance != nil && a.SyncService != nil && a.SyncService.FesClientService != nil {
+		if err := a.SyncService.FesClientService.MarkCleanExit(a.AuthUser.LocalID); err != nil {
+			utils.Logger.Printf("could not mark controlled app shutdown: %v", err)
+		}
+	}
 	a.stopBrowserTaskEventPolling()
 	if a.SyncService != nil && a.SyncService.FesClientService != nil {
 		a.SyncService.FesClientService.StopUpworkAutomations()
@@ -375,7 +383,10 @@ func (a *App) RestoreInterruptedSession() (*models.SessionRecovery, error) {
 		return recovery, nil
 	}
 
-	a.activateRecoveredSession(user, attendance, true, false)
+	cleanExit := a.SyncService.FesClientService.ConsumeCleanExit(userID)
+	// A clean quit resumes the open shift normally. Only a missing clean-exit
+	// marker represents an interruption that needs the special end-shift review.
+	a.activateRecoveredSession(user, attendance, !cleanExit, false)
 	return a.currentSessionRecovery(), nil
 }
 

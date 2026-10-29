@@ -13,7 +13,11 @@ const Landing = () => {
       try {
         const recovery = await RestoreInterruptedSession();
         if (cancelled) return;
-        if (recovery?.recovered && recovery.user && recovery.attendance) {
+        // A returned user and attendance mean the backend resumed an open
+        // shift. `recovered` specifically means the prior process ended
+        // unexpectedly; a normal quit also resumes here, but without the
+        // interrupted-shift review UI.
+        if (recovery?.user && recovery.attendance) {
           const authStore = useAuthStore.getState();
           authStore.setUser({
             uid: recovery.user.localId,
@@ -33,7 +37,10 @@ const Landing = () => {
           authStore.setTaskID(recovery.activeTaskId || null);
           authStore.setFetchedActiveRecord(false);
           authStore.setSynced(true);
-          authStore.setRecoveryState(true, false);
+          authStore.setRecoveryState(
+            !!recovery.recovered,
+            !!recovery.requiresReview,
+          );
           navigate("/home", { replace: true });
           return;
         }

@@ -7,9 +7,21 @@ import (
 	"time"
 )
 
-const bubbleRecoveryPointerName = "active"
+const (
+	bubbleRecoveryPointerName = "active"
+	bubbleCleanExitMarkerName = "clean-exit"
+)
 
 type bubbleRecoveryPointer struct {
+	UserID      string `json:"user_id"`
+	Environment string `json:"environment"`
+}
+
+// bubbleCleanExitMarker records that the last process holding an active
+// session reached the normal Wails shutdown hook. It contains no credentials;
+// it only lets the next process distinguish a deliberate quit from a crash or
+// forced termination, where the hook could not run.
+type bubbleCleanExitMarker struct {
 	UserID      string `json:"user_id"`
 	Environment string `json:"environment"`
 }
@@ -29,6 +41,66 @@ func (f *FesClientService) clearRecoveryPointer() {
 	if f.sessionStore != nil {
 		_ = f.sessionStore.Delete(bubbleSessionKey(f.sessionScope, bubbleRecoveryPointerName))
 	}
+}
+
+func (f *FesClientService) clearCleanExitMarker() {
+	if f.sessionStore != nil {
+		_ = f.sessionStore.Delete(bubbleSessionKey(f.sessionScope, bubbleCleanExitMarkerName))
+	}
+}
+
+// MarkCleanExit records a controlled application shutdown for userID. A
+// marker is deliberately consumed during the following startup, so it cannot
+// hide a later abnormal termination.
+func (f *FesClientService) MarkCleanExit(userID string) error {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil
+	}
+
+	f.sessionMu.Lock()
+	store := f.sessionStore
+	scope := f.sessionScope
+	f.sessionMu.Unlock()
+	if store == nil {
+		return fmt.Errorf("Bubble session store is unavailable")
+	}
+
+	raw, err := json.Marshal(bubbleCleanExitMarker{UserID: userID, Environment: scope})
+	if err != nil {
+		return fmt.Errorf("encode Bubble clean-exit marker: %w", err)
+	}
+	if err := store.Set(bubbleSessionKey(scope, bubbleCleanExitMarkerName), string(raw)); err != nil {
+		return fmt.Errorf("store Bubble clean-exit marker: %w", err)
+	}
+	return nil
+}
+
+// ConsumeCleanExit reports whether userID was the user that deliberately
+// closed the previous app process. Missing or malformed markers are treated as
+// an unexpected termination. The marker is removed regardless of its value.
+func (f *FesClientService) ConsumeCleanExit(userID string) bool {
+	userID = strings.TrimSpace(userID)
+	f.sessionMu.Lock()
+	store := f.sessionStore
+	scope := f.sessionScope
+	f.sessionMu.Unlock()
+	if userID == "" || store == nil {
+		return false
+	}
+
+	key := bubbleSessionKey(scope, bubbleCleanExitMarkerName)
+	raw, err := store.Get(key)
+	if err != nil {
+		return false
+	}
+	_ = store.Delete(key)
+
+	var marker bubbleCleanExitMarker
+	if err := json.Unmarshal([]byte(raw), &marker); err != nil {
+		return false
+	}
+	return marker.UserID == userID && marker.Environment == scope
 }
 
 // RestoreBubbleSession loads the non-expired session selected by the secure

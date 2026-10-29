@@ -259,6 +259,9 @@ func (f *FesClientService) SetBubbleSession(userID, token string, expiresIn time
 	if err := f.storeRecoveryPointer(userID); err != nil {
 		return err
 	}
+	// A successful sign-in begins a running session. Do not allow a clean-exit
+	// marker from an older process to suppress crash recovery for this session.
+	f.clearCleanExitMarker()
 
 	f.sessionMu.Lock()
 	f.sessionUserID = userID
@@ -279,9 +282,12 @@ func (f *FesClientService) ClearActiveBubbleSession(removeStored bool) {
 	f.sessionUserID = ""
 	f.sessionMu.Unlock()
 
-	if removeStored && userID != "" && f.sessionStore != nil {
-		_ = f.sessionStore.Delete(bubbleSessionKey(f.sessionScope, userID))
+	if removeStored && f.sessionStore != nil {
+		if userID != "" {
+			_ = f.sessionStore.Delete(bubbleSessionKey(f.sessionScope, userID))
+		}
 		f.clearRecoveryPointer()
+		f.clearCleanExitMarker()
 	}
 }
 

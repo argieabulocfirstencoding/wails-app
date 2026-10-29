@@ -184,3 +184,58 @@ func TestRestoreBubbleSessionRemovesExpiredSession(t *testing.T) {
 		t.Fatal("expected expired recovery pointer to be deleted")
 	}
 }
+
+func TestCleanExitMarkerIsConsumedOnceForTheMatchingSession(t *testing.T) {
+	store := &memoryBubbleSessionStore{values: map[string]string{}}
+	writer := NewFesClientService(NewConnectivityStateService())
+	writer.sessionStore = store
+	writer.sessionScope = "test"
+
+	if err := writer.MarkCleanExit("user-1"); err != nil {
+		t.Fatalf("MarkCleanExit() error = %v", err)
+	}
+
+	restarted := NewFesClientService(NewConnectivityStateService())
+	restarted.sessionStore = store
+	restarted.sessionScope = "test"
+	if !restarted.ConsumeCleanExit("user-1") {
+		t.Fatal("expected matching clean-exit marker to be consumed")
+	}
+	if restarted.ConsumeCleanExit("user-1") {
+		t.Fatal("clean-exit marker must be consumed after one startup")
+	}
+}
+
+func TestCleanExitMarkerDoesNotApplyToAnotherUser(t *testing.T) {
+	store := &memoryBubbleSessionStore{values: map[string]string{}}
+	client := NewFesClientService(NewConnectivityStateService())
+	client.sessionStore = store
+	client.sessionScope = "test"
+
+	if err := client.MarkCleanExit("user-1"); err != nil {
+		t.Fatalf("MarkCleanExit() error = %v", err)
+	}
+	if client.ConsumeCleanExit("user-2") {
+		t.Fatal("a clean-exit marker must not apply to a different user")
+	}
+	if _, ok := store.values[bubbleSessionKey("test", bubbleCleanExitMarkerName)]; ok {
+		t.Fatal("mismatched clean-exit marker must be discarded")
+	}
+}
+
+func TestNewSessionClearsPriorCleanExitMarker(t *testing.T) {
+	store := &memoryBubbleSessionStore{values: map[string]string{}}
+	client := NewFesClientService(NewConnectivityStateService())
+	client.sessionStore = store
+	client.sessionScope = "test"
+
+	if err := client.MarkCleanExit("user-1"); err != nil {
+		t.Fatalf("MarkCleanExit() error = %v", err)
+	}
+	if err := client.SetBubbleSession("user-1", "new-token", time.Hour); err != nil {
+		t.Fatalf("SetBubbleSession() error = %v", err)
+	}
+	if client.ConsumeCleanExit("user-1") {
+		t.Fatal("a new running session must clear a prior clean-exit marker")
+	}
+}
