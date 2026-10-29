@@ -158,7 +158,12 @@ const ProfileBar = () => {
   const loadInterruptedSummary = async (openDialog: boolean) => {
     const summary = await GetInterruptedShiftSummary();
     if (!summary) return false;
-    setInterruptedSummary(summary);
+    setInterruptedSummary(
+      models.InterruptedShiftSummary.createFrom({
+        ...summary,
+        records: Array.isArray(summary.records) ? summary.records : [],
+      }),
+    );
     setInterruptedEndTime(
       toLocalDateTime(summary.suggestedEnd || new Date().toISOString()),
     );
@@ -198,10 +203,15 @@ const ProfileBar = () => {
 
   const handleInterruptedLogout = async () => {
     if (!interruptedEndTime || logoutLoading) return;
+    const endedAt = new Date(interruptedEndTime);
+    if (Number.isNaN(endedAt.getTime())) {
+      setInterruptedError("Choose a valid task-out time.");
+      return;
+    }
     setLogoutLoading(true);
     setInterruptedError("");
     try {
-      await EndInterruptedShift(new Date(interruptedEndTime).toISOString());
+      await EndInterruptedShift(endedAt.toISOString());
       setInterruptedLogoutDialog(false);
       finishLogout();
     } catch (error) {

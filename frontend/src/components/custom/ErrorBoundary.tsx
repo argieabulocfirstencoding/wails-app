@@ -1,4 +1,5 @@
 import React, { ReactNode, ErrorInfo } from "react";
+import { ReportRendererError } from "@/../wailsjs/go/app/App";
 
 interface ErrorBoundaryProps {
   fallback: ReactNode;
@@ -23,12 +24,13 @@ class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // You can send this to your backend or logging system
-    // logErrorToMyService(error, info.componentStack);
     console.error(
       "React ErrorBoundary caught an error:",
       error,
       info.componentStack
+    );
+    void ReportRendererError(error.message, info.componentStack || "").catch(
+      (reportError) => console.error("Unable to log renderer error:", reportError),
     );
   }
 

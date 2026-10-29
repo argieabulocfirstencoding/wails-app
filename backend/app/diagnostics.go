@@ -51,6 +51,13 @@ type diagnosticSyncStates struct {
 	TaskRecord []diagnosticTaskRecordState `json:"task_records"`
 }
 
+// ReportRendererError preserves renderer failures in the normal application log
+// so support can diagnose errors that would otherwise only appear in DevTools.
+func (a *App) ReportRendererError(message, componentStack string) {
+	correlationID := utils.NewCorrelationID("renderer_error")
+	a.Logger.Warnf("op=renderer_error correlation_id=%s message=%q component_stack=%q", correlationID, sanitizeDiagnosticError(message), sanitizeDiagnosticError(componentStack))
+}
+
 func (a *App) ExportDiagnosticBundle() (string, error) {
 	correlationID := utils.NewCorrelationID("diag")
 	a.Logger.Infof("op=diagnostic_export_start correlation_id=%s", correlationID)

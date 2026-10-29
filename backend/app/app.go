@@ -551,6 +551,124 @@ func (a *App) GetStaleOpenTaskRecords() ([]models.StaleOpenTaskRecord, error) {
 	return records, nil
 }
 
+// GetStaleOpenAttendances returns historical incomplete shifts separately from
+// the current shift, so a legacy record can never block a normal login.
+func (a *App) GetStaleOpenAttendances() ([]models.StaleOpenAttendance, error) {
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+
+	attendances, err := a.AuthService.AttendanceService.AttendanceRepo.GetStaleOpenAttendances(authUser.LocalID, time.Now().Add(-16*time.Hour))
+	if err != nil {
+		return nil, a.stableClientError("get_stale_open_attendances", err)
+	}
+
+	result := make([]models.StaleOpenAttendance, 0, len(attendances))
+	for _, attendance := range attendances {
+		records, err := a.AuthService.TaskService.TaskRepository.GetTaskRecordsForAttendance(attendance.ID)
+		if err != nil {
+			return nil, a.stableClientError("get_stale_open_attendance_records", err)
+		}
+
+		summary := models.StaleOpenAttendance{ID: attendance.ID, TimeIn: attendance.TimeIn, OpenRecords: make([]models.InterruptedTaskRecord, 0)}
+		suggestedEnd := attendance.TimeIn
+		for _, record := range records {
+			if record.EndedAt != nil {
+				continue
+			}
+			item := models.InterruptedTaskRecord{
+				ID: record.ID, TaskID: record.TaskID, TaskTitle: record.Task.Title, StartedAt: record.StartedAt,
+				Duration: record.Duration, SyncStatus: record.SyncStatus, Open: true,
+			}
+			if item.TaskTitle == "" {
+				item.TaskTitle = item.TaskID
+			}
+			summary.OpenRecords = append(summary.OpenRecords, item)
+			if suggestedEnd.Before(record.StartedAt) {
+				suggestedEnd = record.StartedAt
+			}
+			latestScreenshot, err := a.AuthService.TaskService.TaskRepository.GetLatestScreenshotTime(record.ID)
+			if err != nil {
+				return nil, a.stableClientError("get_stale_open_attendance_screenshot", err)
+			}
+			if latestScreenshot != nil && suggestedEnd.Before(*latestScreenshot) {
+				suggestedEnd = *latestScreenshot
+			}
+		}
+		summary.SuggestedEnd = &suggestedEnd
+		result = append(result, summary)
+	}
+	return result, nil
+}
+
+// ResolveStaleOpenAttendance closes a historical shift locally before
+// attempting best-effort sync. It never changes the current attendance.
+func (a *App) ResolveStaleOpenAttendance(attendanceID uint, endedAtISO string) error {
+	authUser, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return err
+	}
+	if attendanceID == 0 {
+		return types.NewStableError("INVALID_ATTENDANCE", "Choose a historical shift to close.")
+	}
+	if a.Attendance != nil && a.Attendance.ID == attendanceID {
+		return types.NewStableError("CURRENT_ATTENDANCE", "End the current shift from the account menu.")
+	}
+	endedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(endedAtISO))
+	if err != nil {
+		return types.NewStableError("INVALID_SHIFT_END", "Choose a valid shift end time.")
+	}
+	if endedAt.After(time.Now().Add(time.Minute)) {
+		return types.NewStableError("INVALID_SHIFT_END", "Shift end time cannot be in the future.")
+	}
+
+	attendance, err := a.AuthService.AttendanceService.GetAttendanceFromID(attendanceID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || attendance == nil {
+		return types.NewStableError("ATTENDANCE_NOT_FOUND", "The historical shift no longer exists.")
+	}
+	if err != nil {
+		return a.stableClientError("load_stale_open_attendance", err)
+	}
+	if attendance.UserID != authUser.LocalID {
+		return types.NewStableError("ATTENDANCE_OWNERSHIP_DENIED", "You cannot close another employee's shift.")
+	}
+	if attendance.TimeOut != nil {
+		return types.NewStableError("ATTENDANCE_ALREADY_CLOSED", "This historical shift has already been closed.")
+	}
+	if !attendance.TimeIn.Before(time.Now().Add(-16 * time.Hour)) {
+		return types.NewStableError("ATTENDANCE_NOT_STALE", "This is not a historical shift.")
+	}
+	records, err := a.AuthService.TaskService.TaskRepository.GetTaskRecordsForAttendance(attendanceID)
+	if err != nil {
+		return a.stableClientError("load_stale_open_attendance_records", err)
+	}
+	for _, record := range records {
+		if record.EndedAt == nil && endedAt.Before(record.StartedAt) {
+			return types.NewStableError("INVALID_SHIFT_END", "Shift end time must be after every unfinished task started.")
+		}
+	}
+
+	recordIDs, closedAttendance, err := a.AuthService.AttendanceService.AttendanceRepo.CloseStaleAttendanceAt(authUser.LocalID, attendanceID, endedAt)
+	if err != nil {
+		return a.stableClientError("resolve_stale_open_attendance", err)
+	}
+
+	if a.Connectivity.IsOnline() {
+		utils.GoSafe("app.resolve_stale_open_attendance_sync", func() {
+			if err := a.SyncService.SyncAttendance(closedAttendance); err != nil {
+				a.Logger.Warnf("op=resolve_stale_open_attendance_sync_failed attendance_id=%d stage=attendance err=%v", attendanceID, err)
+			}
+			for _, recordID := range recordIDs {
+				if err := a.SyncService.SyncTaskRecord(recordID); err != nil {
+					a.Logger.Warnf("op=resolve_stale_open_attendance_sync_failed attendance_id=%d record_id=%d stage=task err=%v", attendanceID, recordID, err)
+				}
+			}
+		})
+	}
+	return nil
+}
+
 // ResolveStaleOpenTaskRecord closes an older task record without modifying the
 // current attendance. The employee must supply the task-out time explicitly.
 func (a *App) ResolveStaleOpenTaskRecord(taskRecordID uint, endedAtISO string) (*service_classes.StopTrackingResult, error) {

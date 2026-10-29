@@ -14,8 +14,8 @@ import {
   GetCurrentAttendance,
   GetCurrentShiftTime,
   GetLastTaskRecords,
-  GetStaleOpenTaskRecords,
-  ResolveStaleOpenTaskRecord,
+  GetStaleOpenAttendances,
+  ResolveStaleOpenAttendance,
   FetchActiveTask,
   FetchUserDetails,
 } from "@/../wailsjs/go/app/App";
@@ -52,15 +52,15 @@ const Home = () => {
   const [nowTick, setNowTick] = useState<number>(Date.now());
   const [shiftCompletedSeconds, setShiftCompletedSeconds] = useState(0);
   const [shiftSessionStartedAt, setShiftSessionStartedAt] = useState(0);
-  const [staleOpenRecords, setStaleOpenRecords] = useState<
-    models.StaleOpenTaskRecord[]
+  const [staleOpenAttendances, setStaleOpenAttendances] = useState<
+    models.StaleOpenAttendance[]
   >([]);
   const [staleReviewOpen, setStaleReviewOpen] = useState(false);
   const [staleEndTimes, setStaleEndTimes] = useState<Record<number, string>>(
     {},
   );
   const [staleRecoveryError, setStaleRecoveryError] = useState("");
-  const [resolvingStaleRecordID, setResolvingStaleRecordID] = useState<
+  const [resolvingStaleAttendanceID, setResolvingStaleAttendanceID] = useState<
     number | null
   >(null);
   const {
@@ -121,7 +121,7 @@ const Home = () => {
     refreshTaskRecords();
     refreshActiveRecord(true);
     refreshCurrentShiftTime();
-    refreshStaleOpenTaskRecords();
+    refreshStaleOpenAttendances();
   }, []);
 
   useEffect(() => {
@@ -130,7 +130,7 @@ const Home = () => {
       refreshTaskRecords();
       refreshActiveRecord(true);
       refreshCurrentShiftTime();
-      refreshStaleOpenTaskRecords();
+      refreshStaleOpenAttendances();
     });
 
     return () => off();
@@ -141,7 +141,7 @@ const Home = () => {
     const off = EventsOn("browser-records-synced", async () => {
       await refreshTaskRecords();
       await refreshCurrentShiftTime();
-      await refreshStaleOpenTaskRecords();
+      await refreshStaleOpenAttendances();
       const fetchedTasks: any = await GetTasks(false);
       if (fetchedTasks) setTasks(fetchedTasks);
       await fetchTodayClientSummary();
@@ -154,7 +154,7 @@ const Home = () => {
       setAttendanceSynced(synced);
       fetchCurrentAttendance();
       refreshActiveRecord(true);
-      refreshStaleOpenTaskRecords();
+      refreshStaleOpenAttendances();
     });
 
     return () => off();
@@ -206,7 +206,7 @@ const Home = () => {
         if (fetchedTasks) setTasks(fetchedTasks);
       }
       await refreshActiveRecord(true);
-      await refreshStaleOpenTaskRecords();
+      await refreshStaleOpenAttendances();
     } catch (error) {
       console.log("Error fetching initial tasks:", error);
     } finally {
@@ -233,49 +233,49 @@ const Home = () => {
     return error instanceof Error ? error.message : String(error);
   }
 
-  async function refreshStaleOpenTaskRecords() {
+  async function refreshStaleOpenAttendances() {
     try {
-      const records = await GetStaleOpenTaskRecords();
-      setStaleOpenRecords(records ?? []);
+      const attendances = await GetStaleOpenAttendances();
+      setStaleOpenAttendances(attendances ?? []);
       setStaleEndTimes((current) => {
         const next: Record<number, string> = {};
-        for (const record of records ?? []) {
-          next[record.id] =
-            current[record.id] ||
-            toLocalDateTime(record.suggestedEndedAt || record.startedAt);
+        for (const attendance of attendances ?? []) {
+          next[attendance.id] =
+            current[attendance.id] ||
+            toLocalDateTime(attendance.suggestedEnd || attendance.timeIn);
         }
         return next;
       });
     } catch (error) {
-      console.error("Error fetching stale task records:", error);
-      setStaleOpenRecords([]);
+      console.error("Error fetching stale attendances:", error);
+      setStaleOpenAttendances([]);
     }
   }
 
-  async function resolveStaleRecord(recordID: number) {
-    const localEndTime = staleEndTimes[recordID];
+  async function resolveStaleAttendance(attendanceID: number) {
+    const localEndTime = staleEndTimes[attendanceID];
     const endedAt = new Date(localEndTime);
     if (!localEndTime || Number.isNaN(endedAt.getTime())) {
       setStaleRecoveryError("Choose a valid task-out time.");
       return;
     }
 
-    setResolvingStaleRecordID(recordID);
+    setResolvingStaleAttendanceID(attendanceID);
     setStaleRecoveryError("");
     try {
-      await ResolveStaleOpenTaskRecord(recordID, endedAt.toISOString());
+      await ResolveStaleOpenAttendance(attendanceID, endedAt.toISOString());
       await Promise.all([
         refreshTaskRecords(),
         refreshCurrentShiftTime(),
-        refreshStaleOpenTaskRecords(),
+        refreshStaleOpenAttendances(),
       ]);
-      if (staleOpenRecords.length === 1) {
+      if (staleOpenAttendances.length === 1) {
         setStaleReviewOpen(false);
       }
     } catch (error) {
       setStaleRecoveryError(errorMessage(error));
     } finally {
-      setResolvingStaleRecordID(null);
+      setResolvingStaleAttendanceID(null);
     }
   }
 
@@ -364,7 +364,7 @@ const Home = () => {
 
       await refreshActiveRecord(true);
       await refreshCurrentShiftTime();
-      await refreshStaleOpenTaskRecords();
+      await refreshStaleOpenAttendances();
     } catch (error) {
       console.error("Error fetching tasks:", error);
     } finally {
@@ -482,12 +482,12 @@ const Home = () => {
           Task sync warning: {taskSyncWarning}
         </div>
       )}
-      {staleOpenRecords.length > 0 && (
+      {staleOpenAttendances.length > 0 && (
         <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
           <span>
-            {staleOpenRecords.length === 1
-              ? "One older task did not record a task-out. It is not running in this shift."
-              : `${staleOpenRecords.length} older tasks did not record a task-out. They are not running in this shift.`}
+            {staleOpenAttendances.length === 1
+              ? "One historical incomplete shift needs review. It is not running in this shift."
+              : `${staleOpenAttendances.length} historical incomplete shifts need review. They are not running in this shift.`}
           </span>
           <Button
             type="button"
@@ -703,39 +703,41 @@ const Home = () => {
       <Dialog open={staleReviewOpen} onOpenChange={setStaleReviewOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Review older task timers</DialogTitle>
+            <DialogTitle>Review historical incomplete shifts</DialogTitle>
             <DialogDescription>
-              These tasks are from older shifts and are not running now. Choose
-              the confirmed task-out time for each one to save it locally for
-              sync.
+              These shifts are from older workdays and are not running now.
+              Choose the confirmed shift end time to close each one locally for
+              sync without affecting today&apos;s shift.
             </DialogDescription>
           </DialogHeader>
 
           <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
-            {staleOpenRecords.map((record) => (
+            {staleOpenAttendances.map((attendance) => (
               <div
-                key={record.id}
+                key={attendance.id}
                 className="space-y-2 rounded-lg border border-amber-200 p-3 dark:border-amber-900"
               >
                 <div>
                   <p className="font-medium text-neutral-900 dark:text-neutral-100">
-                    {record.taskTitle || record.taskId}
+                    Shift started {new Date(String(attendance.timeIn)).toLocaleString()}
                   </p>
                   <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                    Started {new Date(String(record.startedAt)).toLocaleString()}
+                    {attendance.openRecords.length === 0
+                      ? "No unfinished task timer is attached to this shift."
+                      : `${attendance.openRecords.length} unfinished task ${attendance.openRecords.length === 1 ? "timer" : "timers"}: ${attendance.openRecords.map((record) => record.taskTitle || record.taskId).join(", ")}`}
                   </p>
                 </div>
                 <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                  Confirmed task-out time
+                  Confirmed shift end time
                   <Input
                     type="datetime-local"
                     className="mt-1"
                     max={toLocalDateTime(new Date().toISOString())}
-                    value={staleEndTimes[record.id] || ""}
+                    value={staleEndTimes[attendance.id] || ""}
                     onChange={(event) =>
                       setStaleEndTimes((current) => ({
                         ...current,
-                        [record.id]: event.target.value,
+                        [attendance.id]: event.target.value,
                       }))
                     }
                   />
@@ -743,12 +745,12 @@ const Home = () => {
                 <Button
                   type="button"
                   size="sm"
-                  disabled={resolvingStaleRecordID !== null}
-                  onClick={() => resolveStaleRecord(record.id)}
+                  disabled={resolvingStaleAttendanceID !== null}
+                  onClick={() => resolveStaleAttendance(attendance.id)}
                 >
-                  {resolvingStaleRecordID === record.id
+                  {resolvingStaleAttendanceID === attendance.id
                     ? "Saving…"
-                    : "Save task-out"}
+                    : "Close historical shift"}
                 </Button>
               </div>
             ))}
@@ -764,7 +766,7 @@ const Home = () => {
             <Button
               type="button"
               variant="outline"
-              disabled={resolvingStaleRecordID !== null}
+              disabled={resolvingStaleAttendanceID !== null}
               onClick={() => setStaleReviewOpen(false)}
             >
               Close

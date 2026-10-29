@@ -32,3 +32,13 @@ type InterruptedTaskRecord struct {
 	SyncStatus string     `json:"syncStatus"`
 	Open       bool       `json:"open"`
 }
+
+// StaleOpenAttendance is an older incomplete shift that must never become the
+// active shift during a new login. The employee may review and close it later
+// without interrupting their current workday.
+type StaleOpenAttendance struct {
+	ID           uint                    `json:"id"`
+	TimeIn       time.Time               `json:"timeIn"`
+	OpenRecords  []InterruptedTaskRecord `json:"openRecords"`
+	SuggestedEnd *time.Time              `json:"suggestedEnd,omitempty"`
+}
