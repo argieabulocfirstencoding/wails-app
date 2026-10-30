@@ -48,25 +48,17 @@ func NewAuthService(connectivity ...*ConnectivityStateService) *AuthService {
 }
 
 func (a *AuthService) Login(ctx context.Context, email, password string) (*models.Attendance, *models.AuthUser, error) {
-	a.ctx = ctx
-	a.TaskService.Connect(ctx)
-
-	login, err := a.AttemptLogin(email, password)
+	user, authUser, err := a.AuthenticateOnline(ctx, email, password)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	attendance, err := a.AttendanceService.LoginAttendance(login.UserID)
+	attendance, err := a.AttendanceService.LoginAttendance(user.ID)
 	if err != nil {
 		return nil, nil, err
 	}
 	if attendance == nil {
 		return nil, nil, fmt.Errorf("login attendance is nil")
-	}
-
-	authUser := &models.AuthUser{
-		LocalID: login.UserID,
-		Email:   login.Email,
 	}
 
 	// NOTE INITIALIZATIONS
@@ -80,20 +72,7 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	a.TaskService.SyncService.Attendance = a.TaskService.Attendance
 	a.TaskService.SyncService.TaskRecord = &a.TaskService.TaskRecord
 
-	attendance.User.ID = login.UserID
-	attendance.User.Email = login.Email
-	if err := a.UserService.SaveLoginEmployeeID(login.UserID, login.EmployeeID); err != nil {
-		return nil, nil, fmt.Errorf("save login employee ID: %w", err)
-	}
-	attendance.User.EmployeeId = login.EmployeeID
-
-	if err := a.UserService.FetchEmployeeDetails(ctx, &attendance.User); err != nil {
-		return nil, nil, err
-	}
-
-	// The login identifier may be an FES ID. Use only a validated employee
-	// email for the authenticated session and downstream Chrome profile match.
-	authUser.Email = resolvedAuthenticatedEmployeeEmail(&attendance.User)
+	attendance.User = *user
 
 	// go func() {
 	// 	a.SyncService.Connect(a.ctx)
@@ -103,6 +82,34 @@ func (a *AuthService) Login(ctx context.Context, email, password string) (*model
 	// }()
 
 	return attendance, authUser, nil
+}
+
+// AuthenticateOnline establishes the authenticated Bubble session and refreshes
+// the local employee profile, but deliberately does not create an attendance.
+// Callers that need to reconcile a Bubble-first shift can safely do so before
+// creating or syncing a new desktop Login / Logout record.
+func (a *AuthService) AuthenticateOnline(ctx context.Context, email, password string) (*models.User, *models.AuthUser, error) {
+	a.ctx = ctx
+	a.TaskService.Connect(ctx)
+
+	login, err := a.AttemptLogin(email, password)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := a.UserService.SaveLoginEmployeeID(login.UserID, login.EmployeeID); err != nil {
+		return nil, nil, fmt.Errorf("save login employee ID: %w", err)
+	}
+	user, err := a.UserService.GetUserFromId(login.UserID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load authenticated employee: %w", err)
+	}
+	if strings.TrimSpace(login.EmployeeID) != "" {
+		user.EmployeeId = login.EmployeeID
+	}
+	if err := a.UserService.FetchEmployeeDetails(ctx, user); err != nil {
+		return nil, nil, err
+	}
+	return user, &models.AuthUser{LocalID: user.ID, Email: resolvedAuthenticatedEmployeeEmail(user)}, nil
 }
 
 func (a *AuthService) Logout() error {

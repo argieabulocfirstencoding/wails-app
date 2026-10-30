@@ -389,6 +389,53 @@ func TestParseBubbleProductivitiesKeepsLegacyRowWithoutAttendanceID(t *testing.T
 	}
 }
 
+func TestParseBubbleProductivitiesExplainsMalformedRows(t *testing.T) {
+	parsed, err := parseBubbleProductivities([]any{map[string]any{
+		"_id":            "productivity-bad-project",
+		"EmployeeID":     "employee-1",
+		"Modified Date":  float64(time.Now().UnixMilli()),
+		"Actual Task In": float64(time.Now().Add(-time.Minute).UnixMilli()),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.SkippedMalformed != 1 || len(parsed.SkippedRows) != 1 {
+		t.Fatalf("expected one explained malformed row, got %#v", parsed)
+	}
+	if parsed.SkippedRows[0].RemoteID != "productivity-bad-project" || parsed.SkippedRows[0].Reason != "missing Projects - Projects reference" {
+		t.Fatalf("unexpected skip diagnostic: %#v", parsed.SkippedRows[0])
+	}
+}
+
+func TestFindLoginAttendanceCandidatesUsesRemoteIdentityAndSixteenHourWindow(t *testing.T) {
+	database, user, task := setupBrowserSyncTestDB(t)
+	now := time.Now().Round(time.Millisecond)
+	recentRemoteID := "bubble-login-recent"
+	staleRemoteID := "bubble-login-stale"
+	recent := &models.Attendance{UserID: user.ID, TimeIn: now.Add(-time.Hour), LoginLogoutID: &recentRemoteID, SyncStatus: syncStateSynced}
+	stale := &models.Attendance{UserID: user.ID, TimeIn: now.Add(-17 * time.Hour), LoginLogoutID: &staleRemoteID, SyncStatus: syncStateSynced}
+	if err := database.Create(recent).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Create(stale).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Create(&models.TaskRecord{UserID: user.ID, AttendanceID: recent.ID, TaskID: task.TaskID, StartedAt: now.Add(-30 * time.Minute), SyncStatus: syncStateSynced}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	candidates, err := findLoginAttendanceCandidates(user.ID, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 1 {
+		t.Fatalf("got %d candidates, want 1: %#v", len(candidates), candidates)
+	}
+	if candidates[0].RemoteID != recentRemoteID || candidates[0].AttendanceID != recent.ID || candidates[0].ActiveTaskLabel == "" {
+		t.Fatalf("unexpected candidate: %#v", candidates[0])
+	}
+}
+
 func TestEnsureBrowserTaskCreatesFallbackBeforeProductivityImport(t *testing.T) {
 	database, user, _ := setupBrowserSyncTestDB(t)
 	startedAt := time.Now().Add(-time.Minute).Round(time.Millisecond)

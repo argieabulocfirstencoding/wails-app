@@ -20,23 +20,24 @@ const bubblePendingBrowserTaskEventsEndpoint = "wf/pending_browser_task_events"
 const bubbleAcknowledgeBrowserTaskEventEndpoint = "wf/acknowledge_browser_task_event"
 
 type BrowserSyncResult struct {
-	AttendancesCreated       int    `json:"attendancesCreated"`
-	AttendancesUpdated       int    `json:"attendancesUpdated"`
-	RecordsCreated           int    `json:"recordsCreated"`
-	RecordsUpdated           int    `json:"recordsUpdated"`
-	FallbackTasksCreated     int    `json:"fallbackTasksCreated"`
-	RecoveredAttendanceLinks int    `json:"recoveredAttendanceLinks"`
-	Conflicts                int    `json:"conflicts"`
-	Skipped                  int    `json:"skipped"`
-	SkippedOtherEmployee     int    `json:"skippedOtherEmployee"`
-	SkippedMissingAttendance int    `json:"skippedMissingAttendance"`
-	SkippedMalformed         int    `json:"skippedMalformed"`
-	RecordsVerified          int    `json:"recordsVerified"`
-	RecordsMissingInBubble   int    `json:"recordsMissingInBubble"`
-	RecordsMissingID         int    `json:"recordsMissingId"`
-	VerificationSkipped      bool   `json:"verificationSkipped"`
-	VerificationWarning      string `json:"verificationWarning"`
-	CatalogRefreshWarning    string `json:"catalogRefreshWarning"`
+	AttendancesCreated       int                     `json:"attendancesCreated"`
+	AttendancesUpdated       int                     `json:"attendancesUpdated"`
+	RecordsCreated           int                     `json:"recordsCreated"`
+	RecordsUpdated           int                     `json:"recordsUpdated"`
+	FallbackTasksCreated     int                     `json:"fallbackTasksCreated"`
+	RecoveredAttendanceLinks int                     `json:"recoveredAttendanceLinks"`
+	Conflicts                int                     `json:"conflicts"`
+	Skipped                  int                     `json:"skipped"`
+	SkippedOtherEmployee     int                     `json:"skippedOtherEmployee"`
+	SkippedMissingAttendance int                     `json:"skippedMissingAttendance"`
+	SkippedMalformed         int                     `json:"skippedMalformed"`
+	SkippedRows              []BrowserSyncSkippedRow `json:"skippedRows,omitempty"`
+	RecordsVerified          int                     `json:"recordsVerified"`
+	RecordsMissingInBubble   int                     `json:"recordsMissingInBubble"`
+	RecordsMissingID         int                     `json:"recordsMissingId"`
+	VerificationSkipped      bool                    `json:"verificationSkipped"`
+	VerificationWarning      string                  `json:"verificationWarning"`
+	CatalogRefreshWarning    string                  `json:"catalogRefreshWarning"`
 }
 
 // BrowserTaskEvent is the desktop-facing representation of a Bubble browser
@@ -75,6 +76,15 @@ type bubbleProductivityRecord struct {
 type bubbleProductivityParseResult struct {
 	Records          []bubbleProductivityRecord
 	SkippedMalformed int
+	SkippedRows      []BrowserSyncSkippedRow
+}
+
+// BrowserSyncSkippedRow makes otherwise silent Bubble import omissions
+// actionable without storing remote payloads or credentials locally.
+type BrowserSyncSkippedRow struct {
+	RemoteID  string     `json:"remoteId"`
+	StartedAt *time.Time `json:"startedAt,omitempty"`
+	Reason    string     `json:"reason"`
 }
 
 func (s *SyncService) SyncBrowserRecords() (*BrowserSyncResult, error) {
@@ -138,6 +148,7 @@ func (s *SyncService) syncBrowserRecordsNow() (*BrowserSyncResult, error) {
 		return nil, fmt.Errorf("parse browser productivity updates: %w", err)
 	}
 	result.SkippedMalformed = parsedRecords.SkippedMalformed
+	result.SkippedRows = append(result.SkippedRows, parsedRecords.SkippedRows...)
 	result.Skipped += parsedRecords.SkippedMalformed
 	if parsedRecords.SkippedMalformed > 0 {
 		result.VerificationSkipped = true
@@ -177,6 +188,7 @@ func (s *SyncService) syncBrowserRecordsNow() (*BrowserSyncResult, error) {
 			if remote.EmployeeID != employeeID {
 				result.Skipped++
 				result.SkippedOtherEmployee++
+				result.SkippedRows = append(result.SkippedRows, skippedBrowserRow(remote, "employee ID does not match the authenticated user"))
 				continue
 			}
 
@@ -198,6 +210,7 @@ func (s *SyncService) syncBrowserRecordsNow() (*BrowserSyncResult, error) {
 				if remote.AttendanceID == "" {
 					result.Skipped++
 					result.SkippedMissingAttendance++
+					result.SkippedRows = append(result.SkippedRows, skippedBrowserRow(remote, "missing Login - Logout reference"))
 					continue
 				}
 				var err error
@@ -206,6 +219,7 @@ func (s *SyncService) syncBrowserRecordsNow() (*BrowserSyncResult, error) {
 					if errors.Is(err, gorm.ErrRecordNotFound) {
 						result.Skipped++
 						result.SkippedMissingAttendance++
+						result.SkippedRows = append(result.SkippedRows, skippedBrowserRow(remote, "Login - Logout reference was not returned by Bubble attendance history"))
 						continue
 					}
 					return err
@@ -781,7 +795,7 @@ func parseBubbleProductivities(value any) (bubbleProductivityParseResult, error)
 	if err != nil {
 		return bubbleProductivityParseResult{}, err
 	}
-	out := bubbleProductivityParseResult{Records: make([]bubbleProductivityRecord, 0, len(objects))}
+	out := bubbleProductivityParseResult{Records: make([]bubbleProductivityRecord, 0, len(objects)), SkippedRows: make([]BrowserSyncSkippedRow, 0)}
 	for _, item := range objects {
 		id := bubbleString(item, "_id")
 		employeeID := bubbleString(item, "EmployeeID")
@@ -791,6 +805,24 @@ func parseBubbleProductivities(value any) (bubbleProductivityParseResult, error)
 		startedAt, startedOK := bubbleTime(item, "Actual Task In")
 		if id == "" || employeeID == "" || taskID == "" || !modifiedOK || !startedOK {
 			out.SkippedMalformed++
+			reason := "missing required Bubble field"
+			switch {
+			case id == "":
+				reason = "missing Bubble productivity ID"
+			case employeeID == "":
+				reason = "missing EmployeeID"
+			case taskID == "":
+				reason = "missing Projects - Projects reference"
+			case !modifiedOK:
+				reason = "missing or invalid Modified Date"
+			case !startedOK:
+				reason = "missing or invalid Actual Task In"
+			}
+			var started *time.Time
+			if startedOK {
+				started = &startedAt
+			}
+			out.SkippedRows = append(out.SkippedRows, BrowserSyncSkippedRow{RemoteID: id, StartedAt: started, Reason: reason})
 			continue
 		}
 		var endedAt *time.Time
@@ -810,6 +842,11 @@ func parseBubbleProductivities(value any) (bubbleProductivityParseResult, error)
 		})
 	}
 	return out, nil
+}
+
+func skippedBrowserRow(remote bubbleProductivityRecord, reason string) BrowserSyncSkippedRow {
+	started := remote.StartedAt
+	return BrowserSyncSkippedRow{RemoteID: remote.ID, StartedAt: &started, Reason: reason}
 }
 
 func bubbleObjectList(value any) ([]map[string]any, error) {

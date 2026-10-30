@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 
 import logo from "@/assets/images/first-encoding_logo.webp";
-import { LoginUserOnline } from "@/../wailsjs/go/app/App";
+import { LoginUserOnline, SelectBubbleAttendanceForLogin } from "@/../wailsjs/go/app/App";
 import { useAuthStore } from "@/store/AuthContext";
 import SpinnerLoader from "@/components/custom/SpinnerLoader";
 import AppFooterInfo from "@/components/custom/AppFooterInfo";
@@ -62,6 +62,19 @@ const Login = () => {
   const [isCancellable, showCancel] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [attendanceCandidates, setAttendanceCandidates] = useState<any[]>([]);
+
+  async function finishLogin(result: any) {
+    const attendance = result?.Attendance;
+    if (!attendance) throw new Error("Login did not return an attendance session.");
+    useAuthStore.getState().setUser({ uid: attendance.UserID, email, offline: !online });
+    if (useAuthStore.getState().user) {
+      localStorage.setItem("user", JSON.stringify(useAuthStore.getState().user));
+      setSynced(true);
+      setAttendance(attendance);
+      navigate("/home");
+    }
+  }
 
   async function loginUser(event: FormEvent) {
     event.preventDefault();
@@ -74,8 +87,8 @@ const Login = () => {
     try {
       if (!online) console.log("no internet connection!");
       console.log("Logging in");
-      const attendance = await LoginUserOnline(email, password);
-      console.log("Auth Response: ", attendance);
+      const result: any = await LoginUserOnline(email, password);
+      console.log("Auth Response: ", result);
 
       if (cancelRef.current) {
         setErrorMsg("Login cancelled.");
@@ -83,25 +96,29 @@ const Login = () => {
         return;
       }
 
+      if (result?.Status === "attendance_selection_required") {
+        setAttendanceCandidates(result.Candidates || []);
+        return;
+      }
       setLoadingMsg("Syncing account…");
       showCancel(false);
-
-      useAuthStore.getState().setUser({
-        uid: attendance.UserID,
-        email: email,
-        offline: !online,
-      });
-
-      const user = useAuthStore.getState().user;
-      if (user) {
-        localStorage.setItem("user", JSON.stringify(user));
-        setSynced(true);
-        setAttendance(attendance);
-
-        navigate("/home");
-      }
+      await finishLogin(result);
     } catch (error: unknown) {
       console.error(error);
+      setErrorMsg(onlineLoginErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function selectAttendance(remoteID: string) {
+    setLoading(true);
+    setErrorMsg("");
+    try {
+      const result: any = await SelectBubbleAttendanceForLogin(remoteID);
+      setAttendanceCandidates([]);
+      await finishLogin(result);
+    } catch (error: unknown) {
       setErrorMsg(onlineLoginErrorMessage(error));
     } finally {
       setLoading(false);
@@ -152,6 +169,18 @@ const Login = () => {
         </CardHeader>
 
         <CardContent className="pb-3">
+          {attendanceCandidates.length > 0 && (
+            <div className="mb-4 space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950/30">
+              <p className="font-medium">Choose the Bubble shift to resume</p>
+              <p className="text-xs text-muted-foreground">More than one open shift was found in the last 16 hours.</p>
+              {attendanceCandidates.map((candidate) => (
+                <Button key={candidate.RemoteID} type="button" variant="outline" className="h-auto w-full justify-start py-2 text-left" onClick={() => selectAttendance(candidate.RemoteID)}>
+                  <span>{new Date(candidate.TimeIn).toLocaleString()}</span>
+                  {candidate.ActiveTaskLabel && <span className="ml-2 text-xs text-muted-foreground">• {candidate.ActiveTaskLabel}</span>}
+                </Button>
+              ))}
+            </div>
+          )}
           <form onSubmit={loginUser} className="space-y-5">
             <div className="space-y-4">
               {/* Email */}

@@ -229,11 +229,16 @@ const ProfileBar = () => {
     try {
       if (!online) console.log("no internet connection!");
       console.log("Logging in");
-      const attendance = await LoginUserOnline(
+      const loginResult: any = await LoginUserOnline(
         syncUser.email || "",
         syncUser.password || "",
       );
-      console.log("Auth Response: ", attendance);
+      if (loginResult?.Status === "attendance_selection_required") {
+        throw new Error("Choose an open Bubble shift from the sign-in screen before syncing this account.");
+      }
+      const attendance = loginResult?.Attendance;
+      if (!attendance) throw new Error("Login did not return an attendance session.");
+      console.log("Auth Response: ", loginResult);
 
       const currentUser = useAuthStore.getState().user;
       useAuthStore.getState().setUser({
@@ -308,6 +313,10 @@ const ProfileBar = () => {
             result.skippedMalformed === 1 ? "" : "s"
           }`,
         );
+      }
+      if (result?.skippedRows?.length) {
+        const first = result.skippedRows[0];
+        details.push(`Skipped Bubble row ${first.remoteId || "without an ID"}: ${first.reason}`);
       }
       if (result?.recordsVerified) {
         details.push(

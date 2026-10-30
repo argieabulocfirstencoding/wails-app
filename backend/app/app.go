@@ -57,6 +57,24 @@ type App struct {
 	browserTaskEventsMu         sync.Mutex
 	browserTaskEventsCancel     context.CancelFunc
 	browserTaskEventsGeneration uint64
+	pendingLoginMu              sync.Mutex
+	pendingOnlineLogin          *pendingOnlineLogin
+}
+
+type pendingOnlineLogin struct {
+	user       *models.User
+	authUser   *models.AuthUser
+	candidates []service_classes.LoginAttendanceCandidate
+	expiresAt  time.Time
+}
+
+// OnlineLoginResult tells the login screen whether the desktop resumed an
+// existing Bubble shift, created a new one, or needs the user to choose among
+// multiple valid Bubble sessions.
+type OnlineLoginResult struct {
+	Status     string                                     `json:"status"`
+	Attendance *models.Attendance                         `json:"attendance,omitempty"`
+	Candidates []service_classes.LoginAttendanceCandidate `json:"candidates,omitempty"`
 }
 
 // CurrentVersion will be injected from wails.json or ldflags
@@ -272,26 +290,93 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	return offlineData, nil
 }
 
-func (a *App) LoginUserOnline(email string, password string) (*models.Attendance, error) {
+func (a *App) LoginUserOnline(email string, password string) (*OnlineLoginResult, error) {
 	correlationID := utils.NewCorrelationID("login_online")
 	a.Logger.Infof("op=login_online_start correlation_id=%s email=%s", correlationID, strings.TrimSpace(email))
-	attendance, authUser, err := a.AuthService.Login(a.ctx, email, password)
+	user, authUser, err := a.AuthService.AuthenticateOnline(a.ctx, email, password)
 	if err != nil {
 		a.Logger.Warnf("op=login_online_failed correlation_id=%s err=%v", correlationID, err)
 		return nil, err
 	}
 
+	a.Connectivity.SetOnline(true)
+	a.SyncService.SetAuthUser(authUser)
+
+	candidates, err := a.SyncService.ReconcileLoginAttendances()
+	if err != nil {
+		a.Logger.Warnf("op=login_online_reconcile_failed correlation_id=%s user_id=%s err=%v", correlationID, authUser.LocalID, err)
+		return nil, types.NewStableError("BUBBLE_RECONCILIATION_REQUIRED", "Could not verify your Bubble attendance. Please retry before starting desktop tracking.")
+	}
+	if len(candidates) > 1 {
+		a.pendingLoginMu.Lock()
+		a.pendingOnlineLogin = &pendingOnlineLogin{user: user, authUser: authUser, candidates: candidates, expiresAt: time.Now().Add(5 * time.Minute)}
+		a.pendingLoginMu.Unlock()
+		return &OnlineLoginResult{Status: "attendance_selection_required", Candidates: candidates}, nil
+	}
+
+	var attendance *models.Attendance
+	status := "created_local"
+	if len(candidates) == 1 {
+		attendance, err = a.AuthService.AttendanceService.GetAttendanceFromID(candidates[0].AttendanceID)
+		status = "resumed_remote"
+	} else {
+		attendance, err = a.AuthService.AttendanceService.LoginAttendance(user.ID)
+	}
+	if err != nil || attendance == nil {
+		if err == nil {
+			err = fmt.Errorf("login attendance is nil")
+		}
+		return nil, err
+	}
+	a.completeOnlineLogin(attendance, authUser, correlationID)
+	return &OnlineLoginResult{Status: status, Attendance: attendance}, nil
+}
+
+// SelectBubbleAttendanceForLogin completes an online login after the user
+// chooses one of several valid, recent Bubble sessions. Candidates are
+// revalidated against a fresh Bubble reconciliation before activation.
+func (a *App) SelectBubbleAttendanceForLogin(remoteID string) (*OnlineLoginResult, error) {
+	remoteID = strings.TrimSpace(remoteID)
+	a.pendingLoginMu.Lock()
+	pending := a.pendingOnlineLogin
+	a.pendingLoginMu.Unlock()
+	if pending == nil || time.Now().After(pending.expiresAt) {
+		return nil, types.NewStableError("LOGIN_ATTENDANCE_SELECTION_EXPIRED", "Attendance selection expired. Please sign in again.")
+	}
+	a.SyncService.SetAuthUser(pending.authUser)
+	candidates, err := a.SyncService.ReconcileLoginAttendances()
+	if err != nil {
+		return nil, types.NewStableError("BUBBLE_RECONCILIATION_REQUIRED", "Could not verify your Bubble attendance. Please retry before starting desktop tracking.")
+	}
+	var selected *service_classes.LoginAttendanceCandidate
+	for i := range candidates {
+		if candidates[i].RemoteID == remoteID {
+			selected = &candidates[i]
+			break
+		}
+	}
+	if selected == nil {
+		return nil, types.NewStableError("LOGIN_ATTENDANCE_SELECTION_INVALID", "That Bubble attendance is no longer available. Please sign in again.")
+	}
+	attendance, err := a.AuthService.AttendanceService.GetAttendanceFromID(selected.AttendanceID)
+	if err != nil {
+		return nil, err
+	}
+	a.pendingLoginMu.Lock()
+	a.pendingOnlineLogin = nil
+	a.pendingLoginMu.Unlock()
+	a.completeOnlineLogin(attendance, pending.authUser, utils.NewCorrelationID("login_online_select"))
+	return &OnlineLoginResult{Status: "resumed_remote", Attendance: attendance}, nil
+}
+
+func (a *App) completeOnlineLogin(attendance *models.Attendance, authUser *models.AuthUser, correlationID string) {
 	a.AttendanceID = &attendance.ID
 	a.Attendance = attendance
 	a.AuthUser = authUser
-
-	a.Connectivity.SetOnline(true)
 	a.AuthService.TaskService.Attendance = &a.Attendance
 	a.SyncService.SetAuthUser(authUser)
 	a.SyncService.Attendance = &a.Attendance
 	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
-	// A normal sign-in may reuse an unclosed, stale attendance. Rehydrate its
-	// active task too so the mandatory review can write a task-out safely.
 	a.GetActiveTaskRecord()
 	utils.GoSafe("app.login_online.backblaze_init", func() {
 		if err := a.initializeBackblaze(); err != nil {
@@ -301,8 +386,6 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	a.SyncService.KickoffAutoSyncOnLogin(attendance)
 	a.startBrowserTaskEventPolling()
 	a.Logger.Infof("op=login_online_success correlation_id=%s user_id=%s attendance_id=%d", correlationID, authUser.LocalID, attendance.ID)
-
-	return attendance, nil
 }
 
 // REFACTOR this is not used anymore, was used on firebase integration
