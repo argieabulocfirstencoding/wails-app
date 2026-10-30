@@ -61,6 +61,42 @@ func recordTaskInDispatch(record *models.TaskRecord) error {
 	return nil
 }
 
+// legacyTaskStartNeedsRecovery identifies records created while task-start
+// retries were disabled behind the rollout flag.  The original request still
+// used ClientSessionID, but the local dispatch marker was deliberately left
+// non-idempotent.  Such a record must be reconciled with Bubble before it can
+// be retried.
+func legacyTaskStartNeedsRecovery(record *models.TaskRecord) bool {
+	return record != nil &&
+		record.TaskInAttemptedAt != nil &&
+		!record.TaskInIdempotent &&
+		!taskRecordHasRemoteProductivity(record) &&
+		record.ClientSessionID != nil &&
+		strings.TrimSpace(*record.ClientSessionID) != ""
+}
+
+// authorizeLegacyTaskInReplay records that a complete authenticated Bubble
+// reconciliation found no record for this durable session ID.  From then on,
+// task_in may be replayed with the same key under the idempotent contract.
+func authorizeLegacyTaskInReplay(record *models.TaskRecord) error {
+	if !legacyTaskStartNeedsRecovery(record) {
+		return nil
+	}
+
+	result := db.DB.Model(&models.TaskRecord{}).
+		Where(`id = ? AND user_id = ? AND task_in_attempted_at IS NOT NULL
+			AND task_in_idempotent = ? AND (productivity IS NULL OR TRIM(productivity) = '')`, record.ID, record.UserID, false).
+		Update("task_in_idempotent", true)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errTaskStateChanged
+	}
+	record.TaskInIdempotent = true
+	return nil
+}
+
 func persistTaskProductivity(record *models.TaskRecord, productivity string) error {
 	productivity = strings.TrimSpace(productivity)
 	if productivity == "" {

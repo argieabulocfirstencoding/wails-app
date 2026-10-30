@@ -261,6 +261,19 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 	if remoteMissing {
 		return fmt.Errorf("%w: task record is missing in Bubble; resolve the original session before resyncing", errSyncBlocked)
 	}
+	if legacyTaskStartNeedsRecovery(taskRecord) {
+		var recoveryErr error
+		taskRecord, recoveryErr = s.recoverLegacyTaskStart(taskRecord)
+		if recoveryErr != nil {
+			_ = s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, recoveryErr)
+			return recoveryErr
+		}
+		if taskRecord.SyncStatus == syncStateIdentityConflict {
+			err := fmt.Errorf("%w: task session identity is unresolved; review required", errSyncBlocked)
+			_ = s.updateTaskRecordSyncState(taskRecord, syncStateBlocked, err)
+			return err
+		}
+	}
 
 	if !remoteMissing && taskRecord.EndedAt == nil && taskRecordHasRemoteProductivity(taskRecord) {
 		if err := s.updateTaskRecordSyncState(taskRecord, syncStateSynced, nil); err != nil {
@@ -335,6 +348,40 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 	}
 	s.drainPendingScreenshotsBestEffort(taskRecord)
 	return nil
+}
+
+// recoverLegacyTaskStart turns a rollout-era, non-retryable dispatch marker
+// into an idempotent replay only after the authenticated Bubble collection has
+// been reconciled.  A matching ClientSessionID links the existing Bubble row;
+// a complete, conflict-free no-match result permits one replay using that same
+// session ID.  Incomplete or conflicting remote data remains blocked.
+func (s *SyncService) recoverLegacyTaskStart(taskRecord *models.TaskRecord) (*models.TaskRecord, error) {
+	if !legacyTaskStartNeedsRecovery(taskRecord) {
+		return taskRecord, nil
+	}
+
+	result, err := s.syncBrowserRecordsNow()
+	if err != nil {
+		return taskRecord, fmt.Errorf("verify legacy task start in Bubble: %w", err)
+	}
+
+	recovered, err := s.TaskRepository.GetTaskRecord(taskRecord.ID)
+	if err != nil {
+		return taskRecord, err
+	}
+	if taskRecordHasRemoteProductivity(recovered) {
+		return recovered, nil
+	}
+	if result.VerificationSkipped {
+		return recovered, fmt.Errorf("%w: could not verify the original task start in Bubble; review required", errSyncBlocked)
+	}
+	if recovered.SyncStatus == syncStateIdentityConflict {
+		return recovered, fmt.Errorf("%w: task session identity is unresolved; review required", errSyncBlocked)
+	}
+	if err := authorizeLegacyTaskInReplay(recovered); err != nil {
+		return recovered, err
+	}
+	return recovered, nil
 }
 
 func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *models.Attendance, user *models.User) error {

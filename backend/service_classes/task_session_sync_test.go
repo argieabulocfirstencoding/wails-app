@@ -111,6 +111,134 @@ func TestSessionTaskInLostResponseReusesKeyAfterRestart(t *testing.T) {
 	}
 }
 
+func TestLegacyTaskStartResyncVerifiesAbsenceBeforeReplay(t *testing.T) {
+	s, _, _, record := sessionSyncFixture(t)
+	now := time.Now()
+	if err := db.DB.Model(record).Updates(map[string]any{
+		"task_in_attempted_at": now,
+		"task_in_idempotent":   false,
+		"sync_status":          syncStateBlocked,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var taskInCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/wf/sync_attendance_prod":
+			// The authenticated employee's complete collection contains no row
+			// for this session, so retrying task_in is safe.
+			_, _ = w.Write([]byte(`{"response":{"employee_login_logout":[],"employee_prods":[]}}`))
+		case "/wf/task_in":
+			taskInCalls++
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"response":{"productivity":"productivity-replayed","client_session_id":%q}}`, *record.ClientSessionID)))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	s.FesClientService.baseUrl = server.URL + "/"
+	s.FesClientService.client = server.Client()
+
+	if err := s.syncTaskRecordNow(context.Background(), record.ID, true); err != nil {
+		t.Fatalf("legacy task-start recovery failed: %v", err)
+	}
+	if taskInCalls != 1 {
+		t.Fatalf("task-in calls = %d, want 1 after verified absence", taskInCalls)
+	}
+	stored := storedSession(t, record.ID)
+	if !stored.TaskInIdempotent || stored.Productivity == nil || *stored.Productivity != "productivity-replayed" {
+		t.Fatalf("legacy record was not safely recovered: %#v", stored)
+	}
+}
+
+func TestLegacyTaskStartResyncDoesNotReplayAfterIncompleteBubbleVerification(t *testing.T) {
+	s, _, _, record := sessionSyncFixture(t)
+	now := time.Now()
+	if err := db.DB.Model(record).Updates(map[string]any{
+		"task_in_attempted_at": now,
+		"task_in_idempotent":   false,
+		"sync_status":          syncStateBlocked,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var taskInCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/wf/sync_attendance_prod":
+			// A malformed productivity row means the collection cannot prove
+			// this session is absent.
+			_, _ = w.Write([]byte(`{"response":{"employee_login_logout":[],"employee_prods":[{}]}}`))
+		case "/wf/task_in":
+			taskInCalls++
+			_, _ = w.Write([]byte(`{"response":{}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	s.FesClientService.baseUrl = server.URL + "/"
+	s.FesClientService.client = server.Client()
+
+	err := s.syncTaskRecordNow(context.Background(), record.ID, true)
+	if !errors.Is(err, errSyncBlocked) {
+		t.Fatalf("expected incomplete Bubble verification to block replay, got %v", err)
+	}
+	if taskInCalls != 0 {
+		t.Fatalf("task-in calls = %d, want 0 when verification is incomplete", taskInCalls)
+	}
+	stored := storedSession(t, record.ID)
+	if stored.TaskInIdempotent {
+		t.Fatalf("incomplete verification incorrectly authorized replay: %#v", stored)
+	}
+}
+
+func TestLegacyTaskStartResyncLinksExistingBubbleSessionInsteadOfReplay(t *testing.T) {
+	s, attendance, user, record := sessionSyncFixture(t)
+	now := time.Now().Round(time.Millisecond)
+	if err := db.DB.Model(record).Updates(map[string]any{
+		"started_at":           now,
+		"task_in_attempted_at": now,
+		"task_in_idempotent":   false,
+		"sync_status":          syncStateBlocked,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	var taskInCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/wf/sync_attendance_prod":
+			payload := fmt.Sprintf(`{"response":{"employee_login_logout":[{"_id":%q,"EmployeeID":%q,"Modified Date":%d,"Login":%d}],"employee_prods":[{"_id":"productivity-existing","client_session_id":%q,"EmployeeID":%q,"Login - Logout":%q,"Projects - Projects":%q,"Modified Date":%d,"Actual Task In":%d}]}}`,
+				*attendance.LoginLogoutID, user.EmployeeId, now.UnixMilli(), attendance.TimeIn.UnixMilli(), *record.ClientSessionID, user.EmployeeId, *attendance.LoginLogoutID, record.TaskID, now.UnixMilli(), now.UnixMilli())
+			_, _ = w.Write([]byte(payload))
+		case "/wf/task_in":
+			taskInCalls++
+			_, _ = w.Write([]byte(`{"response":{}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	s.FesClientService.baseUrl = server.URL + "/"
+	s.FesClientService.client = server.Client()
+
+	if err := s.syncTaskRecordNow(context.Background(), record.ID, true); err != nil {
+		t.Fatalf("legacy Bubble-session link failed: %v", err)
+	}
+	if taskInCalls != 0 {
+		t.Fatalf("task-in calls = %d, want 0 when Bubble session already exists", taskInCalls)
+	}
+	stored := storedSession(t, record.ID)
+	if stored.Productivity == nil || *stored.Productivity != "productivity-existing" {
+		t.Fatalf("existing Bubble session was not linked: %#v", stored)
+	}
+}
+
 func TestSessionTaskInRequiresReturnedSessionIdentity(t *testing.T) {
 	s, _, _, record := sessionSyncFixture(t)
 	calls := 0
