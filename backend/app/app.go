@@ -906,6 +906,21 @@ func (a *App) ResyncTaskRecord(taskrecordId uint) error {
 	return nil
 }
 
+// SyncTaskRecordWithRecovery is the single UI-facing task sync action. It
+// safely decides whether to update, link, request review, or request explicit
+// creation confirmation for a legacy/remote-missing record.
+func (a *App) SyncTaskRecordWithRecovery(taskrecordID uint, confirmCreate bool) (*service_classes.TaskSyncRecoveryResult, error) {
+	user, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+	result, err := a.SyncService.SyncTaskRecordWithRecovery(taskrecordID, confirmCreate)
+	if err != nil {
+		return nil, a.stableClientError("sync_task_record_with_recovery", types.WrapOperation("sync.task_record_with_recovery", taskrecordID, user.LocalID, err))
+	}
+	return result, nil
+}
+
 // GetLegacyTaskRecoveryCandidates returns Bubble sessions that an authenticated
 // user may explicitly link to an identity-less legacy task record.
 func (a *App) GetLegacyTaskRecoveryCandidates(taskrecordID uint) ([]service_classes.LegacyTaskRecoveryCandidate, error) {
