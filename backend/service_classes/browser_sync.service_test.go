@@ -176,6 +176,89 @@ func TestReconcileBrowserProductivityPreservesLocalPendingRecord(t *testing.T) {
 	}
 }
 
+func TestReconcileBrowserAttendanceDoesNotMergeTimestampLookalike(t *testing.T) {
+	database, user, _ := setupBrowserSyncTestDB(t)
+	timeIn := time.Now().Add(-time.Hour).Round(time.Millisecond)
+	local := &models.Attendance{UserID: user.ID, TimeIn: timeIn, SyncStatus: syncStatePending}
+	if err := database.Create(local).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	remote := bubbleAttendanceRecord{
+		ID:         "bubble-attendance-without-shared-id",
+		EmployeeID: user.EmployeeId,
+		TimeIn:     timeIn,
+		ModifiedAt: timeIn.Add(time.Minute),
+	}
+	if err := database.Transaction(func(tx *gorm.DB) error {
+		resolved, created, updated, conflict, err := reconcileBrowserAttendance(tx, user.ID, remote)
+		if err != nil {
+			return err
+		}
+		if resolved == nil || resolved.ID != local.ID || created || updated || !conflict {
+			t.Fatalf("timestamp lookalike must require identity review, got resolved=%#v created=%t updated=%t conflict=%t", resolved, created, updated, conflict)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stored models.Attendance
+	if err := database.First(&stored, local.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.LoginLogoutID != nil || stored.SyncStatus != syncStateIdentityConflict {
+		t.Fatalf("timestamp lookalike was incorrectly linked: %#v", stored)
+	}
+	var conflict models.SyncConflict
+	if err := database.Where("attendance_id = ? AND remote_id = ? AND status = ?", local.ID, remote.ID, "identity_conflict").First(&conflict).Error; err != nil {
+		t.Fatalf("expected a persisted attendance identity conflict: %v", err)
+	}
+}
+
+func TestReconcileBrowserProductivityDoesNotMergeTimestampLookalike(t *testing.T) {
+	database, user, task := setupBrowserSyncTestDB(t)
+	attendanceID := "shared-attendance-id"
+	attendance := &models.Attendance{UserID: user.ID, TimeIn: time.Now().Add(-time.Hour), LoginLogoutID: &attendanceID, SyncStatus: syncStateSynced}
+	if err := database.Create(attendance).Error; err != nil {
+		t.Fatal(err)
+	}
+	startedAt := time.Now().Add(-30 * time.Minute).Round(time.Millisecond)
+	local := &models.TaskRecord{UserID: user.ID, AttendanceID: attendance.ID, TaskID: task.TaskID, StartedAt: startedAt, SyncStatus: syncStatePending}
+	if err := database.Create(local).Error; err != nil {
+		t.Fatal(err)
+	}
+	remote := bubbleProductivityRecord{
+		ID: "bubble-productivity-without-shared-id", EmployeeID: user.EmployeeId, AttendanceID: attendanceID,
+		TaskID: task.TaskID, StartedAt: startedAt, ModifiedAt: startedAt.Add(time.Minute),
+	}
+
+	if err := database.Transaction(func(tx *gorm.DB) error {
+		created, updated, conflict, skipped, err := reconcileBrowserProductivity(tx, user.ID, attendance, remote)
+		if err != nil {
+			return err
+		}
+		if created || updated || !conflict || skipped {
+			t.Fatalf("timestamp lookalike must require identity review, got created=%t updated=%t conflict=%t skipped=%t", created, updated, conflict, skipped)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var stored models.TaskRecord
+	if err := database.First(&stored, local.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Productivity != nil || stored.SyncStatus != syncStateIdentityConflict {
+		t.Fatalf("timestamp lookalike was incorrectly linked: %#v", stored)
+	}
+	var conflict models.SyncConflict
+	if err := database.Where("task_record_id = ? AND remote_id = ? AND status = ?", local.ID, remote.ID, "identity_conflict").First(&conflict).Error; err != nil {
+		t.Fatalf("expected a persisted task identity conflict: %v", err)
+	}
+}
+
 func TestReconcileLocalProductivityPresenceMarksOnlyMissingRecords(t *testing.T) {
 	database, user, task := setupBrowserSyncTestDB(t)
 	attendance := &models.Attendance{UserID: user.ID, TimeIn: time.Now().Add(-time.Hour), SyncStatus: syncStateSynced}

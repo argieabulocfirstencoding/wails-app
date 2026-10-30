@@ -91,7 +91,7 @@ func storeSyncConflict(tx *gorm.DB, userID, recordType, remoteID string, attenda
 		return err
 	}
 
-	query := tx.Where("user_id = ? AND record_type = ? AND remote_id = ? AND status IN ?", userID, recordType, remoteID, []string{"open", "stale"})
+	query := tx.Where("user_id = ? AND record_type = ? AND remote_id = ? AND status IN ?", userID, recordType, remoteID, []string{"open", "stale", "identity_conflict"})
 	var existing models.SyncConflict
 	err = query.First(&existing).Error
 	if err == nil {
@@ -109,6 +109,36 @@ func storeSyncConflict(tx *gorm.DB, userID, recordType, remoteID string, attenda
 	}).Error
 }
 
+func storeIdentityConflict(tx *gorm.DB, userID, recordType, remoteID string, attendanceID, taskRecordID *uint, modifiedAt time.Time, local, remote map[string]any) error {
+	localJSON, err := json.Marshal(local)
+	if err != nil {
+		return err
+	}
+	remoteJSON, err := json.Marshal(remote)
+	if err != nil {
+		return err
+	}
+	reasonJSON, err := json.Marshal([]models.SyncConflictField{{Field: "identity", LocalValue: "desktop", BubbleValue: "bubble"}})
+	if err != nil {
+		return err
+	}
+	var existing models.SyncConflict
+	err = tx.Where("user_id = ? AND record_type = ? AND remote_id = ? AND status = ?", userID, recordType, remoteID, "identity_conflict").First(&existing).Error
+	if err == nil {
+		return tx.Model(&existing).Updates(map[string]any{
+			"attendance_id": attendanceID, "task_record_id": taskRecordID, "expected_remote_modified_at": modifiedAt,
+			"local_values": string(localJSON), "bubble_values": string(remoteJSON), "differences": string(reasonJSON),
+		}).Error
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	return tx.Create(&models.SyncConflict{
+		UserID: userID, RecordType: recordType, RemoteID: remoteID, AttendanceID: attendanceID, TaskRecordID: taskRecordID,
+		ExpectedRemoteModifiedAt: modifiedAt, LocalValues: string(localJSON), BubbleValues: string(remoteJSON), Differences: string(reasonJSON), Status: "identity_conflict",
+	}).Error
+}
+
 func markAttendanceConflict(tx *gorm.DB, userID string, local *models.Attendance, remote bubbleAttendanceRecord) error {
 	if err := storeSyncConflict(tx, userID, "attendance", remote.ID, &local.ID, nil, remote.ModifiedAt, attendanceConflictValues(local), bubbleAttendanceConflictValues(remote)); err != nil {
 		return err
@@ -123,13 +153,40 @@ func markTaskConflict(tx *gorm.DB, userID string, local *models.TaskRecord, remo
 	return tx.Model(&models.TaskRecord{}).Where("id = ?", local.ID).Updates(map[string]any{"sync_status": syncStateConflict, "last_error": "Bubble and desktop values differ; review required"}).Error
 }
 
+func markAttendanceIdentityConflict(tx *gorm.DB, userID string, local *models.Attendance, remote bubbleAttendanceRecord) error {
+	if err := storeIdentityConflict(tx, userID, "attendance", remote.ID, &local.ID, nil, remote.ModifiedAt, attendanceConflictValues(local), bubbleAttendanceConflictValues(remote)); err != nil {
+		return err
+	}
+	return tx.Model(&models.Attendance{}).Where("id = ?", local.ID).Updates(map[string]any{"sync_status": syncStateIdentityConflict, "last_error": "Bubble session has no shared record identity; administrator review required"}).Error
+}
+
+func markTaskIdentityConflict(tx *gorm.DB, userID string, local *models.TaskRecord, remote bubbleProductivityRecord) error {
+	if err := storeIdentityConflict(tx, userID, "task", remote.ID, nil, &local.ID, remote.ModifiedAt, taskConflictValues(local), bubbleTaskConflictValues(remote)); err != nil {
+		return err
+	}
+	return tx.Model(&models.TaskRecord{}).Where("id = ?", local.ID).Updates(map[string]any{"sync_status": syncStateIdentityConflict, "last_error": "Bubble session has no shared record identity; administrator review required"}).Error
+}
+
 func (s *SyncService) GetOpenSyncConflicts(userID string) ([]models.SyncConflict, error) {
 	if strings.TrimSpace(userID) == "" {
 		return nil, fmt.Errorf("cannot list conflicts without an authenticated user")
 	}
 	var conflicts []models.SyncConflict
 	err := db.DB.Where("user_id = ? AND status IN ?", userID, []string{"open", "stale", "identity_conflict"}).Order("updated_at DESC").Find(&conflicts).Error
-	return conflicts, err
+	if err != nil {
+		return nil, err
+	}
+	for i := range conflicts {
+		if conflicts[i].TaskRecordID == nil {
+			continue
+		}
+		var record models.TaskRecord
+		if err := db.DB.Preload("Task.Client").First(&record, *conflicts[i].TaskRecordID).Error; err == nil {
+			record.SetTaskLabel()
+			conflicts[i].TaskLabel = record.TaskLabel
+		}
+	}
+	return conflicts, nil
 }
 
 func jsonConflictValues(raw string) (map[string]any, error) {

@@ -28,6 +28,7 @@ type TaskRecord struct {
 	LastError              string `gorm:"type:text;not null;default:''"`
 	LastAttemptAt          *time.Time
 	Gap                    int32        `gorm:"not null;default:0"`
+	TaskLabel              string       `gorm:"-" json:"taskLabel"`
 	PendingScreenshotCount int          `gorm:"-"`
 	Screenshots            []Screenshot `gorm:"-"`
 }
@@ -35,6 +36,7 @@ type TaskRecord struct {
 type ExpTaskRecord struct {
 	ID         uint       `json:"id"`
 	TaskID     string     `json:"task_id"`
+	TaskLabel  string     `json:"taskLabel"`
 	StartedAt  time.Time  `json:"started_at"`
 	EndedAt    *time.Time `json:"ended_at"`
 	Duration   int32      `json:"duration"`
@@ -47,19 +49,6 @@ type TaskRecordWithScreenshots struct {
 	Record      *ExpTaskRecord `json:"record"`
 	Date        time.Time      `json:"takenAt"`
 	Screenshots []string       `json:"screenshots"`
-}
-
-// StaleOpenTaskRecord identifies an unclosed task from a previous attendance.
-// It is intentionally a read model: employees must explicitly choose a task-out
-// time before the persisted record is changed.
-type StaleOpenTaskRecord struct {
-	ID               uint       `json:"id"`
-	TaskID           string     `json:"taskId"`
-	TaskTitle        string     `json:"taskTitle"`
-	AttendanceID     uint       `json:"attendanceId"`
-	StartedAt        time.Time  `json:"startedAt"`
-	SuggestedEndedAt *time.Time `json:"suggestedEndedAt"`
-	SyncStatus       string     `json:"syncStatus"`
 }
 
 // TaskShiftTime is the timer state for one task inside the current
@@ -79,14 +68,32 @@ type ShiftTime struct {
 }
 
 func (tr TaskRecord) ToExp() ExpTaskRecord {
+	label := tr.TaskLabel
+	if label == "" {
+		label = tr.Task.DisplayLabel()
+	}
+	if label == "" {
+		label = tr.TaskID
+	}
 	return ExpTaskRecord{
 		ID:         tr.ID,
 		TaskID:     tr.TaskID,
+		TaskLabel:  label,
 		StartedAt:  tr.StartedAt,
 		EndedAt:    tr.EndedAt,
 		Duration:   tr.Duration,
 		Padagan:    tr.Padagan,
 		Notes:      tr.Notes,
 		SyncStatus: tr.SyncStatus,
+	}
+}
+
+func (tr *TaskRecord) SetTaskLabel() {
+	if tr == nil {
+		return
+	}
+	tr.TaskLabel = tr.Task.DisplayLabel()
+	if tr.TaskLabel == "" {
+		tr.TaskLabel = tr.TaskID
 	}
 }

@@ -44,6 +44,7 @@ type SyncConflict = {
   Status: string;
   Differences: string;
   UpdatedAt: unknown;
+  taskLabel?: string;
 };
 
 const conflictFields = (conflict: SyncConflict): ConflictField[] => {
@@ -525,22 +526,27 @@ const ActivityLogs = () => {
               {conflicts.map((conflict) => {
                 const fields = conflictFields(conflict);
                 const identityConflict = conflict.Status === "identity_conflict";
+                const staleConflict = conflict.Status === "stale";
                 return (
                   <div key={conflict.ID} className="px-6 py-4 flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
-                        {conflict.RecordType === "attendance" ? "Login / logout session" : "Task record"}
+                        {conflict.RecordType === "attendance" ? "Login / logout session" : conflict.taskLabel || "Task record"}
                       </p>
                       <p className="text-xs text-neutral-600 dark:text-neutral-400">
-                        {identityConflict ? "Record identity differs and needs administrator review." : `${fields.length} field${fields.length === 1 ? "" : "s"} differ between Bubble and desktop.`}
+                        {identityConflict
+                          ? "Record identity differs and needs administrator review."
+                          : staleConflict
+                            ? "Bubble changed after this comparison. Refresh Bubble records before reviewing again."
+                            : `${fields.length} field${fields.length === 1 ? "" : "s"} differ between Bubble and desktop.`}
                       </p>
                     </div>
                     <Button
                       variant="outline"
-                      disabled={identityConflict}
+                      disabled={identityConflict || staleConflict}
                       onClick={() => openConflict(conflict)}
                     >
-                      {identityConflict ? "Identity review required" : "Review fields"}
+                      {identityConflict ? "Identity review required" : staleConflict ? "Refresh required" : "Review fields"}
                     </Button>
                   </div>
                 );
@@ -610,13 +616,12 @@ const ActivityLogs = () => {
                     />
 
                     {activity.records.map((record) => {
-                      const task = findTaskByID(record.TaskID);
                       const key = `record-${record.ID}`;
                       const pendingScreenshotCount =
                         getPendingScreenshotCount(record);
-                      const taskName = task?.title
-                        ? `${task.title.slice(0, 50)}${
-                            task.title.length > 50 ? "..." : ""
+                      const taskName = record.taskLabel
+                        ? `${record.taskLabel.slice(0, 80)}${
+                            record.taskLabel.length > 80 ? "..." : ""
                           }`
                         : "Task";
 

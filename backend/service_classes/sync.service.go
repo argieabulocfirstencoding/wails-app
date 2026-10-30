@@ -370,9 +370,7 @@ func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *mode
 		"task_time":            taskRecord.Duration,
 		"login_logout":         attendance.LoginLogoutID,
 		"activity_description": taskRecord.Notes,
-	}
-	if taskRecord.TaskInIdempotent {
-		body["client_session_id"] = *taskRecord.ClientSessionID
+		"client_session_id":    *taskRecord.ClientSessionID,
 	}
 	s.Logger.Printlnf("Syncing TASK IN record_id=%d session_id=%s", taskRecord.ID, *taskRecord.ClientSessionID)
 	if resp, err := s.FesClientService.Request(types.Request{
@@ -388,6 +386,10 @@ func (s *SyncService) syncTaskIn(taskRecord *models.TaskRecord, attendance *mode
 		productivity, ok := resp["productivity"].(string)
 		if !ok || strings.TrimSpace(productivity) == "" {
 			return fmt.Errorf("task-in response missing productivity identifier")
+		}
+		remoteSessionID, ok := resp["client_session_id"].(string)
+		if !ok || strings.TrimSpace(remoteSessionID) != *taskRecord.ClientSessionID {
+			return fmt.Errorf("task-in response missing or mismatched client session identity")
 		}
 		if err := persistTaskProductivity(taskRecord, productivity); err != nil {
 			return err

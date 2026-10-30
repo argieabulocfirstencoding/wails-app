@@ -20,6 +20,7 @@ type SyncConflict struct {
 	Status                   string    `gorm:"not null;default:'open';index:idx_sync_conflicts_user_status,priority:3"`
 	Resolution               string    `gorm:"type:text;not null;default:''"`
 	ResolvedAt               *time.Time
+	TaskLabel                string    `gorm:"-" json:"taskLabel"`
 }
 
 type SyncConflictField struct {

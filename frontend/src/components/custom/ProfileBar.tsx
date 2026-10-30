@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AlertTriangle, RefreshCw, Settings } from "lucide-react";
+import { RefreshCw, Settings } from "lucide-react";
 import Drawer from "@/components/custom/Drawer";
 import {
   Dialog,
@@ -12,16 +12,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "@/store/AuthContext";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   GetTasks,
-  GetInterruptedShiftSummary,
-  GetSessionRecoveryState,
-  EndInterruptedShift,
   LoginUserOnline,
   LogoutUser,
   SyncUnsyncedRecords,
@@ -29,7 +26,6 @@ import {
   OpenFesWebApp,
 } from "@/../wailsjs/go/app/App";
 import { BrowserOpenURL, EventsOn } from "@/../wailsjs/runtime/runtime";
-import { models } from "@/../wailsjs/go/models";
 
 interface SyncUser {
   email: string | null | undefined;
@@ -78,20 +74,12 @@ const ProfileBar = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [logoutSyncError, setLogoutSyncError] = useState("");
   const [logoutSyncFailDialog, setLogoutSyncFailDialog] = useState(false);
-  const [interruptedSummary, setInterruptedSummary] =
-    useState<models.InterruptedShiftSummary | null>(null);
-  const [interruptedLogoutDialog, setInterruptedLogoutDialog] = useState(false);
-  const [interruptedEndTime, setInterruptedEndTime] = useState("");
-  const [interruptedError, setInterruptedError] = useState("");
 
   const {
     online,
     synced,
     setSynced,
     reset,
-    recoveredSession,
-    recoveryRequiresReview,
-    setRecoveryState,
   } = useAuthStore();
   const navigate = useNavigate();
   const normalizedPosition = user?.position?.trim().toLowerCase() ?? "";
@@ -148,78 +136,7 @@ const ProfileBar = () => {
     return () => off();
   }, []);
 
-  const toLocalDateTime = (value: unknown) => {
-    const date = new Date(String(value));
-    if (Number.isNaN(date.getTime())) return "";
-    const timezoneOffset = date.getTimezoneOffset() * 60_000;
-    return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
-  };
-
-  const loadInterruptedSummary = async (openDialog: boolean) => {
-    const summary = await GetInterruptedShiftSummary();
-    if (!summary) return false;
-    setInterruptedSummary(
-      models.InterruptedShiftSummary.createFrom({
-        ...summary,
-        records: Array.isArray(summary.records) ? summary.records : [],
-      }),
-    );
-    setInterruptedEndTime(
-      toLocalDateTime(summary.suggestedEnd || new Date().toISOString()),
-    );
-    setInterruptedError("");
-    if (openDialog) setInterruptedLogoutDialog(true);
-    return true;
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    async function inspectRecoveryState() {
-      try {
-        const state = await GetSessionRecoveryState();
-        if (cancelled) return;
-        setRecoveryState(!!state?.recovered, !!state?.requiresReview);
-        if (state?.requiresReview) await loadInterruptedSummary(true);
-      } catch (error) {
-        console.warn("Unable to inspect interrupted session:", error);
-      }
-    }
-    inspectRecoveryState();
-    return () => {
-      cancelled = true;
-    };
-  }, [setRecoveryState]);
-
-  const openLogout = async () => {
-    if (recoveredSession || recoveryRequiresReview) {
-      try {
-        if (await loadInterruptedSummary(true)) return;
-      } catch (error) {
-        console.error("Unable to load interrupted shift:", error);
-      }
-    }
-    setLogoutDialog(true);
-  };
-
-  const handleInterruptedLogout = async () => {
-    if (!interruptedEndTime || logoutLoading) return;
-    const endedAt = new Date(interruptedEndTime);
-    if (Number.isNaN(endedAt.getTime())) {
-      setInterruptedError("Choose a valid task-out time.");
-      return;
-    }
-    setLogoutLoading(true);
-    setInterruptedError("");
-    try {
-      await EndInterruptedShift(endedAt.toISOString());
-      setInterruptedLogoutDialog(false);
-      finishLogout();
-    } catch (error) {
-      setInterruptedError(getErrorMessage(error));
-    } finally {
-      setLogoutLoading(false);
-    }
-  };
+  const openLogout = () => setLogoutDialog(true);
 
   const finishLogout = () => {
     const currentTheme = localStorage.getItem("theme");
@@ -450,15 +367,6 @@ const ProfileBar = () => {
             Local Mode - some data is stored offline. Tap{" "}
             <span className="font-semibold">Sync</span> in the footer when
             you&apos;re ready.
-          </span>
-        </div>
-      )}
-
-      {recoveredSession && (
-        <div className="w-full bg-sky-100 dark:bg-sky-900/40 text-xs sm:text-sm flex items-center justify-center gap-2 px-4 py-2 border-t border-sky-200 dark:border-sky-800">
-          <AlertTriangle className="h-4 w-4 text-sky-700 dark:text-sky-200" />
-          <span className="font-medium text-sky-900 dark:text-sky-100">
-            Your previous shift was recovered. An unfinished task will be reviewed when you end this shift.
           </span>
         </div>
       )}
@@ -742,67 +650,6 @@ const ProfileBar = () => {
         </Drawer>
 
         {/* Logout dialog */}
-        <Dialog
-          open={interruptedLogoutDialog}
-          onOpenChange={setInterruptedLogoutDialog}
-        >
-          <DialogContent className="sm:max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
-            <DialogHeader>
-              <DialogTitle className="text-neutral-900 dark:text-neutral-50">
-                End interrupted shift
-              </DialogTitle>
-              <DialogDescription className="text-sm text-neutral-600 dark:text-neutral-300">
-                Review the productivity records from this shift before ending it. Existing records will be saved locally if sync is unavailable.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="max-h-52 space-y-2 overflow-y-auto rounded-md border border-neutral-200 p-3 dark:border-neutral-700">
-              {interruptedSummary?.records.map((record) => (
-                <div key={record.id} className="rounded border border-neutral-100 p-2 text-xs dark:border-neutral-800">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-neutral-900 dark:text-neutral-100">
-                      {record.taskTitle || record.taskId}
-                    </span>
-                    <span className={record.open ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}>
-                      {record.open ? "No task-out recorded" : record.syncStatus}
-                    </span>
-                  </div>
-                  <span className="text-neutral-500 dark:text-neutral-400">
-                    Started {new Date(String(record.startedAt)).toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {interruptedSummary?.openRecordId ? (
-              <div className="space-y-2">
-                <Label htmlFor="interrupted-end-time">Task-out and shift end time</Label>
-                <Input
-                  id="interrupted-end-time"
-                  type="datetime-local"
-                  value={interruptedEndTime}
-                  max={toLocalDateTime(new Date().toISOString())}
-                  onChange={(event) => setInterruptedEndTime(event.target.value)}
-                />
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  This task did not record a task-out. The selected time will close both the task and this shift.
-                </p>
-              </div>
-            ) : null}
-
-            {interruptedError && <p className="text-sm text-red-600 dark:text-red-400">{interruptedError}</p>}
-
-            <DialogFooter className="flex gap-3 justify-end">
-              <Button variant="outline" disabled={logoutLoading} onClick={() => setInterruptedLogoutDialog(false)}>
-                Cancel
-              </Button>
-              <Button disabled={logoutLoading || !interruptedEndTime} onClick={handleInterruptedLogout} className="bg-red-600 hover:bg-red-700 text-white">
-                {logoutLoading ? "Ending shift..." : "End shift"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         <Dialog open={logoutDialog} onOpenChange={setLogoutDialog}>
           <DialogContent className="sm:max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
             <DialogHeader>

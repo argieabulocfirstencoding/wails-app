@@ -417,6 +417,16 @@ func (s *SyncService) resolveEmployeeID(user *models.User) (string, error) {
 func reconcileBrowserAttendance(tx *gorm.DB, userID string, remote bubbleAttendanceRecord) (*models.Attendance, bool, bool, bool, error) {
 	local, err := findAttendanceByRemoteID(tx, userID, remote.ID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		candidate, candidateErr := findAttendanceIdentityCandidate(tx, userID, remote.TimeIn)
+		if candidateErr != nil && !errors.Is(candidateErr, gorm.ErrRecordNotFound) {
+			return nil, false, false, false, candidateErr
+		}
+		if candidate != nil {
+			if err := markAttendanceIdentityConflict(tx, userID, candidate, remote); err != nil {
+				return nil, false, false, false, err
+			}
+			return candidate, false, false, true, nil
+		}
 		now := time.Now()
 		remoteID := remote.ID
 		local = &models.Attendance{
@@ -502,8 +512,7 @@ func reconcileBrowserProductivity(tx *gorm.DB, userID string, attendance *models
 		for _, candidate := range candidates {
 			if candidate.StartedAt.UnixMilli() == remote.StartedAt.UnixMilli() {
 				conflict = true
-				if err := tx.Model(&models.TaskRecord{}).Where("id = ?", candidate.ID).
-					Updates(map[string]any{"sync_status": syncStateIdentityConflict, "last_error": "A Bubble session matches this task's start time but its identity is unresolved; review required"}).Error; err != nil {
+				if err := markTaskIdentityConflict(tx, userID, &candidate, remote); err != nil {
 					return false, false, false, false, err
 				}
 			}
@@ -540,8 +549,7 @@ func reconcileBrowserProductivity(tx *gorm.DB, userID string, attendance *models
 		(local.ClientSessionID != nil && remote.ClientSessionID != "" && *local.ClientSessionID != remote.ClientSessionID) ||
 		(taskRecordHasRemoteProductivity(&local) && *local.Productivity != remote.ID) {
 		if !taskRecordHasRemoteProductivity(&local) {
-			if err := tx.Model(&models.TaskRecord{}).Where("id = ?", local.ID).
-				Updates(map[string]any{"sync_status": syncStateIdentityConflict, "last_error": "Bubble session identity conflicts with the local task or attendance; review required"}).Error; err != nil {
+			if err := markTaskIdentityConflict(tx, userID, &local, remote); err != nil {
 				return false, false, false, false, err
 			}
 		}
@@ -678,6 +686,22 @@ func findAttendanceByTime(tx *gorm.DB, userID string, timeIn time.Time) (*models
 		return nil, err
 	}
 	return &attendance, nil
+}
+
+// findAttendanceIdentityCandidate deliberately uses only an exact instant as a
+// collision detector. Timestamp equality is never enough to link two records;
+// callers must create an identity-review item instead of merging them.
+func findAttendanceIdentityCandidate(tx *gorm.DB, userID string, timeIn time.Time) (*models.Attendance, error) {
+	var attendances []models.Attendance
+	if err := tx.Where("user_id = ?", userID).Find(&attendances).Error; err != nil {
+		return nil, err
+	}
+	for i := range attendances {
+		if attendances[i].TimeIn.UnixMilli() == timeIn.UnixMilli() {
+			return &attendances[i], nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 func attendanceByTime(attendances map[string]*models.Attendance, timeIn time.Time) *models.Attendance {

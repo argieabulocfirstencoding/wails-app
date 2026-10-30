@@ -37,10 +37,6 @@ const Landing = () => {
           authStore.setTaskID(recovery.activeTaskId || null);
           authStore.setFetchedActiveRecord(false);
           authStore.setSynced(true);
-          authStore.setRecoveryState(
-            !!recovery.recovered,
-            !!recovery.requiresReview,
-          );
           navigate("/home", { replace: true });
           return;
         }

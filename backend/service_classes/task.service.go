@@ -449,31 +449,6 @@ func (t *TaskService) StopTrackingRecordAt(taskRecordID uint, endedAt time.Time)
 	return t.stopTrackingRecordLocked(taskRecordID, endedAt)
 }
 
-// ResolveStaleTaskRecordAt closes a record from an older attendance after an
-// employee confirms its task-out time. Unlike normal StopTracking, it does not
-// affect the current attendance or attempt an immediate remote sync.
-func (t *TaskService) ResolveStaleTaskRecordAt(taskRecordID uint, endedAt time.Time) (*StopTrackingResult, error) {
-	t.lifecycleMu.Lock()
-	defer t.lifecycleMu.Unlock()
-
-	if t.Attendance == nil || *t.Attendance == nil {
-		return nil, fmt.Errorf("resolve stale task record: Attendance is nil")
-	}
-	attendance := *t.Attendance
-	taskRecord, err := t.TaskRepository.GetTaskRecord(taskRecordID)
-	if err != nil {
-		return nil, err
-	}
-	if taskRecord.UserID != attendance.UserID {
-		return nil, fmt.Errorf("resolve stale task record: task record does not belong to the current user")
-	}
-	if taskRecord.AttendanceID == attendance.ID {
-		return nil, fmt.Errorf("resolve stale task record: task record belongs to the current attendance")
-	}
-
-	return t.closeTaskRecordLocked(taskRecord, endedAt, false)
-}
-
 func (t *TaskService) stopTrackingRecordLocked(taskRecordID uint, requestedEnd time.Time) (*StopTrackingResult, error) {
 	if t.Attendance == nil || *t.Attendance == nil {
 		return nil, fmt.Errorf("StopTracking error: Attendance is nil")

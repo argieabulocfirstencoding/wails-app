@@ -80,7 +80,7 @@ func TestSessionTaskInLostResponseReusesKeyAfterRestart(t *testing.T) {
 			conn.Close()
 			return
 		}
-		fmt.Fprintf(w, `{"response":{"productivity":%q}}`, created[key])
+		fmt.Fprintf(w, `{"response":{"productivity":%q,"client_session_id":%q}}`, created[key], key)
 	}))
 	defer server.Close()
 	s.FesClientService.baseUrl = server.URL + "/"
@@ -111,30 +111,25 @@ func TestSessionTaskInLostResponseReusesKeyAfterRestart(t *testing.T) {
 	}
 }
 
-func TestSessionUnverifiedRequestCannotReplayAfterGateChanges(t *testing.T) {
-	t.Setenv("FES_TASK_SESSION_IDEMPOTENCY_ENABLED", "false")
+func TestSessionTaskInRequiresReturnedSessionIdentity(t *testing.T) {
 	s, _, _, record := sessionSyncFixture(t)
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
-		if _, ok := body["client_session_id"]; ok {
-			t.Error("unverified contract was sent")
+		if body["client_session_id"] != *record.ClientSessionID {
+			t.Error("required client session identity was not sent")
 		}
-		w.Write([]byte(`{"response":{}}`)) // May have committed, but identity is missing.
+		w.Write([]byte(`{"response":{"productivity":"productivity-1"}}`))
 	}))
 	defer server.Close()
 	s.FesClientService.baseUrl = server.URL + "/"
 	if err := s.syncTaskRecordNow(context.Background(), record.ID, false); err == nil {
-		t.Fatal("expected missing ID error")
-	}
-	t.Setenv("FES_TASK_SESSION_IDEMPOTENCY_ENABLED", "true")
-	if err := s.syncTaskRecordNow(context.Background(), record.ID, true); !errors.Is(err, errSyncBlocked) {
-		t.Fatalf("expected blocked retry, got %v", err)
+		t.Fatal("expected missing echoed identity error")
 	}
 	if calls != 1 {
-		t.Fatalf("uncertain request was sent %d times", calls)
+		t.Fatalf("calls = %d, want 1", calls)
 	}
 }
 
@@ -168,7 +163,7 @@ func TestSessionDelayedStartResponsePreservesLocalStop(t *testing.T) {
 			inCalls++
 			close(arrived)
 			<-release
-			w.Write([]byte(`{"response":{"productivity":"productivity-1"}}`))
+			fmt.Fprintf(w, `{"response":{"productivity":"productivity-1","client_session_id":%q}}`, *record.ClientSessionID)
 			return
 		}
 		outCalls++
@@ -213,7 +208,7 @@ func TestSessionTaskInForStoppedRecordLeavesTaskOutPending(t *testing.T) {
 	}
 	record = storedSession(t, record.ID)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"response":{"productivity":"productivity-1"}}`))
+		fmt.Fprintf(w, `{"response":{"productivity":"productivity-1","client_session_id":%q}}`, *record.ClientSessionID)
 	}))
 	defer server.Close()
 	s.FesClientService.baseUrl = server.URL + "/"

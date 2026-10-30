@@ -54,9 +54,6 @@ type App struct {
 	WorkingTaskID *string
 	AttendanceID  *uint
 
-	interruptedSession     bool
-	recoveryRequiresReview bool
-
 	browserTaskEventsMu         sync.Mutex
 	browserTaskEventsCancel     context.CancelFunc
 	browserTaskEventsGeneration uint64
@@ -265,8 +262,6 @@ func (a *App) LoginUser(email string) (*models.OfflineLoginProps, error) {
 	a.AttendanceID = &attendance.ID
 	a.Attendance = attendance
 	a.AuthUser = authUser
-	a.interruptedSession = false
-	a.recoveryRequiresReview = time.Since(attendance.TimeIn) > 16*time.Hour
 	a.SyncService.SetAuthUser(authUser)
 	a.SyncService.Attendance = &a.Attendance
 	a.SyncService.TaskRecord = &a.AuthService.TaskService.TaskRecord
@@ -289,8 +284,6 @@ func (a *App) LoginUserOnline(email string, password string) (*models.Attendance
 	a.AttendanceID = &attendance.ID
 	a.Attendance = attendance
 	a.AuthUser = authUser
-	a.interruptedSession = false
-	a.recoveryRequiresReview = time.Since(attendance.TimeIn) > 16*time.Hour
 
 	a.Connectivity.SetOnline(true)
 	a.AuthService.TaskService.Attendance = &a.Attendance
@@ -383,23 +376,18 @@ func (a *App) RestoreInterruptedSession() (*models.SessionRecovery, error) {
 		return recovery, nil
 	}
 
-	cleanExit := a.SyncService.FesClientService.ConsumeCleanExit(userID)
-	// A clean quit resumes the open shift normally. Only a missing clean-exit
-	// marker represents an interruption that needs the special end-shift review.
-	a.activateRecoveredSession(user, attendance, !cleanExit, false)
+	// Whether the prior process stopped cleanly does not affect the recovered
+	// record. Only an explicit Logout may close a shift or task record.
+	a.SyncService.FesClientService.ConsumeCleanExit(userID)
+	a.activateRecoveredSession(user, attendance)
 	return a.currentSessionRecovery(), nil
-}
-
-func (a *App) GetSessionRecoveryState() *models.SessionRecovery {
-	return a.currentSessionRecovery()
 }
 
 func (a *App) currentSessionRecovery() *models.SessionRecovery {
 	recovery := &models.SessionRecovery{
-		Recovered:      a.interruptedSession,
-		RequiresReview: a.recoveryRequiresReview,
-		Attendance:     a.Attendance,
-		User:           a.AuthUser,
+		Recovered:  a.Attendance != nil && a.AuthUser != nil,
+		Attendance: a.Attendance,
+		User:       a.AuthUser,
 	}
 	if a.WorkingTask != nil {
 		recovery.ActiveTaskID = a.WorkingTask.TaskID
@@ -408,7 +396,7 @@ func (a *App) currentSessionRecovery() *models.SessionRecovery {
 	return recovery
 }
 
-func (a *App) activateRecoveredSession(user *models.User, attendance *models.Attendance, interrupted, requiresReview bool) {
+func (a *App) activateRecoveredSession(user *models.User, attendance *models.Attendance) {
 	if user == nil || attendance == nil {
 		return
 	}
@@ -420,8 +408,6 @@ func (a *App) activateRecoveredSession(user *models.User, attendance *models.Att
 	a.AuthUser = authUser
 	a.Attendance = attendance
 	a.AttendanceID = &attendance.ID
-	a.interruptedSession = interrupted
-	a.recoveryRequiresReview = requiresReview
 	a.Connectivity.SetOnline(true)
 	a.SyncService.SetAuthUser(authUser)
 	a.SyncService.Attendance = &a.Attendance
@@ -443,57 +429,6 @@ func (a *App) activateRecoveredSession(user *models.User, attendance *models.Att
 		}
 	}
 	a.startBrowserTaskEventPolling()
-}
-
-func (a *App) GetInterruptedShiftSummary() (*models.InterruptedShiftSummary, error) {
-	if a.Attendance == nil || (!a.interruptedSession && !a.recoveryRequiresReview) {
-		return nil, nil
-	}
-	records, err := a.AuthService.TaskService.TaskRepository.GetTaskRecordsForAttendance(a.Attendance.ID)
-	if err != nil {
-		return nil, err
-	}
-	summary := &models.InterruptedShiftSummary{AttendanceID: a.Attendance.ID, TimeIn: a.Attendance.TimeIn}
-	for _, record := range records {
-		item := models.InterruptedTaskRecord{
-			ID: record.ID, TaskID: record.TaskID, TaskTitle: record.Task.Title, StartedAt: record.StartedAt,
-			EndedAt: record.EndedAt, Duration: record.Duration, SyncStatus: record.SyncStatus, Open: record.EndedAt == nil,
-		}
-		if item.Open {
-			summary.OpenRecordID = record.ID
-			lastActivity, err := a.AuthService.TaskService.TaskRepository.GetLatestScreenshotTime(record.ID)
-			if err != nil {
-				return nil, err
-			}
-			if lastActivity != nil {
-				summary.SuggestedEnd = lastActivity
-			} else {
-				startedAt := record.StartedAt
-				summary.SuggestedEnd = &startedAt
-			}
-		}
-		summary.Records = append(summary.Records, item)
-	}
-	return summary, nil
-}
-
-// EndInterruptedShift uses the employee-confirmed end time for the final
-// task and the attendance record, then clears the local credential even if a
-// remote sync must be retried later.
-func (a *App) EndInterruptedShift(endedAtISO string) error {
-	if a.Attendance == nil || (!a.interruptedSession && !a.recoveryRequiresReview) {
-		return types.NewStableError("NO_INTERRUPTED_SHIFT", "No interrupted shift is available to close.")
-	}
-	endedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(endedAtISO))
-	if err != nil {
-		return types.NewStableError("INVALID_SHIFT_END", "Choose a valid task-out time.")
-	}
-	if err := a.AuthService.LogoutAt(endedAt); err != nil {
-		return err
-	}
-	a.Connectivity.SetOnline(false)
-	a.clearSessionState()
-	return nil
 }
 
 func (a *App) GetActiveTaskRecord() *string {
@@ -531,190 +466,6 @@ func (a *App) GetActiveTaskRecord() *string {
 	}
 
 	return a.WorkingTaskID
-}
-
-// GetStaleOpenTaskRecords exposes records that need employee-confirmed
-// recovery. They are deliberately separate from the current active timer.
-func (a *App) GetStaleOpenTaskRecords() ([]models.StaleOpenTaskRecord, error) {
-	authUser, err := a.requireAuthenticatedUser()
-	if err != nil {
-		return nil, err
-	}
-	if a.Attendance == nil {
-		return nil, types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
-	}
-
-	records, err := a.AuthService.TaskService.TaskRepository.GetStaleOpenTaskRecords(authUser.LocalID, a.Attendance.ID)
-	if err != nil {
-		return nil, a.stableClientError("get_stale_open_task_records", err)
-	}
-	return records, nil
-}
-
-// GetStaleOpenAttendances returns historical incomplete shifts separately from
-// the current shift, so a legacy record can never block a normal login.
-func (a *App) GetStaleOpenAttendances() ([]models.StaleOpenAttendance, error) {
-	authUser, err := a.requireAuthenticatedUser()
-	if err != nil {
-		return nil, err
-	}
-
-	attendances, err := a.AuthService.AttendanceService.AttendanceRepo.GetStaleOpenAttendances(authUser.LocalID, time.Now().Add(-16*time.Hour))
-	if err != nil {
-		return nil, a.stableClientError("get_stale_open_attendances", err)
-	}
-
-	result := make([]models.StaleOpenAttendance, 0, len(attendances))
-	for _, attendance := range attendances {
-		records, err := a.AuthService.TaskService.TaskRepository.GetTaskRecordsForAttendance(attendance.ID)
-		if err != nil {
-			return nil, a.stableClientError("get_stale_open_attendance_records", err)
-		}
-
-		summary := models.StaleOpenAttendance{ID: attendance.ID, TimeIn: attendance.TimeIn, OpenRecords: make([]models.InterruptedTaskRecord, 0)}
-		suggestedEnd := attendance.TimeIn
-		for _, record := range records {
-			if record.EndedAt != nil {
-				continue
-			}
-			item := models.InterruptedTaskRecord{
-				ID: record.ID, TaskID: record.TaskID, TaskTitle: record.Task.Title, StartedAt: record.StartedAt,
-				Duration: record.Duration, SyncStatus: record.SyncStatus, Open: true,
-			}
-			if item.TaskTitle == "" {
-				item.TaskTitle = item.TaskID
-			}
-			summary.OpenRecords = append(summary.OpenRecords, item)
-			if suggestedEnd.Before(record.StartedAt) {
-				suggestedEnd = record.StartedAt
-			}
-			latestScreenshot, err := a.AuthService.TaskService.TaskRepository.GetLatestScreenshotTime(record.ID)
-			if err != nil {
-				return nil, a.stableClientError("get_stale_open_attendance_screenshot", err)
-			}
-			if latestScreenshot != nil && suggestedEnd.Before(*latestScreenshot) {
-				suggestedEnd = *latestScreenshot
-			}
-		}
-		summary.SuggestedEnd = &suggestedEnd
-		result = append(result, summary)
-	}
-	return result, nil
-}
-
-// ResolveStaleOpenAttendance closes a historical shift locally before
-// attempting best-effort sync. It never changes the current attendance.
-func (a *App) ResolveStaleOpenAttendance(attendanceID uint, endedAtISO string) error {
-	authUser, err := a.requireAuthenticatedUser()
-	if err != nil {
-		return err
-	}
-	if attendanceID == 0 {
-		return types.NewStableError("INVALID_ATTENDANCE", "Choose a historical shift to close.")
-	}
-	if a.Attendance != nil && a.Attendance.ID == attendanceID {
-		return types.NewStableError("CURRENT_ATTENDANCE", "End the current shift from the account menu.")
-	}
-	endedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(endedAtISO))
-	if err != nil {
-		return types.NewStableError("INVALID_SHIFT_END", "Choose a valid shift end time.")
-	}
-	if endedAt.After(time.Now().Add(time.Minute)) {
-		return types.NewStableError("INVALID_SHIFT_END", "Shift end time cannot be in the future.")
-	}
-
-	attendance, err := a.AuthService.AttendanceService.GetAttendanceFromID(attendanceID)
-	if errors.Is(err, gorm.ErrRecordNotFound) || attendance == nil {
-		return types.NewStableError("ATTENDANCE_NOT_FOUND", "The historical shift no longer exists.")
-	}
-	if err != nil {
-		return a.stableClientError("load_stale_open_attendance", err)
-	}
-	if attendance.UserID != authUser.LocalID {
-		return types.NewStableError("ATTENDANCE_OWNERSHIP_DENIED", "You cannot close another employee's shift.")
-	}
-	if attendance.TimeOut != nil {
-		return types.NewStableError("ATTENDANCE_ALREADY_CLOSED", "This historical shift has already been closed.")
-	}
-	if !attendance.TimeIn.Before(time.Now().Add(-16 * time.Hour)) {
-		return types.NewStableError("ATTENDANCE_NOT_STALE", "This is not a historical shift.")
-	}
-	records, err := a.AuthService.TaskService.TaskRepository.GetTaskRecordsForAttendance(attendanceID)
-	if err != nil {
-		return a.stableClientError("load_stale_open_attendance_records", err)
-	}
-	for _, record := range records {
-		if record.EndedAt == nil && endedAt.Before(record.StartedAt) {
-			return types.NewStableError("INVALID_SHIFT_END", "Shift end time must be after every unfinished task started.")
-		}
-	}
-
-	recordIDs, closedAttendance, err := a.AuthService.AttendanceService.AttendanceRepo.CloseStaleAttendanceAt(authUser.LocalID, attendanceID, endedAt)
-	if err != nil {
-		return a.stableClientError("resolve_stale_open_attendance", err)
-	}
-
-	if a.Connectivity.IsOnline() {
-		utils.GoSafe("app.resolve_stale_open_attendance_sync", func() {
-			if err := a.SyncService.SyncAttendance(closedAttendance); err != nil {
-				a.Logger.Warnf("op=resolve_stale_open_attendance_sync_failed attendance_id=%d stage=attendance err=%v", attendanceID, err)
-			}
-			for _, recordID := range recordIDs {
-				if err := a.SyncService.SyncTaskRecord(recordID); err != nil {
-					a.Logger.Warnf("op=resolve_stale_open_attendance_sync_failed attendance_id=%d record_id=%d stage=task err=%v", attendanceID, recordID, err)
-				}
-			}
-		})
-	}
-	return nil
-}
-
-// ResolveStaleOpenTaskRecord closes an older task record without modifying the
-// current attendance. The employee must supply the task-out time explicitly.
-func (a *App) ResolveStaleOpenTaskRecord(taskRecordID uint, endedAtISO string) (*service_classes.StopTrackingResult, error) {
-	authUser, err := a.requireAuthenticatedUser()
-	if err != nil {
-		return nil, err
-	}
-	if a.Attendance == nil {
-		return nil, types.NewStableError("ATTENDANCE_NOT_FOUND", "No active attendance found.")
-	}
-	if taskRecordID == 0 {
-		return nil, types.NewStableError("INVALID_TASK_RECORD", "Choose a valid task record.")
-	}
-	endedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(endedAtISO))
-	if err != nil {
-		return nil, types.NewStableError("INVALID_TASK_OUT", "Choose a valid task-out time.")
-	}
-	if endedAt.After(time.Now().Add(time.Minute)) {
-		return nil, types.NewStableError("INVALID_TASK_OUT", "Task-out time cannot be in the future.")
-	}
-
-	record, err := a.AuthService.TaskService.TaskRepository.GetTaskRecord(taskRecordID)
-	if err != nil || record == nil || record.ID == 0 {
-		if errors.Is(err, gorm.ErrRecordNotFound) || record == nil || record.ID == 0 {
-			return nil, types.NewStableError("TASK_RECORD_NOT_FOUND", "The task record no longer exists.")
-		}
-		return nil, a.stableClientError("load_stale_task_record", err)
-	}
-	if record.UserID != authUser.LocalID {
-		return nil, types.NewStableError("TASK_RECORD_OWNERSHIP_DENIED", "You cannot resolve another employee's task record.")
-	}
-	if record.AttendanceID == a.Attendance.ID {
-		return nil, types.NewStableError("CURRENT_TASK_RECORD", "Stop the current task from its task page.")
-	}
-	if record.EndedAt != nil {
-		return nil, types.NewStableError("TASK_RECORD_ALREADY_CLOSED", "This task record has already been closed.")
-	}
-	if endedAt.Before(record.StartedAt) {
-		return nil, types.NewStableError("INVALID_TASK_OUT", "Task-out time must be after the task started.")
-	}
-
-	result, err := a.AuthService.TaskService.ResolveStaleTaskRecordAt(taskRecordID, endedAt)
-	if err != nil {
-		return nil, a.stableClientError("resolve_stale_task_record", err)
-	}
-	return result, nil
 }
 
 func (a *App) GetLastTaskRecord(taskId string) (*models.TaskRecordWithScreenshots, error) {
@@ -1805,8 +1556,6 @@ func (a *App) clearSessionState() {
 	a.AttendanceID = nil
 	a.AuthUser = nil
 	a.WorkingTask = nil
-	a.interruptedSession = false
-	a.recoveryRequiresReview = false
 
 	if a.SyncService != nil {
 		a.SyncService.SetAuthUser(nil)

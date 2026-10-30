@@ -3,7 +3,6 @@ package service_classes
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -13,10 +12,6 @@ import (
 )
 
 var errTaskStateChanged = errors.New("task changed while synchronizing")
-
-func taskSessionIdempotencyEnabled() bool {
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("FES_TASK_SESSION_IDEMPOTENCY_ENABLED")), "true")
-}
 
 // Legacy rows with previous attempts may already exist remotely. Giving those
 // rows a fresh key and posting again would merely give the duplicate a new name.
@@ -46,16 +41,15 @@ func prepareTaskSessionIdentity(record *models.TaskRecord) error {
 // lost, only a request sent under the verified idempotent contract can replay.
 func recordTaskInDispatch(record *models.TaskRecord) error {
 	if record.TaskInAttemptedAt != nil {
-		if !record.TaskInIdempotent || !taskSessionIdempotencyEnabled() {
+		if !record.TaskInIdempotent {
 			return fmt.Errorf("%w: task start may already exist in Bubble; verify it before retrying", errSyncBlocked)
 		}
 		return nil
 	}
 	now := time.Now()
-	idempotent := taskSessionIdempotencyEnabled()
 	result := db.DB.Model(&models.TaskRecord{}).
 		Where("id = ? AND task_in_attempted_at IS NULL", record.ID).
-		Updates(map[string]any{"task_in_attempted_at": now, "task_in_idempotent": idempotent})
+		Updates(map[string]any{"task_in_attempted_at": now, "task_in_idempotent": true})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -63,7 +57,7 @@ func recordTaskInDispatch(record *models.TaskRecord) error {
 		return errTaskStateChanged
 	}
 	record.TaskInAttemptedAt = &now
-	record.TaskInIdempotent = idempotent
+	record.TaskInIdempotent = true
 	return nil
 }
 

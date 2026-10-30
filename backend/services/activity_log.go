@@ -64,12 +64,15 @@ func GetAttendanceAndRecords(dateStr, userID string) ([]models.ActivityLogRecord
 	for _, attendance := range foundAttendance {
 		var records []models.TaskRecord
 
-		if err := db.DB.Where("attendance_id = ?", attendance.ID).Order("started_at ASC").Find(&records).Error; err != nil {
+		if err := db.DB.Preload("Task.Client").Where("attendance_id = ?", attendance.ID).Order("started_at ASC").Find(&records).Error; err != nil {
 			utils.Logger.Printf("activity_log: error fetching records for attendance_id=%d err=%v", attendance.ID, err)
 			continue
 		}
 		if err := decorateTaskRecordsWithPendingScreenshotCounts(records); err != nil {
 			utils.Logger.Printf("activity_log: failed counting pending screenshots for attendance_id=%d err=%v", attendance.ID, err)
+		}
+		for i := range records {
+			records[i].SetTaskLabel()
 		}
 
 		timeOutStr := "<nil>"

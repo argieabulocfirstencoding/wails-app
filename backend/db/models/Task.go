@@ -30,7 +30,7 @@ func (t *Task) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 func (t Task) ToExpTask() ExpTask {
-	title := taskDisplayTitle(t.Client.Fullname, t.Title, t.ProjectName)
+	title := t.DisplayLabel()
 	return ExpTask{
 		TaskID: t.TaskID,
 		Title:  title,
@@ -41,7 +41,7 @@ func (t Task) ToExpTask() ExpTask {
 func ToExpTasks(tasks []Task) []ExpTask {
 	exp := make([]ExpTask, len(tasks))
 	for i, t := range tasks {
-		title := taskDisplayTitle(t.Client.Fullname, t.Title, t.ProjectName)
+		title := t.DisplayLabel()
 		exp[i] = ExpTask{
 			TaskID: t.TaskID,
 			Title:  title,
@@ -49,6 +49,12 @@ func ToExpTasks(tasks []Task) []ExpTask {
 		}
 	}
 	return exp
+}
+
+// DisplayLabel is the consistent user-facing task identity used across task,
+// activity, and conflict views.
+func (t Task) DisplayLabel() string {
+	return taskDisplayTitle(t.Client.Fullname, t.Title, t.ProjectName)
 }
 
 func taskDisplayTitle(clientName, title, projectName string) string {

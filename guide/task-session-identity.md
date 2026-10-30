@@ -42,9 +42,7 @@ The desktop first reconciles by Bubble Productivity ID, then by the employee-sco
 
 ## Rollout and staging gate
 
-The desktop sends `client_session_id` to `wf/task_in` only when `FES_TASK_SESSION_IDEMPOTENCY_ENABLED=true`. The default is disabled. With the flag off, a request whose response is lost is marked as uncertain and cannot be automatically replayed, which prevents an unsafe duplicate.
-
-Enable the flag only after all staging checks pass:
+The desktop always sends `client_session_id` to `wf/task_in` and requires the same value in the response. Do not deploy a desktop build with this behavior until the Bubble workflow passes all staging checks:
 
 1. Submit the same authenticated employee/key concurrently at least ten times; confirm one Productivity exists and every response returns its same ID.
 2. Repeat the key after deliberately dropping the first response; confirm the retry returns the original ID and does not create a second record.
@@ -54,4 +52,4 @@ Enable the flag only after all staging checks pass:
 6. Fetch browser records and confirm `client_session_id` is returned exactly for the record created by `wf/task_in`.
 7. Run the desktop staging scenarios: response loss followed by restart, Stop while task-in is delayed, browser reconciliation before and after Stop, and a timestamp-only collision. Confirm there is one remote Productivity and no local automatic merge for the collision.
 
-Record the Bubble workflow version, staging evidence, and verifier before enabling the flag in production. Leave the flag unset or `false` on all other deployments.
+Record the Bubble workflow version, staging evidence, and verifier before deploying the desktop build to production.

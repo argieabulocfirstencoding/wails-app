@@ -40,9 +40,6 @@ type AuthState = {
   setSynced: (synced: boolean) => void;
   initializedTask: boolean;
   setInitializedTask: (initialized: boolean) => void;
-  recoveredSession: boolean;
-  recoveryRequiresReview: boolean;
-  setRecoveryState: (recovered: boolean, requiresReview: boolean) => void;
 };
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -54,8 +51,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   synced: false,
   attendanceSynced: false,
   initializedTask: false,
-  recoveredSession: false,
-  recoveryRequiresReview: false,
   tasks: [],
   summaries: [],
   attendance: undefined,
@@ -79,10 +74,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       synced: false,
       attendanceSynced: false,
       initializedTask: false,
-      recoveredSession: false,
-      recoveryRequiresReview: false,
     }),
   setInitializedTask: (initializedTask) => set({ initializedTask }),
-  setRecoveryState: (recoveredSession, recoveryRequiresReview) =>
-    set({ recoveredSession, recoveryRequiresReview }),
 }));
