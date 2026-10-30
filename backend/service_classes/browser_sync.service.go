@@ -194,36 +194,44 @@ func (s *SyncService) syncBrowserRecordsNow() (*BrowserSyncResult, error) {
 
 			attendance := attendanceByRemoteID[remote.AttendanceID]
 			attendanceLinkRecovered := false
-			if attendance == nil && remote.AttendanceID == "" && !remote.AttendanceTime.IsZero() {
-				attendance = attendanceByTime(attendanceByRemoteID, remote.AttendanceTime)
-				if attendance == nil {
-					localAttendance, err := findAttendanceByTime(tx, s.AuthUser.LocalID, remote.AttendanceTime)
-					if err == nil {
-						attendance = localAttendance
-					} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-						return err
-					}
-				}
-				attendanceLinkRecovered = attendance != nil
-			}
-			if attendance == nil {
-				if remote.AttendanceID == "" {
-					result.Skipped++
-					result.SkippedMissingAttendance++
-					result.SkippedRows = append(result.SkippedRows, skippedBrowserRow(remote, "missing Login - Logout reference"))
-					continue
-				}
-				var err error
-				attendance, err = findAttendanceByRemoteID(tx, s.AuthUser.LocalID, remote.AttendanceID)
-				if err != nil {
-					if errors.Is(err, gorm.ErrRecordNotFound) {
-						result.Skipped++
-						result.SkippedMissingAttendance++
-						result.SkippedRows = append(result.SkippedRows, skippedBrowserRow(remote, "Login - Logout reference was not returned by Bubble attendance history"))
-						continue
-					}
+			if attendance == nil && remote.AttendanceID != "" {
+				localAttendance, err := findAttendanceByRemoteID(tx, s.AuthUser.LocalID, remote.AttendanceID)
+				if err == nil {
+					attendance = localAttendance
+				} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 					return err
 				}
+			}
+			if attendance == nil {
+				if remote.AttendanceID == "" && !remote.AttendanceTime.IsZero() {
+					attendance = attendanceByTime(attendanceByRemoteID, remote.AttendanceTime)
+					if attendance == nil {
+						localAttendance, err := findAttendanceByTime(tx, s.AuthUser.LocalID, remote.AttendanceTime)
+						if err == nil {
+							attendance = localAttendance
+						} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+							return err
+						}
+					}
+				}
+			}
+			if attendance == nil {
+				localAttendance, unique, err := findSingleAttendanceContainingTime(tx, s.AuthUser.LocalID, remote.StartedAt)
+				if err != nil {
+					return err
+				}
+				if unique {
+					attendance = localAttendance
+				}
+			}
+			if attendance == nil {
+				result.Skipped++
+				result.SkippedMissingAttendance++
+				result.SkippedRows = append(result.SkippedRows, skippedBrowserRow(remote, "no uniquely containing local Login - Logout session"))
+				continue
+			}
+			if remote.AttendanceID == "" || attendanceByRemoteID[remote.AttendanceID] == nil {
+				attendanceLinkRecovered = true
 			}
 			if attendanceLinkRecovered {
 				result.RecoveredAttendanceLinks++
@@ -700,6 +708,22 @@ func findAttendanceByTime(tx *gorm.DB, userID string, timeIn time.Time) (*models
 		return nil, err
 	}
 	return &attendance, nil
+}
+
+// findSingleAttendanceContainingTime returns an attendance only when one local
+// login/logout session contains the Bubble task start. Returning no match for
+// overlaps prevents a productivity record from jumping between shifts.
+func findSingleAttendanceContainingTime(tx *gorm.DB, userID string, taskStartedAt time.Time) (*models.Attendance, bool, error) {
+	var attendances []models.Attendance
+	if err := tx.Where("user_id = ? AND time_in <= ? AND (time_out IS NULL OR time_out >= ?)", userID, taskStartedAt, taskStartedAt).
+		Limit(2).
+		Find(&attendances).Error; err != nil {
+		return nil, false, err
+	}
+	if len(attendances) != 1 {
+		return nil, false, nil
+	}
+	return &attendances[0], true, nil
 }
 
 // findAttendanceIdentityCandidate deliberately uses only an exact instant as a

@@ -359,6 +359,45 @@ func TestReconcileLocalProductivityPresenceRestoresRemoteMissingRecord(t *testin
 	}
 }
 
+func TestFindSingleAttendanceContainingTimeRequiresOneMatchingSession(t *testing.T) {
+	database, user, _ := setupBrowserSyncTestDB(t)
+	start := time.Now().Add(-6 * time.Hour).Round(time.Millisecond)
+	end := start.Add(4 * time.Hour)
+	attendance := &models.Attendance{UserID: user.ID, TimeIn: start, TimeOut: &end, SyncStatus: syncStateSynced}
+	if err := database.Create(attendance).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	matched, unique, err := findSingleAttendanceContainingTime(database, user.ID, start.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !unique || matched == nil || matched.ID != attendance.ID {
+		t.Fatalf("expected the containing attendance, got unique=%t attendance=%#v", unique, matched)
+	}
+
+	matched, unique, err = findSingleAttendanceContainingTime(database, user.ID, end.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unique || matched != nil {
+		t.Fatalf("expected no out-of-session attendance, got unique=%t attendance=%#v", unique, matched)
+	}
+
+	overlapStart := start.Add(30 * time.Minute)
+	overlapEnd := end.Add(time.Hour)
+	if err := database.Create(&models.Attendance{UserID: user.ID, TimeIn: overlapStart, TimeOut: &overlapEnd, SyncStatus: syncStateSynced}).Error; err != nil {
+		t.Fatal(err)
+	}
+	matched, unique, err = findSingleAttendanceContainingTime(database, user.ID, start.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unique || matched != nil {
+		t.Fatalf("expected overlapping sessions to remain unmatched, got unique=%t attendance=%#v", unique, matched)
+	}
+}
+
 func TestParseBubbleProductivitiesKeepsLegacyRowWithoutAttendanceID(t *testing.T) {
 	attendanceTime := time.Now().Add(-time.Hour).Round(time.Millisecond)
 	startedAt := attendanceTime.Add(5 * time.Minute)
