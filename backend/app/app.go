@@ -906,6 +906,46 @@ func (a *App) ResyncTaskRecord(taskrecordId uint) error {
 	return nil
 }
 
+// GetLegacyTaskRecoveryCandidates returns Bubble sessions that an authenticated
+// user may explicitly link to an identity-less legacy task record.
+func (a *App) GetLegacyTaskRecoveryCandidates(taskrecordID uint) ([]service_classes.LegacyTaskRecoveryCandidate, error) {
+	user, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return nil, err
+	}
+	candidates, err := a.SyncService.GetLegacyTaskRecoveryCandidates(taskrecordID)
+	if err != nil {
+		return nil, a.stableClientError("legacy_task_recovery_candidates", types.WrapOperation("legacy_task_recovery.candidates", taskrecordID, user.LocalID, err))
+	}
+	return candidates, nil
+}
+
+// LinkLegacyTaskRecovery explicitly associates an identity-less local task
+// record with the Bubble productivity session chosen by its owner.
+func (a *App) LinkLegacyTaskRecovery(taskrecordID uint, productivityID string) error {
+	user, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return err
+	}
+	if err := a.SyncService.LinkLegacyTaskRecovery(taskrecordID, productivityID); err != nil {
+		return a.stableClientError("legacy_task_recovery_link", types.WrapOperation("legacy_task_recovery.link", taskrecordID, user.LocalID, err))
+	}
+	return nil
+}
+
+// CreateLegacyTaskRecovery is deliberately separate from ordinary resync. The
+// UI exposes it only after the user confirms that Bubble has no matching task.
+func (a *App) CreateLegacyTaskRecovery(taskrecordID uint) error {
+	user, err := a.requireAuthenticatedUser()
+	if err != nil {
+		return err
+	}
+	if err := a.SyncService.CreateLegacyTaskRecovery(taskrecordID); err != nil {
+		return a.stableClientError("legacy_task_recovery_create", types.WrapOperation("legacy_task_recovery.create", taskrecordID, user.LocalID, err))
+	}
+	return nil
+}
+
 // ForceSyncTaskRecord is the explicit, confirmation-gated UI action for
 // re-sending a selected local productivity record to Bubble.
 func (a *App) ForceSyncTaskRecord(taskrecordId uint) error {

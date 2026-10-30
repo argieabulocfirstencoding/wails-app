@@ -120,6 +120,12 @@ func migrationCatalog() []catalogMigration {
 			Plan:        planSyncConflictMigration,
 			Migrate:     ensureSyncConflictSchema,
 		},
+		{
+			ID:          "20261031_011_task_recovery_audits",
+			Description: "create legacy task recovery audit trail",
+			Plan:        planTaskRecoveryAuditMigration,
+			Migrate:     ensureTaskRecoveryAuditSchema,
+		},
 	}
 }
 

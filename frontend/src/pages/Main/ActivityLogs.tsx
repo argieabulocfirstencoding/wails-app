@@ -14,10 +14,13 @@ import AppFooterInfo from "@/components/custom/AppFooterInfo";
 import { models } from "@/../wailsjs/go/models";
 import {
   GetActivityLogRecord,
+  GetLegacyTaskRecoveryCandidates,
   GetOpenSyncConflicts,
   GetTotalClientRecords,
+  LinkLegacyTaskRecovery,
   ResyncTaskRecord,
   ResolveSyncConflict,
+  CreateLegacyTaskRecovery,
   SyncAttendanceByID,
 } from "@/../wailsjs/go/app/App";
 import {
@@ -46,6 +49,22 @@ type SyncConflict = {
   UpdatedAt: unknown;
   taskLabel?: string;
 };
+
+type LegacyRecoveryCandidate = {
+  productivityId: string;
+  clientSessionId: string;
+  startedAt: unknown;
+  endedAt?: unknown;
+  duration: number;
+  notes: string;
+  padagan: boolean;
+};
+
+const isLegacyRecoveryBlocked = (record: models.TaskRecord): boolean =>
+  record.SyncStatus?.toLowerCase() === "blocked" &&
+  !record.Productivity &&
+  !record.ClientSessionID &&
+  (record.LastError || "").toLowerCase().includes("legacy task start has an uncertain remote result");
 
 const conflictFields = (conflict: SyncConflict): ConflictField[] => {
   try {
@@ -230,6 +249,13 @@ const ActivityLogs = () => {
   const [fieldSelections, setFieldSelections] = useState<Record<string, "bubble" | "local">>({});
   const [resolvingConflict, setResolvingConflict] = useState(false);
   const [conflictError, setConflictError] = useState("");
+  const [recoveryRecord, setRecoveryRecord] = useState<models.TaskRecord | null>(null);
+  const [recoveryCandidates, setRecoveryCandidates] = useState<LegacyRecoveryCandidate[]>([]);
+  const [selectedRecoveryID, setSelectedRecoveryID] = useState("");
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
+  const [confirmRecoveryCreate, setConfirmRecoveryCreate] = useState(false);
   const { summaries, setSummary, tasks, online } = useAuthStore();
 
   const loadActivityData = useCallback(
@@ -345,6 +371,55 @@ const ActivityLogs = () => {
       setConflictError(getErrorMessage(error));
     } finally {
       setResolvingConflict(false);
+    }
+  };
+
+  const openLegacyRecovery = async (record: models.TaskRecord) => {
+    if (!online) return;
+    setRecoveryRecord(record);
+    setRecoveryCandidates([]);
+    setSelectedRecoveryID("");
+    setRecoveryError("");
+    setConfirmRecoveryCreate(false);
+    setRecoveryLoading(true);
+    try {
+      const candidates = await GetLegacyTaskRecoveryCandidates(record.ID);
+      setRecoveryCandidates((candidates ?? []) as LegacyRecoveryCandidate[]);
+    } catch (error) {
+      setRecoveryError(getErrorMessage(error));
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
+  const linkLegacyRecovery = async () => {
+    if (!recoveryRecord || !selectedRecoveryID) return;
+    setRecoverySubmitting(true);
+    setRecoveryError("");
+    try {
+      await LinkLegacyTaskRecovery(recoveryRecord.ID, selectedRecoveryID);
+      setRecoveryRecord(null);
+      await loadActivityData(date);
+    } catch (error) {
+      setRecoveryError(getErrorMessage(error));
+    } finally {
+      setRecoverySubmitting(false);
+    }
+  };
+
+  const createLegacyRecovery = async () => {
+    if (!recoveryRecord) return;
+    setRecoverySubmitting(true);
+    setRecoveryError("");
+    try {
+      await CreateLegacyTaskRecovery(recoveryRecord.ID);
+      setRecoveryRecord(null);
+      await loadActivityData(date);
+    } catch (error) {
+      setRecoveryError(getErrorMessage(error));
+    } finally {
+      setRecoverySubmitting(false);
+      setConfirmRecoveryCreate(false);
     }
   };
 
@@ -650,6 +725,8 @@ const ActivityLogs = () => {
                             pendingScreenshotCount > 0 ? "warning" : undefined
                           }
                           resyncAllowed={true}
+                          canRecoverLegacy={isLegacyRecoveryBlocked(record)}
+                          onRecoverLegacy={() => void openLegacyRecovery(record)}
                           onSync={() =>
                             requestSync("task", record.ID, key, "Task Recorded")
                           }
@@ -785,6 +862,68 @@ const ActivityLogs = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={!!recoveryRecord}
+        onOpenChange={(open) => {
+          if (!open && !recoverySubmitting) setRecoveryRecord(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Recover legacy task</DialogTitle>
+            <DialogDescription>
+              This task was recorded by an older app version without a durable Bubble session ID. Link an existing Bubble task only if it is the same work session.
+            </DialogDescription>
+          </DialogHeader>
+          {recoveryLoading ? (
+            <p className="text-sm text-neutral-500">Checking Bubble task sessions...</p>
+          ) : (
+            <div className="max-h-[48vh] overflow-y-auto space-y-3 py-2">
+              {recoveryCandidates.map((candidate) => (
+                <label key={candidate.productivityId} className="block cursor-pointer rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+                  <input
+                    type="radio"
+                    name="legacy-recovery-candidate"
+                    value={candidate.productivityId}
+                    checked={selectedRecoveryID === candidate.productivityId}
+                    onChange={() => setSelectedRecoveryID(candidate.productivityId)}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium">{formatTimestamp(candidate.startedAt).date} {formatTimestamp(candidate.startedAt).time}</span>
+                  <p className="ml-5 text-xs text-neutral-500">Duration: {secondsToHHMM(candidate.duration)} hrs{candidate.endedAt ? ` · Ended ${formatTimestamp(candidate.endedAt).time}` : " · Still active"}</p>
+                  {candidate.notes && <p className="ml-5 text-xs text-neutral-500">{candidate.notes}</p>}
+                </label>
+              ))}
+              {recoveryCandidates.length === 0 && !recoveryError && (
+                <p className="text-sm text-neutral-500">No matching Bubble task was found for this attendance session and task.</p>
+              )}
+              {recoveryError && <p className="text-xs text-rose-600 dark:text-rose-400">{recoveryError}</p>}
+              {confirmRecoveryCreate && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                  A new Bubble task will be created from this local record. Use this only after confirming there is no matching Bubble session.
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecoveryRecord(null)} disabled={recoverySubmitting}>Cancel</Button>
+            {selectedRecoveryID ? (
+              <Button onClick={linkLegacyRecovery} disabled={recoveryLoading || recoverySubmitting}>
+                {recoverySubmitting ? "Linking..." : "Link selected Bubble task"}
+              </Button>
+            ) : confirmRecoveryCreate ? (
+              <Button onClick={createLegacyRecovery} disabled={recoveryLoading || recoverySubmitting}>
+                {recoverySubmitting ? "Creating..." : "Confirm and create Bubble task"}
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setConfirmRecoveryCreate(true)} disabled={recoveryLoading}>
+                No matching session — create task
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SettingsLayout>
   );
 };
@@ -802,6 +941,8 @@ type ActivityBannerProps = {
   statusTone?: "success" | "warning" | "danger";
   resyncAllowed?: boolean;
   resyncBlockedReason?: string;
+  canRecoverLegacy?: boolean;
+  onRecoverLegacy?: () => void;
   onSync: () => void;
 };
 
@@ -818,6 +959,8 @@ function ActivityBanner({
   statusTone,
   resyncAllowed = true,
   resyncBlockedReason = "Resync is no longer available for this entry.",
+  canRecoverLegacy = false,
+  onRecoverLegacy,
   onSync,
 }: ActivityBannerProps) {
   const eventTime = formatTimestamp(isoTime);
@@ -937,6 +1080,16 @@ function ActivityBanner({
           <RotateCcw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? "Syncing..." : requiresReview ? "Review required" : "Resync"}
         </button>
+        {canRecoverLegacy && onRecoverLegacy && (
+          <button
+            onClick={onRecoverLegacy}
+            disabled={syncing}
+            className="inline-flex items-center gap-1 rounded-full border border-amber-400 px-2 py-1 text-[10px] font-medium text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 disabled:opacity-60 cursor-pointer"
+            title="Review Bubble sessions and recover this legacy task record"
+          >
+            Recover task
+          </button>
+        )}
       </div>
     </div>
   );
