@@ -233,10 +233,10 @@ const ProfileBar = () => {
         syncUser.email || "",
         syncUser.password || "",
       );
-      if (loginResult?.Status === "attendance_selection_required") {
+      if (loginResult?.status === "attendance_selection_required") {
         throw new Error("Choose an open Bubble shift from the sign-in screen before syncing this account.");
       }
-      const attendance = loginResult?.Attendance;
+      const attendance = loginResult?.attendance;
       if (!attendance) throw new Error("Login did not return an attendance session.");
       console.log("Auth Response: ", loginResult);
 

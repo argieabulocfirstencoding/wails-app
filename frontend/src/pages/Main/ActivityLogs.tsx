@@ -253,6 +253,7 @@ const ActivityLogs = () => {
   const [recoveryMessage, setRecoveryMessage] = useState("");
   const [recoveryAction, setRecoveryAction] = useState<"review" | "confirm_create" | null>(null);
   const { summaries, setSummary, tasks, online } = useAuthStore();
+  const visibleConflicts = conflicts.filter((conflict) => conflict.Status !== "stale");
 
   const loadActivityData = useCallback(
     async (targetDate: Date) => {
@@ -567,16 +568,16 @@ const ActivityLogs = () => {
           </section>
         )}
 
-        {conflicts.length > 0 && (
+        {visibleConflicts.length > 0 && (
           <section className="rounded-2xl border border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10 overflow-hidden">
             <div className="px-6 py-3 border-b border-amber-200 dark:border-amber-900/50 flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300">
                 Sync conflicts requiring review
               </span>
-              <span className="text-xs text-amber-700 dark:text-amber-300">{conflicts.length}</span>
+              <span className="text-xs text-amber-700 dark:text-amber-300">{visibleConflicts.length}</span>
             </div>
             <div className="divide-y divide-amber-200 dark:divide-amber-900/50">
-              {conflicts.map((conflict) => {
+              {visibleConflicts.map((conflict) => {
                 const fields = conflictFields(conflict);
                 const identityConflict = conflict.Status === "identity_conflict";
                 const staleConflict = conflict.Status === "stale";

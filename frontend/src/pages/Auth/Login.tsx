@@ -65,7 +65,7 @@ const Login = () => {
   const [attendanceCandidates, setAttendanceCandidates] = useState<any[]>([]);
 
   async function finishLogin(result: any) {
-    const attendance = result?.Attendance;
+    const attendance = result?.attendance;
     if (!attendance) throw new Error("Login did not return an attendance session.");
     useAuthStore.getState().setUser({ uid: attendance.UserID, email, offline: !online });
     if (useAuthStore.getState().user) {
@@ -96,8 +96,8 @@ const Login = () => {
         return;
       }
 
-      if (result?.Status === "attendance_selection_required") {
-        setAttendanceCandidates(result.Candidates || []);
+      if (result?.status === "attendance_selection_required") {
+        setAttendanceCandidates(result.candidates || []);
         return;
       }
       setLoadingMsg("Syncing account…");
@@ -174,9 +174,9 @@ const Login = () => {
               <p className="font-medium">Choose the Bubble shift to resume</p>
               <p className="text-xs text-muted-foreground">More than one open shift was found in the last 16 hours.</p>
               {attendanceCandidates.map((candidate) => (
-                <Button key={candidate.RemoteID} type="button" variant="outline" className="h-auto w-full justify-start py-2 text-left" onClick={() => selectAttendance(candidate.RemoteID)}>
-                  <span>{new Date(candidate.TimeIn).toLocaleString()}</span>
-                  {candidate.ActiveTaskLabel && <span className="ml-2 text-xs text-muted-foreground">• {candidate.ActiveTaskLabel}</span>}
+                <Button key={candidate.remoteId} type="button" variant="outline" className="h-auto w-full justify-start py-2 text-left" onClick={() => selectAttendance(candidate.remoteId)}>
+                  <span>{new Date(candidate.timeIn).toLocaleString()}</span>
+                  {candidate.activeTaskLabel && <span className="ml-2 text-xs text-muted-foreground">• {candidate.activeTaskLabel}</span>}
                 </Button>
               ))}
             </div>
