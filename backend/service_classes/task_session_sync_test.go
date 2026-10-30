@@ -153,7 +153,7 @@ func TestLegacyTaskStartResyncVerifiesAbsenceBeforeReplay(t *testing.T) {
 	}
 }
 
-func TestLegacyTaskStartResyncDoesNotReplayAfterIncompleteBubbleVerification(t *testing.T) {
+func TestLegacyTaskStartResyncReplaysWithSameKeyAfterIncompleteBrowserVerification(t *testing.T) {
 	s, _, _, record := sessionSyncFixture(t)
 	now := time.Now()
 	if err := db.DB.Model(record).Updates(map[string]any{
@@ -169,12 +169,12 @@ func TestLegacyTaskStartResyncDoesNotReplayAfterIncompleteBubbleVerification(t *
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/wf/sync_attendance_prod":
-			// A malformed productivity row means the collection cannot prove
-			// this session is absent.
+			// An unrelated malformed row must not prevent the target session
+			// from being retried through Bubble's create-or-return contract.
 			_, _ = w.Write([]byte(`{"response":{"employee_login_logout":[],"employee_prods":[{}]}}`))
 		case "/wf/task_in":
 			taskInCalls++
-			_, _ = w.Write([]byte(`{"response":{}}`))
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"response":{"productivity":"productivity-replayed","client_session_id":%q}}`, *record.ClientSessionID)))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -183,16 +183,15 @@ func TestLegacyTaskStartResyncDoesNotReplayAfterIncompleteBubbleVerification(t *
 	s.FesClientService.baseUrl = server.URL + "/"
 	s.FesClientService.client = server.Client()
 
-	err := s.syncTaskRecordNow(context.Background(), record.ID, true)
-	if !errors.Is(err, errSyncBlocked) {
-		t.Fatalf("expected incomplete Bubble verification to block replay, got %v", err)
+	if err := s.syncTaskRecordNow(context.Background(), record.ID, true); err != nil {
+		t.Fatalf("expected same-key replay after incomplete browser verification, got %v", err)
 	}
-	if taskInCalls != 0 {
-		t.Fatalf("task-in calls = %d, want 0 when verification is incomplete", taskInCalls)
+	if taskInCalls != 1 {
+		t.Fatalf("task-in calls = %d, want 1 through the idempotent contract", taskInCalls)
 	}
 	stored := storedSession(t, record.ID)
-	if stored.TaskInIdempotent {
-		t.Fatalf("incomplete verification incorrectly authorized replay: %#v", stored)
+	if !stored.TaskInIdempotent || stored.Productivity == nil || *stored.Productivity != "productivity-replayed" {
+		t.Fatalf("same-key replay was not persisted: %#v", stored)
 	}
 }
 

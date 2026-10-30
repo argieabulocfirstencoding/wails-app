@@ -75,9 +75,9 @@ func legacyTaskStartNeedsRecovery(record *models.TaskRecord) bool {
 		strings.TrimSpace(*record.ClientSessionID) != ""
 }
 
-// authorizeLegacyTaskInReplay records that a complete authenticated Bubble
-// reconciliation found no record for this durable session ID.  From then on,
-// task_in may be replayed with the same key under the idempotent contract.
+// authorizeLegacyTaskInReplay records that this legacy dispatch may be retried
+// with its original durable session ID.  Bubble's task_in contract creates or
+// returns the same record for that key, so a replay cannot create a duplicate.
 func authorizeLegacyTaskInReplay(record *models.TaskRecord) error {
 	if !legacyTaskStartNeedsRecovery(record) {
 		return nil

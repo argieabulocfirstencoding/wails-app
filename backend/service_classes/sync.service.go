@@ -351,10 +351,11 @@ func (s *SyncService) syncTaskRecordNow(ctx context.Context, taskRecordId uint, 
 }
 
 // recoverLegacyTaskStart turns a rollout-era, non-retryable dispatch marker
-// into an idempotent replay only after the authenticated Bubble collection has
-// been reconciled.  A matching ClientSessionID links the existing Bubble row;
-// a complete, conflict-free no-match result permits one replay using that same
-// session ID.  Incomplete or conflicting remote data remains blocked.
+// into an idempotent replay using its original client session ID. A matching
+// ClientSessionID first links the existing Bubble row. A direct identity
+// conflict for this record remains blocked; unrelated malformed/conflicting
+// rows in the browser collection do not prevent Bubble's task_in endpoint
+// from safely create-or-returning the record for this same key.
 func (s *SyncService) recoverLegacyTaskStart(taskRecord *models.TaskRecord) (*models.TaskRecord, error) {
 	if !legacyTaskStartNeedsRecovery(taskRecord) {
 		return taskRecord, nil
@@ -372,11 +373,11 @@ func (s *SyncService) recoverLegacyTaskStart(taskRecord *models.TaskRecord) (*mo
 	if taskRecordHasRemoteProductivity(recovered) {
 		return recovered, nil
 	}
-	if result.VerificationSkipped {
-		return recovered, fmt.Errorf("%w: could not verify the original task start in Bubble; review required", errSyncBlocked)
-	}
 	if recovered.SyncStatus == syncStateIdentityConflict {
 		return recovered, fmt.Errorf("%w: task session identity is unresolved; review required", errSyncBlocked)
+	}
+	if result.VerificationSkipped {
+		s.Logger.Warnf("op=legacy_task_start_replay_verification_incomplete record_id=%d warning=%q skipped_malformed=%d conflicts=%d action=idempotent_replay", recovered.ID, result.VerificationWarning, result.SkippedMalformed, result.Conflicts)
 	}
 	if err := authorizeLegacyTaskInReplay(recovered); err != nil {
 		return recovered, err
